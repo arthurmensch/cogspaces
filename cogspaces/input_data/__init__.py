@@ -11,40 +11,13 @@ from sklearn.utils import gen_batches
 
 from cogspaces import get_output_dir
 from cogspaces.datasets import fetch_la5c, fetch_human_voice, fetch_brainomics, \
-    fetch_hcp, fetch_archi, get_data_dirs
+    fetch_hcp, fetch_archi, get_data_dirs, fetch_craddock_parcellation, \
+    fetch_atlas_modl
 from cogspaces.datasets.contrasts import fetch_camcan
 
 import numpy as np
 
 from cogspaces.model import make_projection_matrix
-
-
-def unmask(dataset, output_dir=None,
-           n_jobs=1, batch_size=1000):
-    if dataset == 'hcp':
-        fetch_data = fetch_hcp
-    elif dataset == 'archi':
-        fetch_data = fetch_archi
-    elif dataset == 'brainomics':
-        fetch_data = fetch_brainomics
-    elif dataset == 'la5c':
-        fetch_data = fetch_la5c
-    elif dataset == 'human_voice':
-        fetch_data = fetch_human_voice
-    elif dataset == 'camcan':
-        fetch_data = fetch_camcan
-    else:
-        raise ValueError
-
-    imgs = fetch_data()
-    if dataset == 'hcp':
-        imgs = imgs.contrasts
-    mask = fetch_hcp(n_subjects=1).mask
-
-    artifact_dir = join(get_output_dir(output_dir), dataset)
-
-    create_raw_contrast_data(imgs, mask, artifact_dir, n_jobs=n_jobs,
-                             batch_size=batch_size)
 
 
 def create_raw_contrast_data(imgs, mask, raw_dir,
@@ -95,16 +68,44 @@ def build_design(datasets, datasets_dir, n_subjects):
     return X, masker
 
 
+def unmask(dataset, output_dir=None,
+           n_jobs=1, batch_size=1000):
+    if dataset == 'hcp':
+        fetch_data = fetch_hcp
+    elif dataset == 'archi':
+        fetch_data = fetch_archi
+    elif dataset == 'brainomics':
+        fetch_data = fetch_brainomics
+    elif dataset == 'la5c':
+        fetch_data = fetch_la5c
+    elif dataset == 'human_voice':
+        fetch_data = fetch_human_voice
+    elif dataset == 'camcan':
+        fetch_data = fetch_camcan
+    else:
+        raise ValueError
+
+    imgs = fetch_data()
+    if dataset == 'hcp':
+        imgs = imgs.contrasts
+    mask = fetch_hcp(n_subjects=1).mask
+
+    artifact_dir = join(get_output_dir(output_dir), 'unmasked', dataset)
+
+    create_raw_contrast_data(imgs, mask, artifact_dir, n_jobs=n_jobs,
+                             batch_size=batch_size)
+
+
 def reduce(dataset, output_dir=None, source='hcp_rs_concat'):
+    """Create a reduced version of a given dataset.
+        Unmask must be called beforehand"""
     memory = Memory(cachedir=get_cache_dirs()[0], verbose=2)
     print('Fetch data')
-    this_dataset_dir = join(get_output_dir(output_dir), 'unmask', dataset)
+    this_dataset_dir = join(get_output_dir(output_dir), 'unmasked', dataset)
     masker, X = get_raw_contrast_data(this_dataset_dir)
     print('Retrieve components')
     if source == 'craddock':
-        components = join(get_data_dirs()[0],
-                          'ADHD200_parcellations',
-                          'ADHD200_parcellate_400.nii.gz')
+        components = fetch_craddock_parcellation().parcellate400
         niimgs = masker.inverse_transform(X.values)
         label_masker = NiftiLabelsMasker(labels_img=components,
                                          smoothing_fwhm=0,
@@ -115,24 +116,21 @@ def reduce(dataset, output_dir=None, source='hcp_rs_concat'):
             components = fetch_atlas_msdl()['maps']
             proj = masker.transform(components).T
         elif source in ['hcp_rs', 'hcp_rs_concat']:
+            data = fetch_atlas_modl()
             if source == 'hcp_rs':
-                n_components_list = [64]
+                components_imgs = [data.components256]
             else:
-                n_components_list = [16, 64, 256]
-            components_dir = join(get_data_dirs()[0], 'components',
-                                  'hcp')
-            components_imgs = [join(components_dir,
-                                    str(n_components),
-                                    str("1e-4"),
-                                    'components.nii.gz')
-                               for n_components in n_components_list]
+                components_imgs = [data.components16,
+                                     data.components64,
+                                     data.components256]
             components = masker.transform(components_imgs)
             print('Transform and fit data')
             proj, _ = memory.cache(make_projection_matrix)(components,
-                                                           scale_bases=True, )
+                                                           scale_bases=True)
         Xt = X.dot(proj)
     Xt = pd.DataFrame(data=Xt, index=X.index)
-    this_output_dir = join(get_output_dir(output_dir), 'reduce', dataset)
+    this_output_dir = join(get_output_dir(output_dir), 'reduced',
+                           source, dataset)
     if not os.path.exists(this_output_dir):
         os.makedirs(this_output_dir)
     dump(Xt, join(this_output_dir, 'Xt.pkl'))

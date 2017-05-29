@@ -1,10 +1,11 @@
-from nilearn.datasets.utils import _get_dataset_dir, _fetch_files
+from nilearn.datasets.utils import _fetch_files
 from sklearn.datasets.base import Bunch
+from .utils import _get_dataset_dir
 
 
 def fetch_atlas_modl(data_dir=None, url=None,
                      resume=True, verbose=1):
-    """Download and load the Smith ICA and BrainMap atlas (dated 2009)
+    """Download and load a multi-scale atlas computed using MODL over HCP900.
 
     Parameters
     ----------
@@ -87,7 +88,7 @@ def fetch_atlas_modl(data_dir=None, url=None,
 
 def fetch_craddock_parcellation(data_dir=None, url=None,
                                 resume=True, verbose=1):
-    """Download and load the craddock parcellation
+    """Download and load the craddock parcellation.
 
     Parameters
     ----------
@@ -134,8 +135,7 @@ def fetch_craddock_parcellation(data_dir=None, url=None,
     files_ = _fetch_files(data_dir, files, resume=resume,
                           verbose=verbose)
 
-    fdescr = 'Components computed using the MODL package, at various scale,' \
-             'from HCP900 data'
+    fdescr = 'Components from Craddock clustering atlas'
 
     keys = ['parcellate200', 'parcellate400']
     params = dict(zip(keys, files_))

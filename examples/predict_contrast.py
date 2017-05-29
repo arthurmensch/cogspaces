@@ -1,10 +1,11 @@
 import os
+
 from math import sqrt
-from os.path import join
+from os.path import join, expanduser
 
 import numpy as np
 import pandas as pd
-from keras.callbacks import TensorBoard, Callback
+from keras.callbacks import TensorBoard
 from keras.optimizers import SGD, Adam
 from sacred import Experiment
 from sacred.observers import MongoObserver
@@ -14,7 +15,6 @@ from sklearn.preprocessing import LabelBinarizer, StandardScaler
 from sklearn.utils import gen_batches, check_random_state
 
 from cogspaces import get_output_dir
-from cogspaces.datasets import get_data_dirs
 from cogspaces.model import make_model, init_tensorflow, make_adversaries
 from cogspaces.model_selection import StratifiedGroupShuffleSplit
 
@@ -90,8 +90,7 @@ def train_generator(train_data, batch_size, dataset_weight,
             x_batch[start:stop] = batch_data['X'].values
             y_batch[start:stop] = batch_data['y'].values
             y_oh_batch[start:stop] = batch_data['y_oh'].values
-            sample_weight_batch[start:stop] = np.ones(
-                len_batch)  # * dataset_weight[dataset]
+            sample_weight_batch[start:stop] = np.ones(len_batch)
             start = stop
             if not mix:
                 yield ([x_batch[:stop].copy(), y_batch[:stop].copy()],
@@ -103,22 +102,9 @@ def train_generator(train_data, batch_size, dataset_weight,
                    [sample_weight_batch[:stop]] * 3)
 
 
-class MyCallback(Callback):
-    def on_train_begin(self, logs={}):
-        self.weights = []
-
-    def on_epoch_end(self, epochs, logs={}):
-        weights = self.model.get_layer('latent').get_weights()[0].flat[:10]
-        self.weights.append(weights)
-
-
 @predict_contrast_exp.config
 def config():
-    reduced_dir = join(get_data_dirs()[0], 'pipeline', 'contrast', 'reduced')
-    unmask_dir = join(get_data_dirs()[0], 'pipeline', 'unmask',
-                      'contrast')
-    this_output_dir = join(get_data_dirs()[0], 'pipeline', 'contrast',
-                        'test')
+    output_dir = expanduser('~/output/cogspaces')
     datasets = ['archi', 'hcp']
     test_size = dict(hcp=0.1, archi=0.5, la5c=0.5, brainomics=0.5,
                      camcan=.5,
@@ -157,54 +143,7 @@ def config():
     _seed = 0
 
 
-@predict_contrast_exp.named_config
-def no_latent():
-    latent_dim = None
-    dropout_input = 0.
-    dropout_latent = 0.
-    epochs = 400
-
-
-@predict_contrast_exp.named_config
-def latent_single():
-    datasets = ['archi']
-    epochs = 200
-
-
-@predict_contrast_exp.named_config
-def no_latent_single():
-    datasets = ['archi']
-    latent_dim = None
-    dropout_input = 0.
-    dropout_latent = 0.
-    epochs = 200
-
-
-@predict_contrast_exp.named_config
-def no_geometric():
-    datasets = ['archi']
-    validation = False
-    geometric_reduction = False
-    alpha = 1
-    latent_dim = None
-    activation = 'linear'
-    dropout_input = 0.
-    dropout_latent = 0.
-    batch_size = 300
-    joint_training = True
-    optimizer = 'sgd'
-    epochs = 15
-    depth_weight = [0., 1., 0.]
-    n_jobs = 2
-    verbose = 2
-    seed = 10
-    shared_supervised = False
-    mix_batch = False
-    steps_per_epoch = 100
-    _seed = 0
-
-
-def test_model(prediction):
+def validate(prediction):
     match = prediction['true_label'] == prediction['predicted_label']
     prediction = prediction.assign(match=match)
 
@@ -222,7 +161,6 @@ def test_model(prediction):
 def train_model(alpha,
                 latent_dim,
                 n_subjects,
-                unmask_dir,
                 geometric_reduction,
                 test_size,
                 train_size,
@@ -239,7 +177,6 @@ def train_model(alpha,
                 dataset_weight,
                 steps_per_epoch,
                 depth_weight,
-                reduced_dir,
                 batch_size,
                 output_dir,
                 epochs,
@@ -249,8 +186,12 @@ def train_model(alpha,
                 n_jobs,
                 _run,
                 _seed):
-    output_dir = get_output_dir(output_dir)
-    this_output_dir = join(output_dir, 'contrast')
+    output_dir = get_output_dir(output_dir)[0]
+    artifact_dir = join(output_dir, 'contrast')
+    if not os.path.exists(artifact_dir):
+        os.makedirs(artifact_dir)
+    reduced_dir = join(output_dir, 'reduced')
+    unmask_dir = join(output_dir, 'unmasked')
     if verbose:
         print('Fetch data')
     X = []
@@ -300,7 +241,7 @@ def train_model(alpha,
     y = np.argmax(y_oh, axis=1)
     y_oh = pd.DataFrame(index=X.index, data=y_oh)
     y = pd.DataFrame(index=X.index, data=y)
-    dump(lbin, join(this_output_dir, 'lbin.pkl'))
+    dump(lbin, join(artifact_dir, 'lbin.pkl'))
 
     x_test = X.iloc[test]
     y_test = y.iloc[test]
@@ -336,8 +277,8 @@ def train_model(alpha,
 
     adversaries = make_adversaries(label_pool)
 
-    np.save(join(this_output_dir, 'adversaries'), adversaries)
-    np.save(join(this_output_dir, 'classes'), lbin.classes_)
+    np.save(join(artifact_dir, 'adversaries'), adversaries)
+    np.save(join(artifact_dir, 'classes'), lbin.classes_)
 
     if not geometric_reduction or latent_dim is None:
         model = LogisticRegression(solver='sag',
@@ -373,7 +314,7 @@ def train_model(alpha,
                       optimizer=optimizer,
                       loss_weights=depth_weight,
                       metrics=['accuracy'])
-        callbacks = [TensorBoard(log_dir=join(this_output_dir, 'logs'),
+        callbacks = [TensorBoard(log_dir=join(artifact_dir, 'logs'),
                                  histogram_freq=0,
                                  write_graph=True,
                                  write_images=True),
@@ -454,7 +395,7 @@ def train_model(alpha,
         this_y_pred_oh = y_pred_oh[depth]
         this_y_pred_oh_df = pd.DataFrame(index=X.index,
                                          data=this_y_pred_oh)
-        dump(this_y_pred_oh_df, join(this_output_dir,
+        dump(this_y_pred_oh_df, join(artifact_dir,
                                      'y_pred_depth_%i.pkl' % depth))
         y_pred = lbin.inverse_transform(this_y_pred_oh)  # "0_0_0"
         prediction = pd.DataFrame({'true_label': y_tuple,
@@ -463,15 +404,15 @@ def train_model(alpha,
         prediction = pd.concat([prediction.iloc[train],
                                 prediction.iloc[test]],
                                names=['fold'], keys=['train', 'test'])
-        prediction.to_csv(join(this_output_dir,
+        prediction.to_csv(join(artifact_dir,
                                'prediction_depth_%i.csv' % depth))
-        res = test_model(prediction)
+        res = validate(prediction)
         _run.info['score'][depth_name[depth]] = res
         print('Prediction at depth %s' % depth_name[depth], res)
-        _run.add_artifact(join(this_output_dir,
+        _run.add_artifact(join(artifact_dir,
                                'prediction_depth_%i.csv' % depth),
                           'prediction')
 
     if geometric_reduction and latent_dim is not None:
-        model.save(join(this_output_dir, 'model.keras'))
-        _run.add_artifact(join(this_output_dir, 'model.keras'), 'model')
+        model.save(join(artifact_dir, 'model.keras'))
+        _run.add_artifact(join(artifact_dir, 'model.keras'), 'model')

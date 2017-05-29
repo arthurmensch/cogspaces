@@ -34,9 +34,9 @@ def get_output_dir(data_dir=None):
     # If data_dir has not been specified, then we crawl default locations
     if data_dir is None:
 
-        output_dir = os.getenv('OUTPUT_DIR')
+        output_dir = os.getenv('OUTPUT_COGSPACES_DIR')
         if output_dir is not None:
             paths.extend(output_dir.split(os.pathsep))
 
-        paths.append(os.path.expanduser('~/output'))
+        paths.append(os.path.expanduser('~/output/cogspaces'))
     return paths
