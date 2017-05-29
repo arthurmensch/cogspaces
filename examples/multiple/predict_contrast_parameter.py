@@ -1,6 +1,5 @@
 import sys
 from os import path
-from os.path import join
 
 import numpy as np
 from sacred import Experiment
@@ -14,7 +13,7 @@ from sklearn.utils import check_random_state
 sys.path.append(path.dirname(path.dirname
                              (path.dirname(path.abspath(__file__)))))
 
-from examples.contrast.predict_contrast\
+from examples.predict_contrast \
     import predict_contrast_exp
 
 multi_predict_task = Experiment('predict_contrast_parameter',

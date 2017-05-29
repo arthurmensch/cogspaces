@@ -47,3 +47,11 @@ def get_data_dirs(data_dir=None):
         paths.append(os.path.expanduser('~/modl_data'))
     return paths
 
+
+from .adhd import fetch_adhd
+from .hcp import fetch_hcp
+from .camcan import fetch_camcan
+from .brainomics import fetch_brainomics
+from .human_voice import fetch_human_voice
+from .la5c import fetch_la5c
+from .archi import fetch_archi

@@ -1,6 +1,5 @@
 import sys
 from os import path
-from os.path import join
 
 import numpy as np
 from sacred import Experiment
@@ -8,13 +7,12 @@ from sacred.observers import MongoObserver
 from sacred.optional import pymongo
 from sklearn.externals.joblib import Parallel
 from sklearn.externals.joblib import delayed
-from sklearn.model_selection import ParameterGrid
 from sklearn.utils import check_random_state, shuffle
 
 sys.path.append(path.dirname(path.dirname
                              (path.dirname(path.abspath(__file__)))))
 
-from examples.contrast.predict_contrast import predict_contrast_exp
+from examples.predict_contrast import predict_contrast_exp
 
 predict_contrast_multi_exp = Experiment('predict_contrast_multinomial',
                                         ingredients=[predict_contrast_exp])

@@ -1,5 +1,4 @@
 import os
-from math import sqrt
 from os.path import join
 
 import matplotlib
@@ -13,12 +12,10 @@ import pandas as pd
 from jinja2 import select_autoescape, PackageLoader, Environment
 from nilearn.image import index_img
 from nilearn.input_data import MultiNiftiMasker
-from nilearn.plotting import plot_stat_map, find_xyz_cut_coords, \
-    plot_glass_brain
+from nilearn.plotting import plot_stat_map, find_xyz_cut_coords
 from numpy.linalg import lstsq
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.externals.joblib import Memory, load, Parallel, delayed
-from sklearn.metrics import confusion_matrix
 from wordcloud import WordCloud
 
 from modl.datasets import get_data_dirs
@@ -27,8 +24,6 @@ from modl.hierarchical import HierarchicalLabelMasking, PartialSoftmax, \
 from modl.input_data.fmri.unmask import retrieve_components
 from modl.utils.system import get_cache_dirs
 from keras.models import load_model
-
-from PIL import ImageColor
 
 idx = pd.IndexSlice
 
