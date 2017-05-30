@@ -1,14 +1,14 @@
 import os
 
 from math import sqrt
-from os.path import join, expanduser
+from os.path import join
 
 import numpy as np
 import pandas as pd
 from keras.callbacks import TensorBoard
 from keras.optimizers import SGD, Adam
 from sacred import Experiment
-from sacred.observers import MongoObserver
+from sacred.observers import FileStorageObserver
 from sklearn.externals.joblib import load, dump
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import LabelBinarizer, StandardScaler
@@ -21,9 +21,11 @@ from cogspaces.model_selection import StratifiedGroupShuffleSplit
 idx = pd.IndexSlice
 
 predict_contrast_exp = Experiment('predict_contrast')
-collection = predict_contrast_exp.path
 
-observer = MongoObserver.create(db_name='amensch', collection=collection)
+base_artifact_dir = join(get_output_dir(), 'predict')
+observer = FileStorageObserver.create(basedir=base_artifact_dir)
+
+predict_contrast_exp.observers.append(observer)
 
 
 def scale(X, train, per_dataset_std):
@@ -104,7 +106,6 @@ def train_generator(train_data, batch_size, dataset_weight,
 
 @predict_contrast_exp.config
 def config():
-    output_dir = get_output_dir()
     datasets = ['archi', 'hcp']
     test_size = dict(hcp=0.1, archi=0.5, la5c=0.5, brainomics=0.5,
                      camcan=.5,
@@ -121,7 +122,7 @@ def config():
     validation = True
     geometric_reduction = True
     alpha = 0
-    latent_dim = 75
+    latent_dim = 50
     activation = 'linear'
     source = 'hcp_rs_concat'
     optimizer = 'adam'
@@ -178,7 +179,6 @@ def train_model(alpha,
                 steps_per_epoch,
                 depth_weight,
                 batch_size,
-                output_dir,
                 epochs,
                 verbose,
                 shared_supervised,
@@ -186,10 +186,10 @@ def train_model(alpha,
                 n_jobs,
                 _run,
                 _seed):
-    output_dir = get_output_dir(output_dir)[0]
-    artifact_dir = join(output_dir, 'contrast')
+    artifact_dir = join(base_artifact_dir, str(_run._id), 'artifacts')
     if not os.path.exists(artifact_dir):
         os.makedirs(artifact_dir)
+    output_dir = get_output_dir()
     reduced_dir = join(output_dir, 'reduced')
     unmask_dir = join(output_dir, 'unmasked')
     if verbose:
@@ -409,10 +409,6 @@ def train_model(alpha,
         res = validate(prediction)
         _run.info['score'][depth_name[depth]] = res
         print('Prediction at depth %s' % depth_name[depth], res)
-        _run.add_artifact(join(artifact_dir,
-                               'prediction_depth_%i.csv' % depth),
-                          'prediction')
 
     if geometric_reduction and latent_dim is not None:
         model.save(join(artifact_dir, 'model.keras'))
-        _run.add_artifact(join(artifact_dir, 'model.keras'), 'model')

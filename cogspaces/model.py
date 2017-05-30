@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import keras.backend as K
 from keras.backend import set_session
+from keras.constraints import NonNeg
 from keras.engine import Layer, Model, Input
 from keras.layers import Dense, Dropout
 from keras.regularizers import l2
@@ -167,6 +168,7 @@ def make_model(n_features, alpha,
     if latent_dim is not None:
         latent = Dense(latent_dim, activation=activation,
                        use_bias=False, name='latent',
+                       # kernel_constraint=NonNeg(),
                        kernel_regularizer=l2(alpha))(dropout_data)
         if dropout_latent > 0:
             latent = Dropout(rate=dropout_latent, name='dropout',
@@ -180,6 +182,7 @@ def make_model(n_features, alpha,
     if shared_supervised:
         logits = Dense(n_labels, activation='linear',
                        use_bias=True,
+                       # kernel_constraint=NonNeg(),
                        kernel_regularizer=l2(alpha),
                        name='supervised')(latent)
         for i, mask in enumerate(masks):
@@ -189,6 +192,7 @@ def make_model(n_features, alpha,
         for i, mask in enumerate(masks):
             this_latent = latent
             logits = Dense(n_labels,
+                           # kernel_constraint=NonNeg(),
                            activation='linear',
                            use_bias=True,
                            kernel_regularizer=l2(alpha),

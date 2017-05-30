@@ -12,7 +12,7 @@ output_dir = get_output_dir()
 n_jobs = 10
 batch_size = 1200
 
-for dataset in ['archi']:
+for dataset in ['hcp', 'archi']:
     # unmask(dataset, output_dir=output_dir,
     #        n_jobs=n_jobs, batch_size=batch_size)
-    reduce(dataset, output_dir=output_dir)
+    reduce(dataset, output_dir=output_dir, source='craddock')
