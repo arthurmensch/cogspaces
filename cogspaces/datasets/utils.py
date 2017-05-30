@@ -1,6 +1,25 @@
 import os
 
-from nilearn.datasets.utils import readlinkabs
+from nilearn.datasets.utils import readlinkabs, _fetch_files
+
+
+def fetch_mask(data_dir=None, url=None, resume=True, verbose=1):
+    if url is None:
+        url = 'http://www.amensch.fr/data/mask/'
+
+    files = ['mask_img.nii.gz']
+
+    if isinstance(url, str):
+        url = [url] * len(files)
+
+    files = [(f, u + f, {}) for f, u in zip(files, url)]
+
+    dataset_name = 'mask'
+    data_dir = _get_dataset_dir(dataset_name, data_dir=data_dir,
+                                verbose=verbose)
+    files_ = _fetch_files(data_dir, files, resume=resume,
+                          verbose=verbose)
+    return files_[0]
 
 
 def get_data_dirs(data_dir=None):

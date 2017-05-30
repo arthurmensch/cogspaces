@@ -89,7 +89,7 @@ def unmask(dataset, output_dir=None,
     imgs = fetch_data()
     if dataset == 'hcp':
         imgs = imgs.contrasts
-    mask = fetch_hcp(n_subjects=1).mask
+    mask = fetch_mask()
 
     artifact_dir = join(get_output_dir(output_dir), 'unmasked', dataset)
 
