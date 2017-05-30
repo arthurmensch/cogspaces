@@ -49,6 +49,7 @@ def get_data_dirs(data_dir=None):
         paths.append(os.path.expanduser('~/cogspaces_data'))
     return paths
 
+
 def _get_dataset_dir(dataset_name, data_dir=None, default_paths=None,
                      verbose=1):
     """ Create if necessary and returns data directory of given dataset.

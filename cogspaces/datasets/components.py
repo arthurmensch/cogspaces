@@ -57,7 +57,7 @@ def fetch_atlas_modl(data_dir=None, url=None,
     http://www.fmrib.ox.ac.uk/datasets/brainmap+rsns/
     """
     if url is None:
-        url = 'https://www.amensch.fr/data/modl/'
+        url = 'http://www.amensch.fr/data/modl/'
 
     files = [
         'components_16.nii.gz',
@@ -117,7 +117,7 @@ def fetch_craddock_parcellation(data_dir=None, url=None,
     ?
     """
     if url is None:
-        url = 'https://www.amensch.fr/data/modl/'
+        url = 'http://www.amensch.fr/data/craddock_parcellation/'
 
     files = [
         'ADHD200_parcellate_200.nii.gz',

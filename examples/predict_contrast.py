@@ -14,7 +14,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import LabelBinarizer, StandardScaler
 from sklearn.utils import gen_batches, check_random_state
 
-from cogspaces import get_output_dir
+from cogspaces.utils import get_output_dir
 from cogspaces.model import make_model, init_tensorflow, make_adversaries
 from cogspaces.model_selection import StratifiedGroupShuffleSplit
 
@@ -104,7 +104,7 @@ def train_generator(train_data, batch_size, dataset_weight,
 
 @predict_contrast_exp.config
 def config():
-    output_dir = expanduser('~/output/cogspaces')
+    output_dir = get_output_dir()
     datasets = ['archi', 'hcp']
     test_size = dict(hcp=0.1, archi=0.5, la5c=0.5, brainomics=0.5,
                      camcan=.5,

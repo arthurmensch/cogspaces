@@ -4,7 +4,7 @@ import re
 from os.path import join
 
 import pandas as pd
-from modl.datasets import get_data_dirs
+from .utils import get_data_dirs
 
 
 def fetch_camcan(data_dir=None, n_subjects=None):
@@ -12,7 +12,7 @@ def fetch_camcan(data_dir=None, n_subjects=None):
     source_dir = join(data_dir, 'camcan', 'camcan_smt_maps')
     if not os.path.exists(source_dir):
         raise ValueError(
-            'Please ensure that archi can be found under $MODL_DATA'
+            'Please ensure that archi can be found under $COGSPACES_DATA'
             'repository.')
     z_maps = glob.glob(join(source_dir, '*', '*_z_score.nii.gz'))
     subjects = []
@@ -108,8 +108,7 @@ def fetch_archi(data_dir=None, n_subjects=None):
     source_dir = join(data_dir, 'archi', 'glm')
     if not os.path.exists(source_dir):
         raise ValueError(
-            'Please ensure that archi can be found under $MODL_DATA'
-            'repository.')
+            'Please ensure that archi can be found under %s' % source_dir)
     z_maps = glob.glob(join(source_dir, '*/*/*', 'z_*.nii.gz'))
     subjects = []
     contrasts = []
@@ -146,7 +145,7 @@ def fetch_human_voice(data_dir=None, n_subjects=None):
     source_dir = join(data_dir, 'human_voice', 'ds000158_R1.0.1', 'glm')
     if not os.path.exists(source_dir):
         raise ValueError(
-            'Please ensure that human_voice can be found under $MODL_DATA'
+            'Please ensure that human_voice can be found under $COGSPACES_DATA'
             'repository.')
     z_maps = glob.glob(join(source_dir, '*/*/*', 'z_*.nii.gz'))
     subjects = []
@@ -183,7 +182,7 @@ def fetch_la5c(data_dir=None, n_subjects=None):
     source_dir = join(data_dir, 'la5c', 'ds000030', 'glm')
     if not os.path.exists(source_dir):
         raise ValueError(
-            'Please ensure that archi can be found under $MODL_DATA'
+            'Please ensure that archi can be found under $COGSPACES_DATA'
             'repository.')
     z_maps = glob.glob(join(source_dir, '*/*/*', 'z_*.nii.gz'))
     subjects = []

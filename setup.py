@@ -15,7 +15,7 @@ MAINTAINER_EMAIL = 'arthur.mensch@m4x.org'
 URL = 'https://github.com/arthurmensch/cogspaces'
 LICENSE = 'new BSD'
 DOWNLOAD_URL = 'https://github.com/arthurmensch/cogspaces'
-VERSION = '0.1a'
+VERSION = '0.1a0'
 
 
 def configuration(parent_package='', top_path=None):

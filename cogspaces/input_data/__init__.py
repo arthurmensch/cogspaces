@@ -1,22 +1,23 @@
 import os
 from os.path import join
 
+import numpy as np
 import pandas as pd
+
+# TODO: move
 from modl.input_data.fmri.unmask import MultiRawMasker
 from modl.utils.system import get_cache_dirs
+
 from nilearn.datasets import fetch_atlas_msdl
-from sklearn.externals.joblib import Memory, load, dump
 from nilearn.input_data import MultiNiftiMasker, NiftiLabelsMasker
+from sklearn.externals.joblib import Memory, load, dump
 from sklearn.utils import gen_batches
 
-from cogspaces import get_output_dir
+from cogspaces.utils import get_output_dir
 from cogspaces.datasets import fetch_la5c, fetch_human_voice, fetch_brainomics, \
-    fetch_hcp, fetch_archi, get_data_dirs, fetch_craddock_parcellation, \
+    fetch_hcp, fetch_archi, fetch_craddock_parcellation, \
     fetch_atlas_modl
 from cogspaces.datasets.contrasts import fetch_camcan
-
-import numpy as np
-
 from cogspaces.model import make_projection_matrix
 
 
@@ -125,7 +126,7 @@ def reduce(dataset, output_dir=None, source='hcp_rs_concat'):
                                      data.components256]
             components = masker.transform(components_imgs)
             print('Transform and fit data')
-            proj, _ = memory.cache(make_projection_matrix)(components,
+            proj, _, _ = memory.cache(make_projection_matrix)(components,
                                                            scale_bases=True)
         Xt = X.dot(proj)
     Xt = pd.DataFrame(data=Xt, index=X.index)

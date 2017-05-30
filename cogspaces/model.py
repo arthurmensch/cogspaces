@@ -1,10 +1,10 @@
 import numpy as np
 import tensorflow as tf
+import keras.backend as K
 from keras.backend import set_session
 from keras.engine import Layer, Model, Input
-from keras.layers import Dense, Dropout, BatchNormalization, Activation
+from keras.layers import Dense, Dropout
 from keras.regularizers import l2
-import keras.backend as K
 from scipy.linalg import pinv
 from tensorflow.python import debug as tf_debug
 
