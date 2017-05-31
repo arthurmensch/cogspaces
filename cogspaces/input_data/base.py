@@ -16,7 +16,7 @@ from sklearn.utils import gen_batches
 from cogspaces.utils import get_output_dir
 from cogspaces.datasets import fetch_la5c, fetch_human_voice, fetch_brainomics, \
     fetch_hcp, fetch_archi, fetch_craddock_parcellation, \
-    fetch_atlas_modl
+    fetch_atlas_modl, fetch_mask
 from cogspaces.datasets.contrasts import fetch_camcan
 from cogspaces.model import make_projection_matrix
 
@@ -111,23 +111,25 @@ def reduce(dataset, output_dir=None, source='hcp_rs_concat'):
         label_masker = NiftiLabelsMasker(labels_img=components,
                                          smoothing_fwhm=0,
                                          mask_img=masker.mask_img_).fit()
+        # components = label_masker.inverse_transform(np.eye(400))
+        print('Transform and fit data')
         Xt = label_masker.transform(niimgs)
     else:
         if source == 'msdl':
             components = fetch_atlas_msdl()['maps']
-            proj = masker.transform(components).T
+            components = masker.transform(components)
         elif source in ['hcp_rs', 'hcp_rs_concat']:
             data = fetch_atlas_modl()
             if source == 'hcp_rs':
                 components_imgs = [data.components256]
             else:
                 components_imgs = [data.components16,
-                                     data.components64,
-                                     data.components256]
+                                   data.components64,
+                                   data.components256]
             components = masker.transform(components_imgs)
-            print('Transform and fit data')
-            proj, _, _ = memory.cache(make_projection_matrix)(components,
-                                                           scale_bases=True)
+        print('Transform and fit data')
+        proj, _, _ = memory.cache(make_projection_matrix)(components,
+                                                          scale_bases=True)
         Xt = X.dot(proj)
     Xt = pd.DataFrame(data=Xt, index=X.index)
     this_output_dir = join(get_output_dir(output_dir), 'reduced',
@@ -136,3 +138,4 @@ def reduce(dataset, output_dir=None, source='hcp_rs_concat'):
         os.makedirs(this_output_dir)
     dump(Xt, join(this_output_dir, 'Xt.pkl'))
     dump(masker, join(this_output_dir, 'masker.pkl'))
+    np.save(join(output_dir, 'components'), components)

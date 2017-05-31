@@ -5,7 +5,7 @@ from keras.backend import set_session
 from keras.constraints import NonNeg
 from keras.engine import Layer, Model, Input
 from keras.layers import Dense, Dropout
-from keras.regularizers import l2
+from keras.regularizers import l2, l1
 from scipy.linalg import pinv
 from tensorflow.python import debug as tf_debug
 
@@ -106,7 +106,7 @@ def make_multi_model(n_features, lbins,
     if latent_dim is not None:
         latent = Dense(latent_dim, activation='linear',
                        use_bias=False, name='latent',
-                       kernel_regularizer=l2(alpha))(dropout_data)
+                       kernel_regularizer=l1(alpha))(dropout_data)
         if dropout_latent > 0:
             latent = Dropout(rate=dropout_latent, name='dropout',
                              seed=seed)(latent)
@@ -154,6 +154,7 @@ def make_model(n_features, alpha,
                latent_dim, dropout_input,
                dropout_latent,
                activation,
+               non_negative,
                seed, adversaries,
                shared_supervised):
     n_depths, n_labels, _ = adversaries.shape
@@ -168,8 +169,8 @@ def make_model(n_features, alpha,
     if latent_dim is not None:
         latent = Dense(latent_dim, activation=activation,
                        use_bias=False, name='latent',
-                       # kernel_constraint=NonNeg(),
-                       kernel_regularizer=l2(alpha))(dropout_data)
+                       kernel_constraint=NonNeg() if non_negative else None,
+                       kernel_regularizer=l1(alpha))(dropout_data)
         if dropout_latent > 0:
             latent = Dropout(rate=dropout_latent, name='dropout',
                              seed=seed)(latent)
@@ -183,7 +184,7 @@ def make_model(n_features, alpha,
         logits = Dense(n_labels, activation='linear',
                        use_bias=True,
                        # kernel_constraint=NonNeg(),
-                       kernel_regularizer=l2(alpha),
+                       activity_regularizer=l1(alpha),
                        name='supervised')(latent)
         for i, mask in enumerate(masks):
             prob = PartialSoftmax(name='softmax_depth_%i' % i)([logits, mask])
@@ -195,7 +196,7 @@ def make_model(n_features, alpha,
                            # kernel_constraint=NonNeg(),
                            activation='linear',
                            use_bias=True,
-                           kernel_regularizer=l2(alpha),
+                           kernel_regularizer=l1(alpha),
                            name='supervised_depth_%i' % i)(this_latent)
             prob = PartialSoftmax(name='softmax_depth_%i' % i)([logits, mask])
             outputs.append(prob)
