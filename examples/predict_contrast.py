@@ -106,7 +106,7 @@ def train_generator(train_data, batch_size, dataset_weight,
 
 @predict_contrast_exp.config
 def config():
-    datasets = ['archi']
+    datasets = ['archi', 'hcp']
     test_size = dict(hcp=0.1, archi=0.5, la5c=0.5, brainomics=0.5,
                      camcan=.5,
                      human_voice=0.5)
@@ -121,8 +121,8 @@ def config():
                       human_voice=None)
     validation = True
     geometric_reduction = True
-    alpha = 5e-3
-    latent_dim = None
+    alpha = .02
+    latent_dim = 75
     activation = 'linear'
     source = 'hcp_rs_concat'
     optimizer = 'adam'
@@ -132,15 +132,16 @@ def config():
     batch_size = 256
     per_dataset_std = False
     joint_training = True
-    epochs = 50
+    epochs = 200
     depth_weight = [0., 1., 0.]
+    residual = False
     n_jobs = 2
     verbose = 2
     seed = 10
     shared_supervised = False
     retrain = False
     mix_batch = False
-    non_negative = False
+    non_negative = True
     steps_per_epoch = 100
     _seed = 0
 
@@ -178,6 +179,7 @@ def train_model(alpha,
                 activation,
                 datasets,
                 dataset_weight,
+                residual,
                 steps_per_epoch,
                 depth_weight,
                 batch_size,
@@ -302,6 +304,7 @@ def train_model(alpha,
                            dropout_input=dropout_input,
                            dropout_latent=dropout_latent,
                            non_negative=non_negative,
+                           residual=residual,
                            adversaries=adversaries,
                            seed=_seed,
                            shared_supervised=shared_supervised)

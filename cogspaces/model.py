@@ -2,9 +2,9 @@ import numpy as np
 import tensorflow as tf
 import keras.backend as K
 from keras.backend import set_session
-from keras.constraints import NonNeg
+from keras.constraints import NonNeg, UnitNorm
 from keras.engine import Layer, Model, Input
-from keras.layers import Dense, Dropout
+from keras.layers import Dense, Dropout, Add
 from keras.regularizers import l2, l1
 from scipy.linalg import pinv
 from tensorflow.python import debug as tf_debug
@@ -155,6 +155,7 @@ def make_model(n_features, alpha,
                dropout_latent,
                activation,
                non_negative,
+               residual,
                seed, adversaries,
                shared_supervised):
     n_depths, n_labels, _ = adversaries.shape
@@ -169,8 +170,8 @@ def make_model(n_features, alpha,
     if latent_dim is not None:
         latent = Dense(latent_dim, activation=activation,
                        use_bias=False, name='latent',
-                       kernel_constraint=NonNeg() if non_negative else None,
-                       kernel_regularizer=l1(alpha))(dropout_data)
+                       kernel_constraint=None,
+                       kernel_regularizer=None)(dropout_data)
         if dropout_latent > 0:
             latent = Dropout(rate=dropout_latent, name='dropout',
                              seed=seed)(latent)
@@ -183,9 +184,16 @@ def make_model(n_features, alpha,
     if shared_supervised:
         logits = Dense(n_labels, activation='linear',
                        use_bias=True,
-                       # kernel_constraint=NonNeg(),
-                       activity_regularizer=l1(alpha),
+                       kernel_regularizer=l1(alpha),
+                       kernel_constraint=NonNeg() if non_negative else None,
                        name='supervised')(latent)
+        if residual:
+            logits_direct = Dense(n_labels, activation='linear',
+                                  use_bias=True,
+                                  kernel_regularizer=l2(alpha),
+                                  kernel_constraint=NonNeg() if non_negative else None,
+                                  name='supervised_direct')(dropout_data)
+            logits = Add(name='add')([logits, logits_direct])
         for i, mask in enumerate(masks):
             prob = PartialSoftmax(name='softmax_depth_%i' % i)([logits, mask])
             outputs.append(prob)
@@ -193,11 +201,18 @@ def make_model(n_features, alpha,
         for i, mask in enumerate(masks):
             this_latent = latent
             logits = Dense(n_labels,
-                           # kernel_constraint=NonNeg(),
                            activation='linear',
                            use_bias=True,
                            kernel_regularizer=l1(alpha),
+                           kernel_constraint=NonNeg() if non_negative else None,
                            name='supervised_depth_%i' % i)(this_latent)
+            if residual:
+                logits_direct = Dense(n_labels, activation='linear',
+                                      use_bias=True,
+                                      kernel_constraint=NonNeg() if non_negative else None,
+                                      kernel_regularizer=l2(alpha),
+                                      name='supervised_direct_depth_%i' % i)(dropout_data)
+                logits = Add(name='add_depth_%i' % i)([logits, logits_direct])
             prob = PartialSoftmax(name='softmax_depth_%i' % i)([logits, mask])
             outputs.append(prob)
     model = Model(inputs=[data, labels], outputs=outputs)

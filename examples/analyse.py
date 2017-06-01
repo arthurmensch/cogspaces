@@ -18,22 +18,23 @@ from nilearn.input_data import NiftiLabelsMasker, MultiNiftiMasker
 from nilearn.plotting import plot_stat_map, find_xyz_cut_coords
 from sklearn.externals.joblib import Memory, load, delayed, Parallel
 
-
+positive = False
+n_exp = 82
 
 def plot_map(single_map, title, i):
     fig = plt.figure()
     vmax = np.max(np.abs(single_map.get_data()))
     cut_coords = find_xyz_cut_coords(single_map,
-                                     activation_threshold=vmax / 3)
+                                     activation_threshold=0.33 * vmax)
     plot_stat_map(single_map, title=str(title), figure=fig,
-                  cut_coords=cut_coords)
+                  cut_coords=cut_coords, threshold=0.)
     plt.savefig(join(analysis_dir, 'map_%i.png' % i))
     plt.close(fig)
 
 
 memory = Memory(cachedir=get_cache_dirs()[0], verbose=2)
 
-artifact_dir = join(get_output_dir(), 'predict', '46')
+artifact_dir = join(get_output_dir(), 'predict', str(n_exp))
 analysis_dir = join(artifact_dir, 'analysis')
 if not os.path.exists(analysis_dir):
     os.makedirs(analysis_dir)
@@ -46,13 +47,27 @@ if True: # config['latent_dim'] is not None:
                                        HierarchicalLabelMasking,
                                        'PartialSoftmax': PartialSoftmax})
 
-
-    latent = model.get_layer('latent').get_weights()[0]
     supervised = model.get_layer('supervised_depth_1').get_weights()[0]
-    maps = latent.dot(supervised).T
+    print('sparsity', np.mean(supervised == 0))
+    if positive:
+        supervised[:, :30] -= supervised[:, :30].min()
+        supervised[:, 30:] -= supervised[:, 30:].min()
+    if config['latent_dim'] is not None:
+        latent = model.get_layer('latent').get_weights()[0]
+        maps = latent.dot(supervised).T
+        if config['residual']:
+            direct = model.get_layer('supervised_direct_depth_1').get_weights()[0].T
+            direct -= direct.min()
+            maps += direct
+    else:
+        maps = supervised.T
 else:
     model = load(join(artifact_dir, 'artifacts', 'model.pkl'))
     maps = model.coef_
+
+if positive:
+    maps[:30] -= maps[:30].min()
+    maps[30:] -= maps[30:].min()
 
 source = config['source']
 
@@ -82,6 +97,9 @@ else:
         proj, inv_proj, rec = memory.cache(
             make_projection_matrix)(components, scale_bases=True)
         maps = maps.dot(proj.T)
+        if positive:
+            maps[:30] -= maps[:30].min()
+            maps[30:] -= maps[30:].min()
         maps = masker.inverse_transform(maps)
 
 lbin = load(join(artifact_dir, 'artifacts', 'lbin.pkl'))
