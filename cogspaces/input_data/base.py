@@ -118,14 +118,19 @@ def reduce(dataset, output_dir=None, source='hcp_rs_concat'):
         if source == 'msdl':
             components = fetch_atlas_msdl()['maps']
             components = masker.transform(components)
-        elif source in ['hcp_rs', 'hcp_rs_concat']:
+        elif source in ['hcp_rs', 'hcp_rs_concat', 'hcp_rs_positive']:
             data = fetch_atlas_modl()
             if source == 'hcp_rs':
-                components_imgs = [data.components256]
+                components_imgs = [data.nips2017_components256]
+            elif source == 'hcp_rs_concat':
+                components_imgs = [data.nips2017_components16,
+                                   data.nips2017_components64,
+                                   data.nips2017_components256]
             else:
-                components_imgs = [data.components16,
-                                   data.components64,
-                                   data.components256]
+                components_imgs = [data.positive_components16,
+                                   data.positive_components64,
+                                   data.positive_components512]
+
             components = masker.transform(components_imgs)
         print('Transform and fit data')
         proj, _, _ = memory.cache(make_projection_matrix)(components,

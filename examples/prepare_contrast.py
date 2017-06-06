@@ -13,6 +13,7 @@ n_jobs = 10
 batch_size = 1200
 
 for dataset in ['archi', 'hcp', 'camcan', 'brainomics', 'la5c']:
-    unmask(dataset, output_dir=output_dir,
-           n_jobs=n_jobs, batch_size=batch_size)
-    reduce(dataset, output_dir=output_dir, source='hcp_rs')
+    # unmask(dataset, output_dir=output_dir,
+    #        n_jobs=n_jobs, batch_size=batch_size)
+    reduce(dataset, output_dir=output_dir, source='hcp_rs_positive')
+

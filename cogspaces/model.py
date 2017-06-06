@@ -2,10 +2,12 @@ import numpy as np
 import tensorflow as tf
 import keras.backend as K
 from keras.backend import set_session
-from keras.constraints import NonNeg, UnitNorm
+from keras.constraints import NonNeg
 from keras.engine import Layer, Model, Input
 from keras.layers import Dense, Dropout, Add
 from keras.regularizers import l2, l1
+from keras.initializers import Initializer
+from modl.utils.math.enet import enet_scale
 from scipy.linalg import pinv
 from tensorflow.python import debug as tf_debug
 
@@ -150,6 +152,18 @@ def make_multi_model(n_features, lbins,
     return models
 
 
+class L1Init(Initializer):
+    """Initializer that generates tensors initialized to 0.
+    """
+
+    def __call__(self, shape, dtype=None):
+        U = np.random.standard_normal(shape).astype(dtype)
+        for k in range(U.shape[1]):
+            enet_scale(U[:, k], 1, 1)
+        return K.constant(U)
+
+
+
 def make_model(n_features, alpha,
                latent_dim, dropout_input,
                dropout_latent,
@@ -170,8 +184,10 @@ def make_model(n_features, alpha,
     if latent_dim is not None:
         latent = Dense(latent_dim, activation=activation,
                        use_bias=False, name='latent',
-                       kernel_constraint=None,
-                       kernel_regularizer=l2(alpha))(dropout_data)
+                       kernel_initializer=L1Init(),
+                       # kernel_constraint=NonNeg(),
+                       # kernel_regularizer=l2(alpha)
+                       )(dropout_data)
         if dropout_latent > 0:
             latent = Dropout(rate=dropout_latent, name='dropout',
                              seed=seed)(latent)
@@ -185,7 +201,8 @@ def make_model(n_features, alpha,
         logits = Dense(n_labels, activation='linear',
                        use_bias=True,
                        kernel_regularizer=l2(alpha),
-                       kernel_constraint=NonNeg() if non_negative else None,
+                       # kernel_constraint=NonNeg() if non_negative else None,
+                       kernel_constraint=NonNeg(),
                        name='supervised')(latent)
         if residual:
             logits_direct = Dense(n_labels, activation='linear',
@@ -204,7 +221,7 @@ def make_model(n_features, alpha,
                            activation='linear',
                            use_bias=True,
                            kernel_regularizer=l2(alpha),
-                           # kernel_constraint=NonNeg() if non_negative else None,
+                           kernel_constraint=NonNeg(), # if non_negative else None,
                            name='supervised_depth_%i' % i)(this_latent)
             if residual:
                 logits_direct = Dense(n_labels, activation='linear',

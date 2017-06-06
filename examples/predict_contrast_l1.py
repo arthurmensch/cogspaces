@@ -6,7 +6,10 @@ from os.path import join
 import numpy as np
 import pandas as pd
 from keras.callbacks import TensorBoard
-from keras.optimizers import SGD, Adam
+from keras.optimizers import SGD, Adam, RMSprop
+from keras.callbacks import ReduceLROnPlateau
+
+from modl.utils.math.enet import enet_projection
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from sklearn.externals.joblib import load, dump
@@ -121,20 +124,22 @@ def config():
                       human_voice=None)
     validation = True
     geometric_reduction = True
-    alpha = 0
+    alpha = 1e-5
     latent_dim = 50
     activation = 'linear'
     source = 'hcp_rs_positive'
-    optimizer = 'adam'
+    optimizer = 'rmsprop'
     lr = 1e-3
     dropout_input = 0.25
     dropout_latent = 0.
-    batch_size = 256
+    batch_size = 128
     per_dataset_std = False
     joint_training = True
-    epochs = 50
+    epochs = 500
     depth_weight = [0., 1., 0.]
     residual = False
+    l1_proj = True
+    patience = 5
     n_jobs = 2
     verbose = 2
     seed = 10
@@ -174,8 +179,10 @@ def train_model(alpha,
                 mix_batch,
                 non_negative,
                 source,
+                patience,
                 dropout_latent,
                 optimizer,
+                l1_proj,
                 activation,
                 datasets,
                 dataset_weight,
@@ -284,7 +291,7 @@ def train_model(alpha,
     np.save(join(artifact_dir, 'adversaries'), adversaries)
     np.save(join(artifact_dir, 'classes'), lbin.classes_)
 
-    if False: #not geometric_reduction or latent_dim is None:
+    if False:  # not geometric_reduction or latent_dim is None:
         model = LogisticRegression(solver='saga',
                                    penalty='l1',
                                    C=1 / (X_train.shape[0] * alpha),
@@ -314,9 +321,11 @@ def train_model(alpha,
                     model.get_layer(
                         'supervised_depth_%i' % i).trainable = False
         if optimizer == 'sgd':
-            optimizer = SGD(lr=lr, momentum=.1)
+            optimizer = SGD(lr=lr, momentum=0)
         elif optimizer == 'adam':
             optimizer = Adam(lr=lr)  # beta_2=0.9)
+        elif optimizer == 'rmsprop':
+            optimizer = RMSprop(lr=lr)
         model.compile(loss=['categorical_crossentropy'] * 3,
                       optimizer=optimizer,
                       loss_weights=depth_weight,
@@ -327,19 +336,49 @@ def train_model(alpha,
                                  write_images=True),
                      ]
         if joint_training:
-            model.fit_generator(train_generator(train_data,
-                                                batch_size,
-                                                dataset_weight=dataset_weight,
-                                                mix=mix_batch,
-                                                seed=_seed),
-                                callbacks=callbacks,
-                                validation_data=([x_test, y_test],
-                                                 [y_oh_test] * 3,
-                                                 [sample_weight_test] * 3
-                                                 ) if validation else None,
-                                steps_per_epoch=steps_per_epoch,
-                                verbose=verbose,
-                                epochs=epochs)
+            generator = train_generator(train_data,
+                                        batch_size,
+                                        dataset_weight=dataset_weight,
+                                        mix=mix_batch,
+                                        seed=_seed)
+            epoch = 0
+            n_batch = 0
+            logs = {}
+            reduce_lr = ReduceLROnPlateau(patience=patience, verbose=1)
+            reduce_lr.set_model(model)
+            reduce_lr.on_train_begin()
+            for x_train, y_train, sample_weight_train in generator:
+                train_loss = model.train_on_batch(x_train, y_train,
+                                                  sample_weight_train)
+                if l1_proj:
+                    weights = model.get_layer('latent').get_weights()[0]
+                    temp = np.zeros(weights.shape[0], dtype=np.float32)
+                    for k in range(weights.shape[1]):
+                        enet_projection(weights[:, k], temp, radius=1,
+                                        l1_ratio=1)
+                        weights[:, k] = temp[:]
+                    sparsity = np.mean(weights != 0)
+                    model.get_layer('latent').set_weights([weights])
+                n_batch += 1
+                if n_batch % steps_per_epoch == 0:
+                    epoch += 1
+                    if epoch > epochs:
+                        break
+                    test_loss = model.test_on_batch([x_test, y_test],
+                                                    [y_oh_test] * 3,
+                                                    [sample_weight_test] * 3)
+                    logs['val_loss'] = test_loss[0]
+                    reduce_lr.on_epoch_end(epoch, logs)
+                    info = ['Epoch %i/%i' % (epoch, epochs)]
+                    info += ['sparsity %.3f' % sparsity]
+                    info += ["train_%s:%.3f" % (name, loss)
+                            for name, loss in zip(model.metrics_names,
+                                                  train_loss)]
+
+                    info += ["test_%s:%.3f" % (name, loss)
+                             for name, loss in zip(model.metrics_names,
+                                                   test_loss)]
+                    print(' '.join(info))
             if retrain:
                 model.get_layer('latent').trainable = False
                 model.get_layer('dropout_input').rate = 0
@@ -417,7 +456,7 @@ def train_model(alpha,
         _run.info['score'][depth_name[depth]] = res
         print('Prediction at depth %s' % depth_name[depth], res)
 
-    if True: # geometric_reduction and latent_dim is not None:
+    if True:  # geometric_reduction and latent_dim is not None:
         model.save(join(artifact_dir, 'model.keras'))
     else:
         dump(model, join(artifact_dir, 'model.pkl'))
