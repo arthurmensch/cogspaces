@@ -60,9 +60,12 @@ def fetch_atlas_modl(data_dir=None, url=None,
         url = 'http://www.amensch.fr/data/modl/'
 
     files = [
-        'components_16.nii.gz',
-        'components_64.nii.gz',
-        'components_256.nii.gz',
+        'nips2017/components_16.nii.gz',
+        'nips2017/components_64.nii.gz',
+        'nips2017/components_256.nii.gz',
+        'positive/components_16.nii.gz',
+        'positive/components_64.nii.gz',
+        'positive/components_256.nii.gz',
     ]
 
     if isinstance(url, str):
@@ -79,7 +82,13 @@ def fetch_atlas_modl(data_dir=None, url=None,
     fdescr = 'Components computed using the MODL package, at various scale,' \
              'from HCP900 data'
 
-    keys = ['components16', 'components64', 'components256']
+    keys = ['nips2017_components16',
+            'nips2017_components64',
+            'nips2017_components256',
+            'positive_components16',
+            'positive_components64',
+            ]
+
     params = dict(zip(keys, files_))
     params['description'] = fdescr
 

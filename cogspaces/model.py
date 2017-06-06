@@ -171,7 +171,7 @@ def make_model(n_features, alpha,
         latent = Dense(latent_dim, activation=activation,
                        use_bias=False, name='latent',
                        kernel_constraint=None,
-                       kernel_regularizer=None)(dropout_data)
+                       kernel_regularizer=l2(alpha))(dropout_data)
         if dropout_latent > 0:
             latent = Dropout(rate=dropout_latent, name='dropout',
                              seed=seed)(latent)
@@ -184,14 +184,14 @@ def make_model(n_features, alpha,
     if shared_supervised:
         logits = Dense(n_labels, activation='linear',
                        use_bias=True,
-                       kernel_regularizer=l1(alpha),
+                       kernel_regularizer=l2(alpha),
                        kernel_constraint=NonNeg() if non_negative else None,
                        name='supervised')(latent)
         if residual:
             logits_direct = Dense(n_labels, activation='linear',
                                   use_bias=True,
-                                  kernel_regularizer=l2(alpha),
-                                  kernel_constraint=NonNeg() if non_negative else None,
+                                  # kernel_regularizer=l2(alpha),
+                                  # kernel_constraint=NonNeg() if non_negative else None,
                                   name='supervised_direct')(dropout_data)
             logits = Add(name='add')([logits, logits_direct])
         for i, mask in enumerate(masks):
@@ -203,14 +203,14 @@ def make_model(n_features, alpha,
             logits = Dense(n_labels,
                            activation='linear',
                            use_bias=True,
-                           kernel_regularizer=l1(alpha),
-                           kernel_constraint=NonNeg() if non_negative else None,
+                           kernel_regularizer=l2(alpha),
+                           # kernel_constraint=NonNeg() if non_negative else None,
                            name='supervised_depth_%i' % i)(this_latent)
             if residual:
                 logits_direct = Dense(n_labels, activation='linear',
                                       use_bias=True,
-                                      kernel_constraint=NonNeg() if non_negative else None,
-                                      kernel_regularizer=l2(alpha),
+                                      # kernel_constraint=NonNeg() if non_negative else None,
+                                      # kernel_regularizer=l2(alpha),
                                       name='supervised_direct_depth_%i' % i)(dropout_data)
                 logits = Add(name='add_depth_%i' % i)([logits, logits_direct])
             prob = PartialSoftmax(name='softmax_depth_%i' % i)([logits, mask])

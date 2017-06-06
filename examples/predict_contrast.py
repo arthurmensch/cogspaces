@@ -121,14 +121,14 @@ def config():
                       human_voice=None)
     validation = True
     geometric_reduction = True
-    alpha = .02
-    latent_dim = 75
+    alpha = 0
+    latent_dim = 200
     activation = 'linear'
     source = 'hcp_rs_concat'
     optimizer = 'adam'
     lr = 1e-3
     dropout_input = 0.25
-    dropout_latent = 0.5
+    dropout_latent = 0.8
     batch_size = 256
     per_dataset_std = False
     joint_training = True
@@ -141,7 +141,7 @@ def config():
     shared_supervised = False
     retrain = False
     mix_batch = False
-    non_negative = True
+    non_negative = False
     steps_per_epoch = 100
     _seed = 0
 
