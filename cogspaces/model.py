@@ -202,7 +202,7 @@ def make_model(n_features, alpha,
                        use_bias=True,
                        kernel_regularizer=l2(alpha),
                        # kernel_constraint=NonNeg() if non_negative else None,
-                       kernel_constraint=NonNeg(),
+                       # kernel_constraint=NonNeg(),
                        name='supervised')(latent)
         if residual:
             logits_direct = Dense(n_labels, activation='linear',
@@ -221,7 +221,7 @@ def make_model(n_features, alpha,
                            activation='linear',
                            use_bias=True,
                            kernel_regularizer=l2(alpha),
-                           kernel_constraint=NonNeg(), # if non_negative else None,
+                           # kernel_constraint=NonNeg(), # if non_negative else None,
                            name='supervised_depth_%i' % i)(this_latent)
             if residual:
                 logits_direct = Dense(n_labels, activation='linear',

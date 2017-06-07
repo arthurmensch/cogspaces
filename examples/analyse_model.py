@@ -22,7 +22,7 @@ from cogspaces.model import HierarchicalLabelMasking, PartialSoftmax, \
 from cogspaces.utils import get_output_dir
 
 positive = False
-n_exp = 133
+n_exp = 149
 
 
 def plot_map(single_map, title, i):
@@ -46,7 +46,7 @@ if not os.path.exists(analysis_dir):
 config = json.load(open(join(artifact_dir, 'config.json'), 'r'))
 
 if True: # config['latent_dim'] is not None:
-    with CustomObjectScope({'l1_init': L1Init}):
+    with CustomObjectScope({'L1Init': L1Init}):
         model = load_model(join(artifact_dir, 'artifacts', 'model.keras'),
                            custom_objects={'HierarchicalLabelMasking':
                                            HierarchicalLabelMasking,
@@ -107,9 +107,10 @@ else:
         proj, inv_proj, rec = memory.cache(
             make_projection_matrix)(components, scale_bases=True)
 
-        U, S, VT = randomized_svd(maps, n_components=maps.shape[0])
-        print(S)
-        comp = VT.dot(proj.T)
+        # U, S, VT = randomized_svd(maps, n_components=maps.shape[0])
+        # print(S)
+        # comp = VT.dot(proj.T)
+        comp = model.get_layer('latent').get_weights()[0].T.dot(proj.T)
         comp_img = masker.inverse_transform(comp)
         comp_img.to_filename(join(analysis_dir, 'comp.nii.gz'))
 

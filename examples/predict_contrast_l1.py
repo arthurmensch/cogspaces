@@ -1,5 +1,4 @@
 import os
-
 from math import sqrt
 from os.path import join
 
@@ -7,8 +6,8 @@ import numpy as np
 import pandas as pd
 from keras.callbacks import TensorBoard
 from keras.optimizers import SGD, Adam, RMSprop
-from keras.callbacks import ReduceLROnPlateau
 
+import keras.backend as K
 from modl.utils.math.enet import enet_projection
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
@@ -17,9 +16,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import LabelBinarizer, StandardScaler
 from sklearn.utils import gen_batches, check_random_state
 
-from cogspaces.utils import get_output_dir
 from cogspaces.model import make_model, init_tensorflow, make_adversaries
 from cogspaces.model_selection import StratifiedGroupShuffleSplit
+from cogspaces.utils import get_output_dir
 
 idx = pd.IndexSlice
 
@@ -81,6 +80,10 @@ def train_generator(train_data, batch_size, dataset_weight,
             try:
                 batch = next(batches_generator[dataset])
             except (KeyError, StopIteration):
+                # if batch_size is None:
+                #     batches_generator[dataset] = repeat(slice(None))
+                #     batch = slice(0, len_dataset)
+                # else:
                 batches_generator[dataset] = gen_batches(len_dataset,
                                                          batch_size
                                                          // n_dataset if mix
@@ -124,22 +127,22 @@ def config():
                       human_voice=None)
     validation = True
     geometric_reduction = True
-    alpha = 1e-5
-    latent_dim = 50
+    alpha = 1e-4
+    latent_dim = 200
     activation = 'linear'
     source = 'hcp_rs_positive'
     optimizer = 'rmsprop'
     lr = 1e-3
     dropout_input = 0.25
-    dropout_latent = 0.
+    dropout_latent = 0.8
     batch_size = 128
     per_dataset_std = False
     joint_training = True
-    epochs = 500
+    epochs = 1000
     depth_weight = [0., 1., 0.]
     residual = False
     l1_proj = True
-    patience = 5
+    patience = 10
     n_jobs = 2
     verbose = 2
     seed = 10
@@ -215,7 +218,7 @@ def train_model(alpha,
                 this_X = load(join(this_reduced_dir, 'Xt.pkl'))
             else:
                 this_X = load(join(unmask_dir, dataset, 'imgs.pkl'))
-            if dataset in ['archi', 'brainomics']:
+            if dataset in ['brainomics']:
                 this_X = this_X.drop(['effects_of_interest'],
                                      level='contrast', )
             subjects = this_X.index.get_level_values('subject'). \
@@ -344,20 +347,24 @@ def train_model(alpha,
             epoch = 0
             n_batch = 0
             logs = {}
-            reduce_lr = ReduceLROnPlateau(patience=patience, verbose=1)
-            reduce_lr.set_model(model)
-            reduce_lr.on_train_begin()
+            # reduce_lr = ReduceLROnPlateau(patience=10, verbose=1,
+            #                               epsilon=1e-4, min_lr=1e-7)
+            # reduce_lr.set_model(model)
+            # reduce_lr.on_train_begin()
+            warmup = False
             for x_train, y_train, sample_weight_train in generator:
+                K.set_value(model.optimizer.lr, (1000 * lr) / (n_batch + 1))
                 train_loss = model.train_on_batch(x_train, y_train,
                                                   sample_weight_train)
-                if l1_proj:
+                if l1_proj and not warmup:
                     weights = model.get_layer('latent').get_weights()[0]
                     temp = np.zeros(weights.shape[0], dtype=np.float32)
                     for k in range(weights.shape[1]):
                         enet_projection(weights[:, k], temp, radius=1,
                                         l1_ratio=1)
                         weights[:, k] = temp[:]
-                    sparsity = np.mean(weights != 0)
+                        # print(enet_norm(weights[:, k], 1))
+                    sparsity = np.mean(weights == 0)
                     model.get_layer('latent').set_weights([weights])
                 n_batch += 1
                 if n_batch % steps_per_epoch == 0:
@@ -368,9 +375,10 @@ def train_model(alpha,
                                                     [y_oh_test] * 3,
                                                     [sample_weight_test] * 3)
                     logs['val_loss'] = test_loss[0]
-                    reduce_lr.on_epoch_end(epoch, logs)
+                    # reduce_lr.on_epoch_end(epoch, logs)
                     info = ['Epoch %i/%i' % (epoch, epochs)]
-                    info += ['sparsity %.3f' % sparsity]
+                    if l1_proj and not warmup:
+                        info += ['sparsity %.3f' % sparsity]
                     info += ["train_%s:%.3f" % (name, loss)
                             for name, loss in zip(model.metrics_names,
                                                   train_loss)]
@@ -379,6 +387,21 @@ def train_model(alpha,
                              for name, loss in zip(model.metrics_names,
                                                    test_loss)]
                     print(' '.join(info))
+                # if epoch == 50 and warmup:
+                #     print('End warmup')
+                #     weights = model.get_layer('latent').get_weights()[0]
+                #     l1_norm = np.sum(np.abs(weights), axis=0)
+                #     weights /= l1_norm[np.newaxis, :]
+                #     model.get_layer('latent').set_weights([weights])
+                #     for depth in range(3):
+                #         weights, bias = model.get_layer('supervised_depth_%i'
+                #                                         % depth).get_weights()
+                #         weights *= l1_norm[:, np.newaxis]
+                #         model.get_layer('supervised_depth_%i'
+                #                                         % depth).set_weights([weights, bias])
+                #     warmup = False
+
+
             if retrain:
                 model.get_layer('latent').trainable = False
                 model.get_layer('dropout_input').rate = 0
