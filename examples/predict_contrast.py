@@ -106,7 +106,7 @@ def train_generator(train_data, batch_size, dataset_weight,
 
 @predict_contrast_exp.config
 def config():
-    datasets = ['archi', 'hcp']
+    datasets = ['brainomics']
     test_size = dict(hcp=0.1, archi=0.5, la5c=0.5, brainomics=0.5,
                      camcan=.5,
                      human_voice=0.5)
@@ -119,20 +119,20 @@ def config():
     train_size = dict(hcp=None, archi=None, la5c=None, brainomics=None,
                       camcan=None,
                       human_voice=None)
-    validation = True
+    validation = False
     geometric_reduction = True
-    alpha = 0
-    latent_dim = 50
+    alpha = 1e-6
+    latent_dim = None
     activation = 'linear'
     source = 'hcp_rs_positive'
     optimizer = 'adam'
     lr = 1e-3
-    dropout_input = 0.25
+    dropout_input = 0.0
     dropout_latent = 0.
     batch_size = 256
     per_dataset_std = False
     joint_training = True
-    epochs = 50
+    epochs = 20
     depth_weight = [0., 1., 0.]
     residual = False
     n_jobs = 2
@@ -284,7 +284,7 @@ def train_model(alpha,
     np.save(join(artifact_dir, 'adversaries'), adversaries)
     np.save(join(artifact_dir, 'classes'), lbin.classes_)
 
-    if False: #not geometric_reduction or latent_dim is None:
+    if not geometric_reduction or latent_dim is None:
         model = LogisticRegression(solver='saga',
                                    penalty='l1',
                                    C=1 / (X_train.shape[0] * alpha),

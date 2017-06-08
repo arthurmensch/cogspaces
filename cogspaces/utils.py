@@ -117,7 +117,7 @@ class MultiDatasetTransformer(TransformerMixin):
             this_y = lbin.transform(this_y)
             y.append(this_y)
             X.append(this_X)
-        return X, y
+        return tuple(X), tuple(y)
 
     def inverse_transform(self, df, y):
         contrasts = []

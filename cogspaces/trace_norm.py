@@ -1,24 +1,9 @@
-from math import sqrt
-
-from numpy.linalg import svd
-from sklearn.base import BaseEstimator
+from math import sqrt, log
 
 import numpy as np
-from sklearn.metrics import log_loss
-from sklearn.utils import check_random_state
-
-
-def proximal_operator(coef, threshold):
-    U, s, V = svd(coef, full_matrices=False)
-    s = np.maximum(s - threshold, 0)
-    rank = np.sum(s != 0)
-    U *= s
-    return np.dot(U, V), rank
-
-
-def trace_norm(coef):
-    _, s, _ = svd(coef, full_matrices=False)
-    return np.sum(s)
+from numba import jit
+from numpy.linalg import svd
+from sklearn.base import BaseEstimator
 
 
 def lipschitz_constant(Xs, fit_intercept=False):
@@ -27,29 +12,167 @@ def lipschitz_constant(Xs, fit_intercept=False):
     L = (0.5 * (max_squared_sums + int(fit_intercept)))
     return L
 
-def quad_approx()
+
+@jit(nopython=True, cache=False)
+def trace_norm(coef):
+    _, s, _ = svd(coef, full_matrices=False)
+    return np.sum(s)
+
+
+@jit(nopython=True, cache=True)
+def proximal_operator(coef, threshold):
+    U, s, V = svd(coef, full_matrices=False)
+    s = np.maximum(s - threshold, 0)
+    rank = np.sum(s != 0)
+    U *= s
+    return np.dot(U, V), rank
+
+
+@jit(nopython=True, cache=True)
+def _prox_grad(Xs, ys, preds, coef, intercept,
+               prox_coef, prox_intercept, coef_grad, intercept_grad,
+               slices, L, alpha, beta):
+    n_datasets = len(slices)
+    _predict(Xs, preds, coef, intercept, slices)
+    loss = 0
+    for X, y, pred, this_slice in zip(Xs, ys, preds, slices):
+        coef_grad[:, this_slice[0]:this_slice[1]] = np.dot(X.T, pred - y) / \
+                                                    X.shape[0] / n_datasets
+        for jj, j in enumerate(range(this_slice[0], this_slice[1])):
+            intercept_grad[j] = (pred[:, jj] - y[:, jj]).mean() / n_datasets
+        loss += cross_entropy(y, pred) / n_datasets
+    if beta > 0:
+        prox_coef[:] = (1 - beta / L) * coef - coef_grad / L
+    else:
+        prox_coef[:] = coef - coef_grad / L
+    prox_intercept[:] = intercept - intercept_grad / L
+    if alpha > 0:
+        prox_coef[:], rank = proximal_operator(prox_coef, alpha / L)
+    else:
+        rank = prox_coef.shape[1]
+    return loss, rank
+
+
+@jit(nopython=True, cache=True)
+def _predict(Xs, preds, coef, intercept, slices):
+    for X, pred, this_slice in zip(Xs, preds, slices):
+        logits = np.dot(X, coef[:, this_slice[0]:this_slice[1]])
+        logits += intercept[this_slice[0]:this_slice[1]]
+        logits -= logits.max()
+        pred[:] = np.exp(logits)
+        for i in range(pred.shape[0]):
+            pred[i] /= np.sum(pred[i])
+
+
+@jit(nopython=True, cache=True)
+def _loss(Xs, ys, preds, coef, intercept, slices):
+    n_datasets = len(slices)
+    _predict(Xs, preds, coef, intercept, slices)
+    loss = 0
+    for y, pred in zip(ys, preds):
+        loss += cross_entropy(y, pred) / n_datasets
+    return loss
+
+
+@jit(nopython=True, cache=True)
+def _quad_approx(coef, intercept,
+                 prox_coef, prox_intercept, coef_grad,
+                 intercept_grad,
+                 coef_diff, intercept_diff,
+                 loss, L):
+    approx = loss
+    coef_diff[:] = prox_coef - coef
+    intercept_diff[:] = prox_intercept - intercept
+    approx += np.sum(coef_diff * coef_grad)
+    approx += np.sum(intercept_diff * intercept_grad)
+    approx += .5 * L * (np.sum(coef_diff ** 2) + np.sum(intercept_diff ** 2))
+    return approx
+
+
+@jit("float32(int64[:, :], float32[:, :])", nopython=True)
+def cross_entropy(y_true, y_pred):
+    n_samples, n_targets = y_true.shape
+    loss = 0
+    for i in range(n_samples):
+        for j in range(n_targets):
+            if y_true[i, j]:
+                loss -= log(y_pred[i, j])
+    return loss / n_samples
+
+
+@jit(nopython=True, cache=True)
+def _ista_loop(L, Xs, coef, coef_diff, coef_grad, intercept,
+               intercept_diff, intercept_grad, old_prox_coef, preds,
+               prox_coef, prox_intercept, ys,
+               n_iter, max_backtracking_iter, slices, alpha, beta,
+               backtracking_frequency, backtracking_divider,
+               verbose, momentum):
+    old_prox_coef[:] = 0
+    t = 1
+    _predict(Xs, preds, coef, intercept, slices)
+    new_loss = _loss(Xs, ys, preds, coef, intercept, slices)
+    rank = np.linalg.matrix_rank(coef)
+    for iter in range(n_iter):
+        if iter % (n_iter // verbose) == 0:
+            penalized_loss = new_loss
+            if alpha > 0:
+                penalized_loss += alpha * trace_norm(coef)
+            if beta > 0:
+                penalized_loss += beta / 2 * np.sum(coef ** 2)
+            print('Iteration', iter, 'rank', rank, 'loss', penalized_loss)
+
+        for j in range(max_backtracking_iter):
+            loss, rank = _prox_grad(Xs, ys, preds, coef, intercept,
+                                    prox_coef, prox_intercept, coef_grad,
+                                    intercept_grad,
+                                    slices, L, alpha, beta)
+            if iter % backtracking_frequency != 0:
+                break
+            new_loss = _loss(Xs, ys, preds, prox_coef, prox_intercept,
+                             slices)
+            quad_approx = _quad_approx(coef, intercept,
+                                       prox_coef, prox_intercept,
+                                       coef_grad, intercept_grad,
+                                       coef_diff, intercept_diff,
+                                       loss, L)
+            if new_loss <= quad_approx:
+                break
+            else:
+                if verbose:
+                    print('Backtracking step size.')
+                L *= backtracking_divider
+
+        if momentum:
+            old_t = t
+            t = .5 * (1 + sqrt(1 + 4 * old_t ** 2))
+            # Write inplace so that coefs stays valid
+            coef[:] = prox_coef * (1 + (old_t - 1) / t)
+            coef -= (old_t - 1) / t * old_prox_coef
+            old_prox_coef[:] = prox_coef
+        else:
+            coef[:] = prox_coef
 
 
 class TraceNormEstimator(BaseEstimator):
-    def __init__(self, alpha=1, n_iter=1000,
+    def __init__(self, alpha=1., beta=0., n_iter=1000,
                  momentum=True,
                  fit_intercept=True,
                  verbose=False,
-                 random_state=None):
+                 max_backtracking_iter=10,
+                 backtracking_frequency=10,
+                 step_size_multiplier=500,
+                 backtracking_divider=1.1):
         self.alpha = alpha
+        self.beta = beta
         self.n_iter = n_iter
         self.fit_intercept = fit_intercept
         self.momentum = momentum
         self.verbose = verbose
-        self.random_state = random_state
 
-    @property
-    def coefs_(self):
-        return [self.coef_[:, this_slice] for this_slice in self.slices_]
-
-    @property
-    def intercepts_(self):
-        return [self.intercept_[this_slice] for this_slice in self.slices_]
+        self.backtracking_frequency = backtracking_frequency
+        self.backtracking_divider = backtracking_divider
+        self.max_backtracking_iter = max_backtracking_iter
+        self.init_multiplier = step_size_multiplier
 
     def fit(self, Xs, ys):
         n_datasets = len(Xs)
@@ -61,59 +184,42 @@ class TraceNormEstimator(BaseEstimator):
 
         self.slices_ = []
         for iter in range(n_datasets):
-            self.slices_.append(slice(limits[iter], limits[iter + 1]))
+            self.slices_.append(np.array([limits[iter], limits[iter + 1]]))
+        self.slices_ = tuple(self.slices_)
+        L = lipschitz_constant(Xs, self.fit_intercept) / self.init_multiplier
+        coef = np.zeros((n_features, total_size), dtype=np.float32)
+        intercept = np.zeros(total_size, dtype=np.float32)
 
-        self.random_state = check_random_state(self.random_state)
-        self.coef_ = self.random_state.standard_normal(
-            (n_features, total_size))
-        self.intercept_ = np.zeros(total_size)
+        prox_coef = np.empty_like(coef, dtype=np.float32)
+        coef_grad = np.empty_like(coef, dtype=np.float32)
+        prox_intercept = np.empty_like(intercept, dtype=np.float32)
+        intercept_grad = np.empty_like(intercept, dtype=np.float32)
+        coef_diff = np.empty_like(coef, dtype=np.float32)
+        intercept_diff = np.empty_like(intercept, dtype=np.float32)
+        old_prox_coef = np.empty_like(coef)
 
-        L = lipschitz_constant(Xs, self.fit_intercept)
+        preds = tuple(np.empty_like(y, dtype=np.float32) for y in ys)
 
-        coefs = self.coefs_
-        intercepts = self.intercepts_
-        if self.momentum:
-            t = 1
-            prox_coef = np.zeros((n_features, total_size))
-            old_prox_coef = np.zeros((n_features, total_size))
-
-        for iter in range(self.n_iter):
-            preds = self.predict(Xs)
-            for X, y, pred, coef, intercept in zip(Xs, ys, preds,
-                                                   coefs, intercepts):
-                coef_grad = X.T.dot(y - pred) / X.shape[0] / n_datasets
-                intercept_grad = (y - pred).mean(axis=0) / n_datasets
-
-                coef += coef_grad / L
-                intercept += intercept_grad / L
-
-            prox_coef[:], rank = proximal_operator(self.coef_, self.alpha / L)
-
-            if self.momentum:
-                old_t = t
-                t = .5 * (1 + sqrt(1 + 4 * old_t ** 2))
-                # Write inplace so that coefs stays valid
-                self.coef_[:] = prox_coef * (1 + (old_t - 1) / t)
-                self.coef_ -= (old_t - 1) / t * old_prox_coef
-                old_prox_coef[:] = prox_coef
-            else:
-                self.coef_[:] = prox_coef
-
-    def predict(self, Xs):
-        coefs = self.coefs_
-        intercepts = self.intercepts_
-        preds = []
-        for X, coef, intercept in zip(Xs, coefs, intercepts):
-            logits = X.dot(coef) + intercept
-            logits -= logits.max()
-            pred = np.exp(logits)
-            pred /= np.sum(pred, axis=1, keepdims=True)
-            preds.append(pred)
-        return preds
+        _ista_loop(L, Xs, coef, coef_diff, coef_grad, intercept,
+                   intercept_diff, intercept_grad, old_prox_coef,
+                   preds, prox_coef, prox_intercept, ys,
+                   self.n_iter, self.max_backtracking_iter, self.slices_,
+                   self.alpha, self.beta,
+                   self.backtracking_frequency, self.backtracking_divider,
+                   self.verbose, self.momentum
+                   )
+        self.coef_ = coef
+        self.intercept_ = intercept
 
     def score(self, Xs, ys):
         preds = self.predict(Xs)
         scores = []
         for pred, y in zip(preds, ys):
-            scores.append(log_loss(y, pred))
+            scores.append(cross_entropy(y, pred))
         return scores
+
+    def predict(self, Xs):
+        preds = tuple(np.empty((X.shape[0], this_slice[1] - this_slice[0]))
+                      for X, this_slice in zip(Xs, self.slices_))
+        _predict(Xs, preds, self.coef_, self.intercept_, self.slices_)
+        return preds

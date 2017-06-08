@@ -17,24 +17,25 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['hcp', 'brainomics', 'archi', 'camcan', 'la5c']
+    datasets = ['brainomics']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs_positive'
+    source = 'hcp_rs'
     n_subjects = None
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5}
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                   'la5c': .5}
-    alpha = 1e-3
-    n_iter = 2000
+    alpha = 0
+    beta = 0
+    n_iter = 3000
     verbose = 10
-    seed = 2
+    seed = 10
 
 
 @exp.automain
 def main(datasets, source, reduced_dir, unmask_dir,
-         n_subjects, test_size, train_size, n_iter, alpha,
+         n_subjects, test_size, train_size, n_iter, alpha, beta,
          verbose,
          _seed):
     df = make_data_frame(datasets, source,
@@ -45,11 +46,12 @@ def main(datasets, source, reduced_dir, unmask_dir,
                                     train_size=train_size,
                                     random_state=_seed)
     transformer = MultiDatasetTransformer()
-    transformer.fit_transform(df_train)
     Xs_train, ys_train = transformer.fit_transform(df_train)
     Xs_test, ys_test = transformer.fit_transform(df_test)
 
     estimator = TraceNormEstimator(alpha=alpha,
+                                   step_size_multiplier=1,
+                                   beta=beta,
                                    n_iter=n_iter,
                                    verbose=verbose)
     estimator.fit(Xs_train, ys_train)
