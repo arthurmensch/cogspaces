@@ -1,7 +1,12 @@
 import numpy as np
 import tensorflow as tf
-from keras.callbacks import Callback, LearningRateScheduler
+from cogspaces.model.convex import MIN_FLOAT32
 from keras import backend as K, Input
+# Cut verbosity
+# _stderr = sys.stderr
+# null = open(os.devnull, 'wb')
+# sys.stderr = null
+from keras.callbacks import Callback, LearningRateScheduler
 from keras.engine import Model, Layer
 from keras.layers import Dropout, Dense
 from keras.optimizers import Adam, SGD, RMSprop
@@ -10,7 +15,8 @@ from modl.utils.math.enet import enet_projection
 from numpy.linalg import svd
 from sklearn.base import BaseEstimator
 
-from cogspaces.convex import MIN_FLOAT32
+
+# sys.stderr = _stderr
 
 
 class NonConvexEstimator(BaseEstimator):
