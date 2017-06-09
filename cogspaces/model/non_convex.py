@@ -1,20 +1,17 @@
 import numpy as np
 import tensorflow as tf
-from cogspaces.model.convex import MIN_FLOAT32
-from keras import backend as K, Input
 # Cut verbosity
 # _stderr = sys.stderr
 # null = open(os.devnull, 'wb')
 # sys.stderr = null
-from keras.callbacks import Callback, LearningRateScheduler
-from keras.engine import Model, Layer
-from keras.layers import Dropout, Dense
-from keras.optimizers import Adam, SGD, RMSprop
-from keras.regularizers import l2
+from keras.callbacks import Callback
+from keras.engine import Layer
+
 from modl.utils.math.enet import enet_projection
 from numpy.linalg import svd
 from sklearn.base import BaseEstimator
 
+MIN_FLOAT32 = np.finfo(np.float32).min
 
 # sys.stderr = _stderr
 
@@ -44,6 +41,13 @@ class NonConvexEstimator(BaseEstimator):
         self.latent_sparsity = latent_sparsity
 
     def fit(self, Xs, ys, init=None):
+        from keras import backend as K, Input
+        from keras.callbacks import LearningRateScheduler
+        from keras.engine import Model
+        from keras.layers import Dropout, Dense
+        from keras.optimizers import Adam, SGD, RMSprop
+        from keras.regularizers import l2
+
         n_datasets = len(Xs)
         sizes = np.array([y.shape[1] for y in ys])
         limits = [0] + np.cumsum(sizes).tolist()

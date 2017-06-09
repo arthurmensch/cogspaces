@@ -5,9 +5,6 @@ from numba import jit
 from numpy.linalg import svd
 from sklearn.base import BaseEstimator
 
-MIN_FLOAT32 = np.finfo(np.float32).min
-
-
 def lipschitz_constant(Xs, fit_intercept=False):
     max_squared_sums = np.array([(X ** 2).sum(axis=1).max() for X in Xs])
     max_squared_sums = np.mean(max_squared_sums)
@@ -177,16 +174,16 @@ class TraceNormEstimator(BaseEstimator):
                  max_backtracking_iter=5,
                  step_size_multiplier=1,
                  backtracking_divider=2.):
-        self.alpha = alpha
-        self.beta = beta
+        self.alpha = float(alpha)
+        self.beta = float(beta)
         self.max_iter = max_iter
         self.fit_intercept = fit_intercept
         self.momentum = momentum
         self.verbose = verbose
 
-        self.backtracking_divider = backtracking_divider
+        self.backtracking_divider = float(backtracking_divider)
         self.max_backtracking_iter = max_backtracking_iter
-        self.init_multiplier = step_size_multiplier
+        self.init_multiplier = float(step_size_multiplier)
 
     def fit(self, Xs, ys):
         n_datasets = len(Xs)
