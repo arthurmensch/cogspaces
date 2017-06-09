@@ -65,6 +65,10 @@ def make_data_frame(datasets, source, n_subjects=None,
         subjects = this_X.index.get_level_values('subject').unique().values
         subjects = subjects[:this_n_subjects]
         this_X = this_X.loc[idx[subjects.tolist()]]
+
+        this_X -= this_X.mean(axis=0)
+        # this_X /= this_X.std(axis=0)
+
         X.append(this_X)
     X = pd.concat(X, keys=datasets, names=['dataset'])
     X.sort_index(inplace=True)
