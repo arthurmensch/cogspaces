@@ -7,6 +7,10 @@ from sklearn.externals.joblib import load
 from sklearn.model_selection import GroupShuffleSplit
 from sklearn.preprocessing import LabelBinarizer
 
+import numpy as np
+
+from numpy.linalg import pinv
+
 idx = pd.IndexSlice
 
 
@@ -67,7 +71,7 @@ def make_data_frame(datasets, source, n_subjects=None,
         this_X = this_X.loc[idx[subjects.tolist()]]
 
         this_X -= this_X.mean(axis=0)
-        # this_X /= this_X.std(axis=0)
+        this_X /= this_X.std(axis=0)
 
         X.append(this_X)
     X = pd.concat(X, keys=datasets, names=['dataset'])
@@ -132,3 +136,21 @@ class MultiDatasetTransformer(TransformerMixin):
             contrasts.append(these_contrasts)
         contrasts = pd.concat(contrasts, axis=0)
         return contrasts
+
+
+def make_projection_matrix(bases, scale_bases=True):
+    if not isinstance(bases, list):
+        bases = [bases]
+    proj = []
+    rec = []
+    for i, basis in enumerate(bases):
+        if scale_bases:
+            S = np.std(basis, axis=1)
+            S[S == 0] = 1
+            basis = basis / S[:, np.newaxis]
+            proj.append(pinv(basis))
+            rec.append(basis)
+    proj = np.concatenate(proj, axis=1)
+    rec = np.concatenate(rec, axis=0)
+    proj_inv = np.linalg.inv(proj.T.dot(rec.T)).T.dot(rec)
+    return proj, proj_inv, rec

@@ -13,12 +13,12 @@ from nilearn.input_data import MultiNiftiMasker, NiftiLabelsMasker
 from sklearn.externals.joblib import Memory, load, dump
 from sklearn.utils import gen_batches
 
-from cogspaces.utils import get_output_dir
+from cogspaces.pipeline import get_output_dir, make_projection_matrix
 from cogspaces.datasets import fetch_la5c, fetch_human_voice, fetch_brainomics, \
     fetch_hcp, fetch_archi, fetch_craddock_parcellation, \
     fetch_atlas_modl, fetch_mask
 from cogspaces.datasets.contrasts import fetch_camcan
-from cogspaces.model import make_projection_matrix
+
 
 
 def create_raw_contrast_data(imgs, mask, raw_dir,
@@ -97,7 +97,7 @@ def unmask(dataset, output_dir=None,
                              batch_size=batch_size)
 
 
-def reduce(dataset, output_dir=None, source='hcp_rs_concat'):
+def reduce(dataset, output_dir=None, direct=False, source='hcp_rs_concat'):
     """Create a reduced version of a given dataset.
         Unmask must be called beforehand"""
     memory = Memory(cachedir=get_cache_dirs()[0], verbose=2)
@@ -133,14 +133,20 @@ def reduce(dataset, output_dir=None, source='hcp_rs_concat'):
 
             components = masker.transform(components_imgs)
         print('Transform and fit data')
-        proj, _, _ = memory.cache(make_projection_matrix)(components,
+        proj, proj_inv, _ = memory.cache(make_projection_matrix)(components,
                                                           scale_bases=True)
+        if direct:
+            proj = proj_inv.T
         Xt = X.dot(proj)
     Xt = pd.DataFrame(data=Xt, index=X.index)
+    this_source = source
+    if direct:
+        this_source += '_direct'
     this_output_dir = join(get_output_dir(output_dir), 'reduced',
-                           source, dataset)
+                           this_source, dataset)
     if not os.path.exists(this_output_dir):
         os.makedirs(this_output_dir)
+    print(join(this_output_dir, 'Xt.pkl'))
     dump(Xt, join(this_output_dir, 'Xt.pkl'))
     dump(masker, join(this_output_dir, 'masker.pkl'))
     np.save(join(output_dir, 'components'), components)

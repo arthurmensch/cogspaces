@@ -11,7 +11,7 @@ from numpy.linalg import svd
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from sklearn.externals.joblib import dump
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 
 idx = pd.IndexSlice
 
@@ -25,16 +25,16 @@ def config():
     datasets = ['archi', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs'
+    source = 'hcp_rs_concat'
     n_subjects = None
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5}
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                   'la5c': .5}
     model = 'logistic'
-    alpha = 5e-4
-    beta = 1e-5
-    max_iter = 500
+    alpha = 0
+    beta = 10
+    max_iter = 1000
     verbose = 10
     seed = 10
 
@@ -42,9 +42,9 @@ def config():
     n_components = 200
     latent_dropout_rate = 0.5
     input_dropout_rate = 0.25
-    source_init = join(get_output_dir(), 'clean', '557')
+    source_init = None  # join(get_output_dir(), 'clean', '557')
     optimizer = 'adam'
-    step_size = 1e-2
+    step_size = 1e-3
 
 
 @exp.capture
@@ -61,11 +61,12 @@ def fit_model(df_train, df_test, model, alpha, beta, n_components,
             _, n_targets = y_train.shape
             if beta == 0:
                 beta = 1e-20
-            estimator = LogisticRegression(C=1 / (X_train.shape[0] * beta),
-                                           multi_class='multinomial',
-                                           max_iter=max_iter,
-                                           solver='saga',
-                                           verbose=verbose)
+            estimator = LogisticRegressionCV(
+                Cs=1 / (X_train.shape[0] * beta) * np.logspace(0, 5, 6),
+                multi_class='multinomial',
+                max_iter=max_iter,
+                solver='lbfgs',
+                verbose=verbose)
             y_train = np.argmax(y_train, axis=1)
             estimator.fit(X_train, y_train)
             y_pred_train = estimator.predict(X_train)
@@ -131,10 +132,16 @@ def main(datasets, source, reduced_dir, unmask_dir,
          n_subjects, test_size, train_size, model,
          _run, _seed):
     artifact_dir = join(_run.observers[0].basedir, str(_run._id))
+    reduce = False
+    if source == 'hcp_rs_positive_single':
+        source = 'hcp_rs_positive'
+        reduce = True
     df = make_data_frame(datasets, source,
                          reduced_dir=reduced_dir,
                          unmask_dir=unmask_dir,
                          n_subjects=n_subjects)
+    if reduce:
+        df = df.iloc[:, -512:]
     df_train, df_test = split_folds(df, test_size=test_size,
                                     train_size=train_size,
                                     random_state=_seed)
@@ -156,8 +163,7 @@ def main(datasets, source, reduced_dir, unmask_dir,
     _run.info['score'] = score_dict
 
     if model in ['logistic', 'trace']:
-        U, s, V = svd(estimator.coef_, full_matrices=False)
-        rank = np.sum(s > 1e-7)
+        rank = np.linalg.matrix_rank(estimator.coef_)
         dump(estimator, join(artifact_dir, 'estimator.pkl'))
     else:
         rank = estimator.n_components

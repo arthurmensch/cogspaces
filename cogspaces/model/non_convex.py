@@ -6,6 +6,12 @@ import tensorflow as tf
 # sys.stderr = null
 from keras.callbacks import Callback
 from keras.engine import Layer
+from keras import backend as K, Input
+from keras.callbacks import LearningRateScheduler
+from keras.engine import Model
+from keras.layers import Dropout, Dense
+from keras.optimizers import Adam, SGD, RMSprop
+from keras.regularizers import l2
 
 from modl.utils.math.enet import enet_projection
 from numpy.linalg import svd
@@ -41,13 +47,6 @@ class NonConvexEstimator(BaseEstimator):
         self.latent_sparsity = latent_sparsity
 
     def fit(self, Xs, ys, init=None):
-        from keras import backend as K, Input
-        from keras.callbacks import LearningRateScheduler
-        from keras.engine import Model
-        from keras.layers import Dropout, Dense
-        from keras.optimizers import Adam, SGD, RMSprop
-        from keras.regularizers import l2
-
         n_datasets = len(Xs)
         sizes = np.array([y.shape[1] for y in ys])
         limits = [0] + np.cumsum(sizes).tolist()
@@ -70,9 +69,9 @@ class NonConvexEstimator(BaseEstimator):
         X_cat = np.concatenate(Xs, axis=0)
         mask_cat = np.concatenate(masks, axis=0)
         n_samples, n_features = X_cat.shape
-        sample_weight = np.concatenate([[1. / X.shape[0]] * X.shape[0]
-                                        for X in Xs])
-        sample_weight *= n_samples / n_datasets
+        # sample_weight = np.concatenate([[1. / X.shape[0]] * X.shape[0]
+        #                                 for X in Xs])
+        # sample_weight *= n_samples / n_datasets
 
         if self.batch_size is None:
             batch_size = n_samples
@@ -140,12 +139,12 @@ class NonConvexEstimator(BaseEstimator):
         else:
             callbacks = []
 
-        def schedule(epoch):
-            return self.step_size / (1 + epoch)
-        callbacks.append(LearningRateScheduler(schedule))
+        # def schedule(epoch):
+        #     return self.step_size / (1 + epoch)
+        # callbacks.append(LearningRateScheduler(schedule))
 
         self.model_.fit([X_cat, mask_cat], y_cat,
-                        sample_weight=sample_weight,
+                        # sample_weight=sample_weight,
                         batch_size=batch_size, verbose=2,
                         epochs=self.max_iter,
                         callbacks=callbacks)
