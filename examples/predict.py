@@ -31,15 +31,15 @@ def config():
                  'la5c': .5}
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                   'la5c': .5}
-    model = 'logistic'
-    alpha = 0
-    beta = 10
-    max_iter = 1000
+    model = 'trace'
+    alpha = 1e-3
+    beta = 0.0000
+    max_iter = 500
     verbose = 10
     seed = 10
 
     # Non convex only
-    n_components = 200
+    n_components = 50
     latent_dropout_rate = 0.5
     input_dropout_rate = 0.25
     source_init = None  # join(get_output_dir(), 'clean', '557')
@@ -52,8 +52,9 @@ def fit_model(df_train, df_test, model, alpha, beta, n_components,
               optimizer, latent_dropout_rate, input_dropout_rate,
               step_size, source_init, max_iter, verbose):
     transformer = MultiDatasetTransformer()
-    Xs_train, ys_train = transformer.fit_transform(df_train)
-    Xs_test, ys_test = transformer.fit_transform(df_test)
+    transformer.fit(df_train)
+    Xs_train, ys_train = transformer.transform(df_train)
+    Xs_test, ys_test = transformer.transform(df_test)
     if model == 'logistic':  # Adaptation
         ys_pred_train = []
         ys_pred_test = []
@@ -61,8 +62,8 @@ def fit_model(df_train, df_test, model, alpha, beta, n_components,
             _, n_targets = y_train.shape
             if beta == 0:
                 beta = 1e-20
-            estimator = LogisticRegressionCV(
-                Cs=1 / (X_train.shape[0] * beta) * np.logspace(0, 5, 6),
+            estimator = LogisticRegression(
+                C=1 / (X_train.shape[0] * beta),
                 multi_class='multinomial',
                 max_iter=max_iter,
                 solver='lbfgs',
