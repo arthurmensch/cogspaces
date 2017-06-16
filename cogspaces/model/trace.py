@@ -42,8 +42,7 @@ def _prox_grad(Xs, ys, preds, coef, intercept,
         coef_grad[:, this_slice[0]:this_slice[1]] = \
             np.dot(X.T, np.exp(pred) - y) / X.shape[0] / n_datasets * dataset_weight
         for jj, j in enumerate(range(this_slice[0], this_slice[1])):
-            intercept_grad[j] = (np.exp(pred[:, jj]) - y[:,
-                                                       jj]).mean() / n_datasets
+            intercept_grad[j] = (np.exp(pred[:, jj]) - y[:, jj]).mean() / n_datasets * dataset_weight
         loss += cross_entropy(y, pred) / n_datasets
     if beta > 0:
         coef_grad += beta * coef

@@ -103,16 +103,21 @@ def split_folds(X, test_size=0.2, train_size=None, random_state=None):
 
 class MultiDatasetTransformer(TransformerMixin):
     """Utility transformer"""
+    def __init__(self, with_std=False, with_mean=True):
+        self.with_std = with_std
+        self.with_mean = with_mean
+
     def fit(self, df):
         self.lbins_ = []
         self.scs_ = []
         for dataset, sub_df in df.groupby(level='dataset'):
             lbin = LabelBinarizer()
             this_y = sub_df.index.get_level_values('contrast')
-            sc = StandardScaler(with_std=False)
+            sc = StandardScaler(with_std=self.with_std,
+                                with_mean=self.with_mean)
             sc.fit(sub_df.values)
             lbin.fit(this_y)
-            # sc.scale_ /= sub_df.shape[0]
+            # sc.scale_ *= sub_df.shape[0]
             self.lbins_.append(lbin)
             self.scs_.append(sc)
         return self

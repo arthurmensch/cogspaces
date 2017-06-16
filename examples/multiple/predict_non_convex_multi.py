@@ -16,8 +16,8 @@ sys.path.append(path.dirname(path.dirname
                              (path.dirname(path.abspath(__file__)))))
 from examples.predict import exp as single_exp
 
-exp = Experiment('predict_log_multi')
-basedir = join(get_output_dir(), 'predict_logistic_multi')
+exp = Experiment('predict_trace_multi')
+basedir = join(get_output_dir(), 'predict_trace_multi')
 if not os.path.exists(basedir):
     os.makedirs(basedir)
 exp.observers.append(FileStorageObserver.create(basedir=basedir))
@@ -25,7 +25,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 36
+    n_jobs = 24
     n_seeds = 10
     seed = 2
 
@@ -39,9 +39,9 @@ def config():
                  'la5c': .5}
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                   'la5c': .5}
-    model = 'logistic'
-    max_iter = 1000
-    verbose = 50
+    model = 'non_convex'
+    max_iter = 300
+    verbose = 0
 
 
 def single_run(config_updates, rundir, _id):
@@ -58,12 +58,16 @@ def run(n_seeds, n_jobs, _run, _seed):
                                                   size=n_seeds)
     exps = []
     for dataset in ['archi']:
-        exps += [{'datasets': [dataset],
-                  'beta': beta,
+        exps += [{'datasets': [dataset, 'hcp'],
+                  'n_components': n_components,
+                  'latent_dropout_rate': latent_dropout_rate,
                   'source': source,
+                  'with_std': with_std,
                   'seed': seed} for seed in seed_list
-                 for beta in [0] + np.logspace(-5, -1, 4).tolist()
-                 for source in ['hcp_rs_positive_single']]
+                 for latent_dropout_rate in [0, 0.25, 0.5, 0.75]
+                 for n_components in [25, 50, 200]
+                 for with_std in [True, False]
+                 for source in ['hcp_rs_positive']]
 
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):

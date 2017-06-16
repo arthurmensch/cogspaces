@@ -6,23 +6,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 from modl import DictFact
 from modl.utils.system import get_cache_dirs
-from numpy.linalg import svd
 from nilearn._utils import check_niimg
 from nilearn.datasets import fetch_atlas_msdl
 from nilearn.image import new_img_like, index_img
 from nilearn.input_data import NiftiLabelsMasker, MultiNiftiMasker
 from nilearn.plotting import plot_stat_map, find_xyz_cut_coords
-from sklearn.decomposition import MiniBatchDictionaryLearning, \
-    MiniBatchSparsePCA
+from numpy.linalg import svd
 from sklearn.externals.joblib import Memory, load, delayed, Parallel
 
 from cogspaces.datasets import fetch_craddock_parcellation, fetch_atlas_modl, \
     fetch_mask
-from cogspaces.model import make_projection_matrix
-from cogspaces.utils import get_output_dir
+from cogspaces.pipeline import get_output_dir
+from cogspaces.pipeline import make_projection_matrix
 
 positive = False
-n_exp = 420
+n_exp = 392
 
 
 def plot_map(single_map, title, i):
@@ -38,7 +36,7 @@ def plot_map(single_map, title, i):
 
 memory = Memory(cachedir=get_cache_dirs()[0], verbose=2)
 
-artifact_dir = join(get_output_dir(), 'clean', str(n_exp))
+artifact_dir = join(get_output_dir(), 'predict', str(n_exp))
 analysis_dir = join(artifact_dir, 'analysis')
 if not os.path.exists(analysis_dir):
     os.makedirs(analysis_dir)
@@ -89,16 +87,16 @@ else:
         comp_img = masker.inverse_transform(comp)
         comp_img.to_filename(join(analysis_dir, 'comp.nii.gz'))
 
-        # maps = maps.T.dot(proj.T)
-        # maps_img = masker.inverse_transform(maps)
+        maps = maps.T.dot(proj.T)
+        maps_img = masker.inverse_transform(maps)
 
 transformer = load(join(artifact_dir, 'transformer.pkl'))
 classes = np.concatenate([lbin.classes_ for lbin in transformer.lbins_])
 
-# maps_img.to_filename(join(analysis_dir, 'maps.nii.gz'))
-# Parallel(n_jobs=3, verbose=10)(delayed(plot_map)(index_img(maps_img, i),
-#                                                  classes[i], i) for
-#                    i in range(maps_img.shape[3]))
+maps_img.to_filename(join(analysis_dir, 'maps.nii.gz'))
+Parallel(n_jobs=3, verbose=10)(delayed(plot_map)(index_img(maps_img, i),
+                                                 classes[i], i) for
+                   i in range(maps_img.shape[3]))
 
 Parallel(n_jobs=3, verbose=10)(delayed(plot_map)(index_img(comp_img, i),
                                                  'map_%i' % i, i) for

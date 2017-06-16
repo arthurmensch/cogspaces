@@ -34,15 +34,17 @@ def config():
     dataset_weights = {'hcp': 1., 'archi': 1.}
     model = 'trace'
     alpha = 1e-3
-    beta = 1e-5
+    beta = 0
     max_iter = 500
     verbose = 10
     seed = 20
 
+    with_std = False
+
     # Non convex only
-    n_components = 50
-    latent_dropout_rate = 0.5
-    input_dropout_rate = 0.25
+    n_components = 200
+    latent_dropout_rate = 0.9
+    input_dropout_rate = 0.
     source_init = None  # join(get_output_dir(), 'clean', '557')
     optimizer = 'adam'
     step_size = 1e-3
@@ -50,12 +52,15 @@ def config():
 
 @exp.capture
 def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_components,
+              with_std,
               optimizer, latent_dropout_rate, input_dropout_rate,
               step_size, source_init, max_iter, verbose):
-    transformer = MultiDatasetTransformer()
+    transformer = MultiDatasetTransformer(with_std=with_std)
     transformer.fit(df_train)
     Xs_train, ys_train = transformer.transform(df_train)
-    dataset_weights = [dataset_weights[dataset] for dataset in df_train.index.get_level_values('dataset').unique().values]
+    dataset_weights = [dataset_weights[dataset] for dataset
+                       in df_train.index.get_level_values('dataset').
+                           unique().values]
     Xs_test, ys_test = transformer.transform(df_test)
     if model == 'logistic':  # Adaptation
         ys_pred_train = []

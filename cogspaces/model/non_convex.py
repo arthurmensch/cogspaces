@@ -14,8 +14,10 @@ from keras.regularizers import l2
 from modl.utils.math.enet import enet_projection
 from numpy.linalg import svd
 from sklearn.base import BaseEstimator
+from sklearn.utils import gen_batches, check_random_state
 
 MIN_FLOAT32 = np.finfo(np.float32).min
+
 
 # sys.stderr = _stderr
 
@@ -31,6 +33,7 @@ class NonConvexEstimator(BaseEstimator):
                  intercept_init=None,
                  batch_size=256,
                  latent_sparsity=None,
+                 random_state=None,
                  max_iter=1000):
         self.alpha = alpha
         self.n_components = n_components
@@ -43,9 +46,16 @@ class NonConvexEstimator(BaseEstimator):
         self.batch_size = batch_size
         self.optimizer = optimizer
         self.latent_sparsity = latent_sparsity
+        self.random_state = random_state
 
     def fit(self, Xs, ys, init=None, dataset_weights=None):
+
+        self.random_state = check_random_state(self.random_state)
         n_datasets = len(Xs)
+        n_samples = sum(X.shape[0] for X in Xs)
+        n_features = Xs[0].shape[1]
+
+        # Data
         sizes = np.array([y.shape[1] for y in ys])
         limits = [0] + np.cumsum(sizes).tolist()
         n_targets = limits[-1]
@@ -56,6 +66,7 @@ class NonConvexEstimator(BaseEstimator):
 
         padded_ys = []
         masks = []
+        Xs = [X.copy() for X in Xs]
         for y, this_slice in zip(ys, self.slices_):
             padded_y = np.zeros((y.shape[0], n_targets))
             mask = np.zeros((y.shape[0], n_targets), dtype='bool')
@@ -63,19 +74,16 @@ class NonConvexEstimator(BaseEstimator):
             padded_y[:, this_slice[0]:this_slice[1]] = y
             padded_ys.append(padded_y)
             masks.append(mask)
-        y_cat = np.concatenate(padded_ys, axis=0)
-        X_cat = np.concatenate(Xs, axis=0)
-        mask_cat = np.concatenate(masks, axis=0)
-        n_samples, n_features = X_cat.shape
-        # sample_weight = np.concatenate([[1. / X.shape[0]] * X.shape[0]
-        #                                 for X in Xs])
-        # sample_weight *= n_samples / n_datasets
+        our_generator = generator(Xs, padded_ys, masks,
+                                  batch_size=self.batch_size,
+                                  random_state=self.random_state)
 
-        if self.batch_size is None:
-            batch_size = n_samples
+        if self.batch_size is not None:
+            steps_per_epoch = n_samples / self.batch_size
         else:
-            batch_size = self.batch_size
+            steps_per_epoch = n_datasets
 
+        # Model
         if self.intercept_init is not None:
             supervised_bias_initializer = \
                 lambda shape: K.constant(self.intercept_init)
@@ -137,11 +145,13 @@ class NonConvexEstimator(BaseEstimator):
         else:
             callbacks = []
 
-        self.model_.fit([X_cat, mask_cat], y_cat,
-                        # sample_weight=sample_weight,
-                        batch_size=batch_size, verbose=2,
-                        epochs=self.max_iter,
-                        callbacks=callbacks)
+        K.set_session(tf.session)
+
+        self.model_.fit_generator(our_generator,
+                                  steps_per_epoch=steps_per_epoch,
+                                  verbose=2,
+                                  epochs=self.max_iter,
+                                  callbacks=callbacks)
 
     def predict(self, Xs):
         n_datasets = len(Xs)
@@ -170,6 +180,29 @@ class NonConvexEstimator(BaseEstimator):
         return ys
 
 
+def generator(Xs, ys, masks, batch_size, random_state=None):
+    if batch_size is None:
+        batch_sizes = [X.shape[0] for X in Xs]
+    else:
+        batch_sizes = [batch_size] * len(Xs)
+    batchers = [iter([]) for _ in Xs]
+    while True:
+        for i, (X, y, mask, batcher, batch_size) in enumerate(zip(Xs, ys, masks,
+                                                                  batchers, batch_sizes)):
+            try:
+                batch = next(batcher)
+            except StopIteration:
+                permutation = random_state.permutation(X.shape[0])
+                X[:] = X[permutation]
+                y[:] = y[permutation]
+                mask[:] = mask[permutation]
+                batcher = gen_batches(X.shape[0], batch_size)
+                batchers[i] = batcher
+                batch = next(batcher)
+
+            yield [X[batch], mask[batch]], y[batch]
+
+
 class L1ProjCallback(Callback):
     def __init__(self, radius=1):
         Callback.__init__(self)
@@ -185,6 +218,7 @@ class L1ProjCallback(Callback):
     def on_epoch_begin(self, epoch, logs=None):
         weights = self.model.get_layer('latent').get_weights()[0]
         print('sparsity', np.mean(weights == 0))
+
 
 class PartialSoftmax(Layer):
     def __init__(self, **kwargs):
