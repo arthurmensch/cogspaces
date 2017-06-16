@@ -22,21 +22,22 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['archi']
+    datasets = ['archi', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs_concat'
+    source = 'hcp_rs_positive'
     n_subjects = None
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5}
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                   'la5c': .5}
-    model = 'logistic'
+    dataset_weights = {'hcp': 1., 'archi': 1.}
+    model = 'trace'
     alpha = 1e-3
     beta = 1e-5
     max_iter = 500
     verbose = 10
-    seed = 10
+    seed = 20
 
     # Non convex only
     n_components = 50
@@ -48,12 +49,13 @@ def config():
 
 
 @exp.capture
-def fit_model(df_train, df_test, model, alpha, beta, n_components,
+def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_components,
               optimizer, latent_dropout_rate, input_dropout_rate,
               step_size, source_init, max_iter, verbose):
     transformer = MultiDatasetTransformer()
     transformer.fit(df_train)
     Xs_train, ys_train = transformer.transform(df_train)
+    dataset_weights = [dataset_weights[dataset] for dataset in df_train.index.get_level_values('dataset').unique().values]
     Xs_test, ys_test = transformer.transform(df_test)
     if model == 'logistic':  # Adaptation
         ys_pred_train = []
@@ -120,7 +122,7 @@ def fit_model(df_train, df_test, model, alpha, beta, n_components,
                 step_size=step_size)
         else:
             raise ValueError
-        estimator.fit(Xs_train, ys_train)
+        estimator.fit(Xs_train, ys_train, dataset_weights=dataset_weights)
         ys_pred_train = estimator.predict(Xs_train)
         pred_df_train = transformer.inverse_transform(df_train, ys_pred_train)
         ys_pred_test = estimator.predict(Xs_test)

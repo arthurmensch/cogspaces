@@ -70,9 +70,6 @@ def make_data_frame(datasets, source, n_subjects=None,
         subjects = subjects[:this_n_subjects]
         this_X = this_X.loc[idx[subjects.tolist()]]
 
-        this_X -= this_X.mean(axis=0)
-        # this_X /= this_X.std(axis=0)
-
         X.append(this_X)
     X = pd.concat(X, keys=datasets, names=['dataset'])
     X.sort_index(inplace=True)
@@ -112,11 +109,12 @@ class MultiDatasetTransformer(TransformerMixin):
         for dataset, sub_df in df.groupby(level='dataset'):
             lbin = LabelBinarizer()
             this_y = sub_df.index.get_level_values('contrast')
-            sc = StandardScaler()
+            sc = StandardScaler(with_std=False)
             sc.fit(sub_df.values)
             lbin.fit(this_y)
-            self.scs_.append(sc)
+            # sc.scale_ /= sub_df.shape[0]
             self.lbins_.append(lbin)
+            self.scs_.append(sc)
         return self
 
     def transform(self, df):
@@ -125,7 +123,7 @@ class MultiDatasetTransformer(TransformerMixin):
         for (dataset, sub_df), lbin, sc in zip(df.groupby(level='dataset'),
                                            self.lbins_, self.scs_):
             this_X = sc.transform(sub_df.values)
-            this_X = sub_df.values
+            # this_X = sub_df.values
             this_y = sub_df.index.get_level_values('contrast')
             this_y = lbin.transform(this_y)
             y.append(this_y)

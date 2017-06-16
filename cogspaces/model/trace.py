@@ -5,8 +5,9 @@ from numba import jit
 from numpy.linalg import svd
 from sklearn.base import BaseEstimator
 
-def lipschitz_constant(Xs, fit_intercept=False):
-    max_squared_sums = np.array([(X ** 2).sum(axis=1).max() for X in Xs])
+def lipschitz_constant(Xs, dataset_weights, fit_intercept=False):
+    max_squared_sums = np.array([(X ** 2).sum(axis=1).max() * weight
+                                 for X, weight in zip(Xs, dataset_weights)])
     max_squared_sums = np.mean(max_squared_sums)
     L = (0.5 * (max_squared_sums + int(fit_intercept)))
     return L
@@ -29,6 +30,7 @@ def proximal_operator(coef, threshold):
 
 @jit(nopython=True, cache=True)
 def _prox_grad(Xs, ys, preds, coef, intercept,
+               dataset_weights,
                prox_coef, prox_intercept, coef_grad, intercept_grad,
                slices, L, Lmax, alpha, beta, max_backtracking_iter,
                backtracking_divider,
@@ -36,9 +38,9 @@ def _prox_grad(Xs, ys, preds, coef, intercept,
     n_datasets = len(slices)
     _predict(Xs, preds, coef, intercept, slices)
     loss = .5 * beta * np.sum(coef ** 2)
-    for X, y, pred, this_slice in zip(Xs, ys, preds, slices):
+    for X, y, pred, this_slice, dataset_weight in zip(Xs, ys, preds, slices, dataset_weights):
         coef_grad[:, this_slice[0]:this_slice[1]] = \
-            np.dot(X.T, np.exp(pred) - y) / X.shape[0] / n_datasets
+            np.dot(X.T, np.exp(pred) - y) / X.shape[0] / n_datasets * dataset_weight
         for jj, j in enumerate(range(this_slice[0], this_slice[1])):
             intercept_grad[j] = (np.exp(pred[:, jj]) - y[:,
                                                        jj]).mean() / n_datasets
@@ -123,6 +125,7 @@ def cross_entropy(y_true, y_pred):
 
 @jit(nopython=True, cache=True)
 def _ista_loop(L, Lmax, Xs, coef, coef_diff, coef_grad, intercept,
+               dataset_weights,
                intercept_diff, intercept_grad, old_prox_coef, preds,
                prox_coef, prox_intercept, ys,
                max_iter, max_backtracking_iter, slices, alpha, beta,
@@ -142,6 +145,7 @@ def _ista_loop(L, Lmax, Xs, coef, coef_diff, coef_grad, intercept,
 
         loss, rank, L, max_backtracking_iter = _prox_grad(Xs, ys, preds, coef,
                                                           intercept,
+                                                          dataset_weights,
                                                           prox_coef,
                                                           prox_intercept,
                                                           coef_grad,
@@ -185,7 +189,7 @@ class TraceNormEstimator(BaseEstimator):
         self.max_backtracking_iter = max_backtracking_iter
         self.init_multiplier = float(step_size_multiplier)
 
-    def fit(self, Xs, ys):
+    def fit(self, Xs, ys, dataset_weights=None):
         n_datasets = len(Xs)
         n_features = Xs[0].shape[1]
 
@@ -193,11 +197,14 @@ class TraceNormEstimator(BaseEstimator):
         limits = [0] + np.cumsum(sizes).tolist()
         total_size = limits[-1]
 
+        if dataset_weights is None:
+            dataset_weights = [1.] * n_datasets
+
         self.slices_ = []
         for iter in range(n_datasets):
             self.slices_.append(np.array([limits[iter], limits[iter + 1]]))
         self.slices_ = tuple(self.slices_)
-        Lmax = lipschitz_constant(Xs, self.fit_intercept)
+        Lmax = lipschitz_constant(Xs, dataset_weights, self.fit_intercept)
         L = Lmax / self.init_multiplier
         coef = np.ones((n_features, total_size), dtype=np.float32)
         intercept = np.zeros(total_size, dtype=np.float32)
@@ -213,6 +220,7 @@ class TraceNormEstimator(BaseEstimator):
         preds = tuple(np.empty_like(y, dtype=np.float32) for y in ys)
 
         _ista_loop(L, Lmax, Xs, coef, coef_diff, coef_grad, intercept,
+                   dataset_weights,
                    intercept_diff, intercept_grad, old_prox_coef,
                    preds, prox_coef, prox_intercept, ys,
                    self.max_iter, self.max_backtracking_iter, self.slices_,

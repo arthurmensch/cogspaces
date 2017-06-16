@@ -1,18 +1,16 @@
 import numpy as np
 import tensorflow as tf
+from keras import backend as K, Input
 # Cut verbosity
 # _stderr = sys.stderr
 # null = open(os.devnull, 'wb')
 # sys.stderr = null
 from keras.callbacks import Callback
 from keras.engine import Layer
-from keras import backend as K, Input
-from keras.callbacks import LearningRateScheduler
 from keras.engine import Model
 from keras.layers import Dropout, Dense
 from keras.optimizers import Adam, SGD, RMSprop
 from keras.regularizers import l2
-
 from modl.utils.math.enet import enet_projection
 from numpy.linalg import svd
 from sklearn.base import BaseEstimator
@@ -46,7 +44,7 @@ class NonConvexEstimator(BaseEstimator):
         self.optimizer = optimizer
         self.latent_sparsity = latent_sparsity
 
-    def fit(self, Xs, ys, init=None):
+    def fit(self, Xs, ys, init=None, dataset_weights=None):
         n_datasets = len(Xs)
         sizes = np.array([y.shape[1] for y in ys])
         limits = [0] + np.cumsum(sizes).tolist()
@@ -138,10 +136,6 @@ class NonConvexEstimator(BaseEstimator):
             callbacks = [L1ProjCallback(radius=self.latent_sparsity)]
         else:
             callbacks = []
-
-        # def schedule(epoch):
-        #     return self.step_size / (1 + epoch)
-        # callbacks.append(LearningRateScheduler(schedule))
 
         self.model_.fit([X_cat, mask_cat], y_cat,
                         # sample_weight=sample_weight,
