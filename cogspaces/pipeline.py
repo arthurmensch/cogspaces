@@ -122,6 +122,7 @@ class MultiDatasetTransformer(TransformerMixin):
             self.scs_.append(sc)
         return self
 
+
     def transform(self, df):
         X = []
         y = []

@@ -34,6 +34,7 @@ class NonConvexEstimator(BaseEstimator):
                  batch_size=256,
                  latent_sparsity=None,
                  random_state=None,
+                 n_jobs=1,
                  max_iter=1000):
         self.alpha = alpha
         self.n_components = n_components
@@ -47,9 +48,10 @@ class NonConvexEstimator(BaseEstimator):
         self.optimizer = optimizer
         self.latent_sparsity = latent_sparsity
         self.random_state = random_state
+        self.n_jobs = n_jobs
 
     def fit(self, Xs, ys, init=None, dataset_weights=None):
-
+        use_generator = False
         self.random_state = check_random_state(self.random_state)
         n_datasets = len(Xs)
         n_samples = sum(X.shape[0] for X in Xs)
@@ -74,15 +76,25 @@ class NonConvexEstimator(BaseEstimator):
             padded_y[:, this_slice[0]:this_slice[1]] = y
             padded_ys.append(padded_y)
             masks.append(mask)
-        our_generator = generator(Xs, padded_ys, masks,
-                                  batch_size=self.batch_size,
-                                  random_state=self.random_state)
-
-        if self.batch_size is not None:
-            steps_per_epoch = n_samples / self.batch_size
+        if use_generator:
+            our_generator = generator(Xs, padded_ys, masks,
+                                      batch_size=self.batch_size,
+                                      random_state=self.random_state)
+            if self.batch_size is not None:
+                steps_per_epoch = n_samples / self.batch_size
+            else:
+                steps_per_epoch = n_datasets
         else:
-            steps_per_epoch = n_datasets
-
+            Xs_cat = np.concatenate(Xs, axis=0)
+            padded_ys_cat = np.concatenate(padded_ys, axis=0)
+            masks_cat = np.concatenate(masks, axis=0)
+            sample_weight = np.concatenate(
+                [[weight * n_samples / X.shape[0] / n_datasets] * X.shape[0]
+                 for weight, X in zip(dataset_weights, Xs)])
+            if self.batch_size is None:
+                batch_size = n_samples
+            else:
+                batch_size = self.batch_size
         # Model
         if self.intercept_init is not None:
             supervised_bias_initializer = \
@@ -145,13 +157,32 @@ class NonConvexEstimator(BaseEstimator):
         else:
             callbacks = []
 
-        K.set_session(tf.session)
+        sess = tf.Session(
+            config=tf.ConfigProto(
+                device_count={'CPU': self.n_jobs},
+                inter_op_parallelism_threads=self.n_jobs,
+                intra_op_parallelism_threads=self.n_jobs,
+                use_per_session_threads=True)
+        )
+        K.set_session(sess)
 
-        self.model_.fit_generator(our_generator,
-                                  steps_per_epoch=steps_per_epoch,
-                                  verbose=2,
-                                  epochs=self.max_iter,
-                                  callbacks=callbacks)
+        if use_generator:
+            self.model_.fit_generator(our_generator,
+                                      steps_per_epoch=steps_per_epoch,
+                                      verbose=2,
+                                      epochs=self.max_iter,
+                                      callbacks=callbacks)
+        else:
+            self.model_.fit([Xs_cat, masks_cat], padded_ys_cat,
+                            sample_weight=sample_weight,
+                            batch_size=batch_size,
+                            verbose=2,
+                            epochs=self.max_iter,
+                            callbacks=callbacks)
+        latent = self.model_.get_layer('latent').get_weights()[0]
+        supervised, self.intercept_ = self.model_.get_layer(
+            'supervised').get_weights()
+        self.coef_ = latent.dot(supervised)
 
     def predict(self, Xs):
         n_datasets = len(Xs)
@@ -180,15 +211,16 @@ class NonConvexEstimator(BaseEstimator):
         return ys
 
 
-def generator(Xs, ys, masks, batch_size, random_state=None):
+def generator(Xs, padded_ys, masks, batch_size, random_state=None):
     if batch_size is None:
         batch_sizes = [X.shape[0] for X in Xs]
     else:
         batch_sizes = [batch_size] * len(Xs)
     batchers = [iter([]) for _ in Xs]
     while True:
-        for i, (X, y, mask, batcher, batch_size) in enumerate(zip(Xs, ys, masks,
-                                                                  batchers, batch_sizes)):
+        for i, (X, y, mask, batcher, batch_size) in enumerate(
+                zip(Xs, padded_ys, masks,
+                    batchers, batch_sizes)):
             try:
                 batch = next(batcher)
             except StopIteration:

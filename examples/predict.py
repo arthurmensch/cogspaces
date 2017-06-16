@@ -32,18 +32,18 @@ def config():
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                   'la5c': .5}
     dataset_weights = {'hcp': 1., 'archi': 1.}
-    model = 'trace'
-    alpha = 1e-3
+    model = 'non_convex'
+    alpha = 0
     beta = 0
-    max_iter = 500
+    max_iter = 50
     verbose = 10
     seed = 20
 
     with_std = False
 
     # Non convex only
-    n_components = 200
-    latent_dropout_rate = 0.9
+    n_components = 50
+    latent_dropout_rate = 0.5
     input_dropout_rate = 0.
     source_init = None  # join(get_output_dir(), 'clean', '557')
     optimizer = 'adam'
@@ -119,6 +119,7 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_componen
                 alpha=alpha, n_components=n_components,
                 latent_dropout_rate=latent_dropout_rate,
                 input_dropout_rate=input_dropout_rate,
+                batch_size=256,
                 optimizer=optimizer,
                 max_iter=max_iter,
                 latent_sparsity=None,
@@ -137,7 +138,7 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_componen
 
 @exp.automain
 def main(datasets, source, reduced_dir, unmask_dir,
-         n_subjects, test_size, train_size, model,
+         n_subjects, test_size, train_size,
          _run, _seed):
     artifact_dir = join(_run.observers[0].basedir, str(_run._id))
     reduce = False
@@ -170,11 +171,11 @@ def main(datasets, source, reduced_dir, unmask_dir,
         score_dict['%s_%s' % (fold, dataset)] = this_score
     _run.info['score'] = score_dict
 
-    if model in ['logistic', 'trace']:
-        rank = np.linalg.matrix_rank(estimator.coef_)
+    rank = np.linalg.matrix_rank(estimator.coef_)
+    try:
         dump(estimator, join(artifact_dir, 'estimator.pkl'))
-    else:
-        rank = estimator.n_components
+    except TypeError:
+        pass
     _run.info['rank'] = rank
     dump(transformer, join(artifact_dir, 'transformer.pkl'))
     print('rank', rank)

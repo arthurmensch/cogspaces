@@ -41,6 +41,8 @@ def config():
                   'la5c': .5}
     model = 'non_convex'
     max_iter = 300
+    alpha = 0
+    beta = 0
     verbose = 0
 
 
