@@ -22,7 +22,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['archi', 'hcp']
+    datasets = ['archi']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
     source = 'hcp_rs_concat'
@@ -31,9 +31,9 @@ def config():
                  'la5c': .5}
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                   'la5c': .5}
-    model = 'trace'
+    model = 'logistic'
     alpha = 1e-3
-    beta = 0.0000
+    beta = 1e-5
     max_iter = 500
     verbose = 10
     seed = 10

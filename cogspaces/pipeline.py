@@ -125,6 +125,7 @@ class MultiDatasetTransformer(TransformerMixin):
         for (dataset, sub_df), lbin, sc in zip(df.groupby(level='dataset'),
                                            self.lbins_, self.scs_):
             this_X = sc.transform(sub_df.values)
+            this_X = sub_df.values
             this_y = sub_df.index.get_level_values('contrast')
             this_y = lbin.transform(this_y)
             y.append(this_y)
