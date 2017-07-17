@@ -22,7 +22,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['archi', 'hcp']
+    datasets = ['archi', 'hcp', 'brainomics']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
     source = 'hcp_rs_positive'
@@ -31,19 +31,19 @@ def config():
                  'la5c': .5}
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                   'la5c': .5}
-    dataset_weights = {'hcp': 1., 'archi': 1.}
+    dataset_weights = {'hcp': 1., 'archi': 1., 'brainomics': 1.}
     model = 'non_convex'
     alpha = 0
     beta = 0
-    max_iter = 50
+    max_iter = 150
     verbose = 10
     seed = 20
 
     with_std = False
 
     # Non convex only
-    n_components = 50
-    latent_dropout_rate = 0.5
+    n_components = 75
+    latent_dropout_rate = 0.7
     input_dropout_rate = 0.
     source_init = None  # join(get_output_dir(), 'clean', '557')
     optimizer = 'adam'

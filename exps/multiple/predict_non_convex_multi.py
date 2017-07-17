@@ -4,20 +4,21 @@ from os import path
 from os.path import join
 
 import numpy as np
-from cogspaces.pipeline import get_output_dir
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from sklearn.externals.joblib import Parallel
 from sklearn.externals.joblib import delayed
 from sklearn.utils import check_random_state
 
+from cogspaces.pipeline import get_output_dir
+
 # Add examples to known modules
 sys.path.append(path.dirname(path.dirname
                              (path.dirname(path.abspath(__file__)))))
-from examples.predict import exp as single_exp
+from exps.predict import exp as single_exp
 
-exp = Experiment('predict_trace_multi')
-basedir = join(get_output_dir(), 'predict_trace_multi')
+exp = Experiment('predict_non_convex_multi')
+basedir = join(get_output_dir(), 'predict_non_convex_multi')
 if not os.path.exists(basedir):
     os.makedirs(basedir)
 exp.observers.append(FileStorageObserver.create(basedir=basedir))
@@ -51,7 +52,10 @@ def single_run(config_updates, rundir, _id):
     observer = FileStorageObserver.create(basedir=rundir)
     run._id = _id
     run.observers = [observer]
-    run()
+    try:
+        run()
+    except:
+        print('Run failed, ignoring')
 
 
 @exp.automain

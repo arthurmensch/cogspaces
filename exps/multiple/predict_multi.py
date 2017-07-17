@@ -4,17 +4,18 @@ from os import path
 from os.path import join
 
 import numpy as np
-from cogspaces.pipeline import get_output_dir
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from sklearn.externals.joblib import Parallel
 from sklearn.externals.joblib import delayed
 from sklearn.utils import check_random_state
 
+from cogspaces.pipeline import get_output_dir
+
 # Add examples to known modules
 sys.path.append(path.dirname(path.dirname
                              (path.dirname(path.abspath(__file__)))))
-from examples.predict import exp as single_exp
+from exps.predict import exp as single_exp
 
 exp = Experiment('predict_multi')
 basedir = join(get_output_dir(), 'predict_multi')

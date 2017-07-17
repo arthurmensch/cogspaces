@@ -4,20 +4,21 @@ from os import path
 from os.path import join
 
 import numpy as np
-from cogspaces.pipeline import get_output_dir
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from sklearn.externals.joblib import Parallel
 from sklearn.externals.joblib import delayed
 from sklearn.utils import check_random_state
 
+from cogspaces.pipeline import get_output_dir
+
 # Add examples to known modules
 sys.path.append(path.dirname(path.dirname
                              (path.dirname(path.abspath(__file__)))))
-from examples.predict import exp as single_exp
+from exps.predict import exp as single_exp
 
-exp = Experiment('predict_trace_multi')
-basedir = join(get_output_dir(), 'predict_trace_multi')
+exp = Experiment('predict_logistic_multi')
+basedir = join(get_output_dir(), 'predict_logistic_multi')
 if not os.path.exists(basedir):
     os.makedirs(basedir)
 exp.observers.append(FileStorageObserver.create(basedir=basedir))
@@ -25,7 +26,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 24
+    n_jobs = 36
     n_seeds = 10
     seed = 2
 
@@ -39,8 +40,8 @@ def config():
                  'la5c': .5}
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                   'la5c': .5}
-    model = 'trace'
-    max_iter = 300
+    model = 'logistic'
+    max_iter = 1000
     verbose = 50
 
 
@@ -58,12 +59,12 @@ def run(n_seeds, n_jobs, _run, _seed):
                                                   size=n_seeds)
     exps = []
     for dataset in ['archi']:
-        exps += [{'datasets': [dataset, 'hcp'],
-                  'alpha': alpha,
+        exps += [{'datasets': [dataset],
+                  'beta': beta,
                   'source': source,
                   'with_std': with_std,
                   'seed': seed} for seed in seed_list
-                 for alpha in [0] + np.logspace(-5, 1, 7).tolist()
+                 for beta in [0] + np.logspace(-5, 1, 7).tolist()
                  for with_std in [True, False]
                  for source in ['hcp_rs_positive']]
 
