@@ -15,14 +15,14 @@ from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 
 idx = pd.IndexSlice
 
-exp = Experiment('Predict')
+exp = Experiment('predict')
 basedir = join(get_output_dir(), 'predict')
 exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 
 @exp.config
 def config():
-    datasets = ['archi', 'hcp', 'brainomics']
+    datasets = ['archi', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
     source = 'hcp_rs_positive'
@@ -32,14 +32,15 @@ def config():
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                   'la5c': .5}
     dataset_weights = {'hcp': 1., 'archi': 1., 'brainomics': 1.}
-    model = 'non_convex'
-    alpha = 0
+    model = 'trace'
+    alpha = 1e-3
     beta = 0
-    max_iter = 150
+    max_iter = 200
     verbose = 10
     seed = 20
 
     with_std = False
+    with_mean = True
 
     # Non convex only
     n_components = 75
@@ -52,10 +53,11 @@ def config():
 
 @exp.capture
 def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_components,
-              with_std,
+              with_std, with_mean,
               optimizer, latent_dropout_rate, input_dropout_rate,
               step_size, source_init, max_iter, verbose):
-    transformer = MultiDatasetTransformer(with_std=with_std)
+    transformer = MultiDatasetTransformer(with_std=with_std,
+                                          with_mean=with_mean)
     transformer.fit(df_train)
     Xs_train, ys_train = transformer.transform(df_train)
     dataset_weights = [dataset_weights[dataset] for dataset
@@ -67,16 +69,20 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_componen
         ys_pred_test = []
         for X_train, X_test, y_train in zip(Xs_train, Xs_test, ys_train):
             _, n_targets = y_train.shape
-            if beta == 0:
-                beta = 1e-20
+            y_train = np.argmax(y_train, axis=1)
+            np.save('X_train', X_train)
+            np.save('y_train', y_train)
             estimator = LogisticRegression(
                 C=1 / (X_train.shape[0] * beta),
                 multi_class='multinomial',
+                fit_intercept=True,
                 max_iter=max_iter,
-                solver='lbfgs',
-                verbose=verbose)
-            y_train = np.argmax(y_train, axis=1)
+                tol=0,
+                solver='saga',
+                verbose=10,
+                random_state=0)
             estimator.fit(X_train, y_train)
+            # print(estimator.coef_ - estimator.coef_[0])
             y_pred_train = estimator.predict(X_train)
             y_pred_test = estimator.predict(X_test)
 
@@ -141,15 +147,15 @@ def main(datasets, source, reduced_dir, unmask_dir,
          n_subjects, test_size, train_size,
          _run, _seed):
     artifact_dir = join(_run.observers[0].basedir, str(_run._id))
-    reduce = False
+    single = False
     if source == 'hcp_rs_positive_single':
         source = 'hcp_rs_positive'
-        reduce = True
+        single = True
     df = make_data_frame(datasets, source,
                          reduced_dir=reduced_dir,
                          unmask_dir=unmask_dir,
                          n_subjects=n_subjects)
-    if reduce:
+    if single:
         df = df.iloc[:, -512:]
     df_train, df_test = split_folds(df, test_size=test_size,
                                     train_size=train_size,

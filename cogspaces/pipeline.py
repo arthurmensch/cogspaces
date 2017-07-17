@@ -108,8 +108,8 @@ class MultiDatasetTransformer(TransformerMixin):
         self.with_mean = with_mean
 
     def fit(self, df):
-        self.lbins_ = []
-        self.scs_ = []
+        self.lbins_ = {}
+        self.scs_ = {}
         for dataset, sub_df in df.groupby(level='dataset'):
             lbin = LabelBinarizer()
             this_y = sub_df.index.get_level_values('contrast')
@@ -117,19 +117,18 @@ class MultiDatasetTransformer(TransformerMixin):
                                 with_mean=self.with_mean)
             sc.fit(sub_df.values)
             lbin.fit(this_y)
-            # sc.scale_ *= sub_df.shape[0]
-            self.lbins_.append(lbin)
-            self.scs_.append(sc)
+            self.lbins_[dataset] = lbin
+            self.scs_[dataset] = sc
         return self
 
 
     def transform(self, df):
         X = []
         y = []
-        for (dataset, sub_df), lbin, sc in zip(df.groupby(level='dataset'),
-                                           self.lbins_, self.scs_):
+        for dataset, sub_df in df.groupby(level='dataset'):
+            sc = self.scs_[dataset]
+            lbin = self.lbins_[dataset]
             this_X = sc.transform(sub_df.values)
-            # this_X = sub_df.values
             this_y = sub_df.index.get_level_values('contrast')
             this_y = lbin.transform(this_y)
             y.append(this_y)
@@ -138,8 +137,8 @@ class MultiDatasetTransformer(TransformerMixin):
 
     def inverse_transform(self, df, ys):
         contrasts = []
-        for (dataset, sub_df), this_y, lbin in zip(df.groupby(level='dataset'),
-                                                   ys, self.lbins_):
+        for (dataset, sub_df), this_y in zip(df.groupby(level='dataset'), ys):
+            lbin = self.lbins_[dataset]
             these_contrasts = lbin.inverse_transform(this_y)
             these_contrasts = pd.Series(these_contrasts, index=sub_df.index)
             contrasts.append(these_contrasts)

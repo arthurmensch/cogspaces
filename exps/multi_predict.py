@@ -15,10 +15,10 @@ from cogspaces.pipeline import get_output_dir
 # Add examples to known modules
 sys.path.append(path.dirname(path.dirname
                              (path.dirname(path.abspath(__file__)))))
-from exps.predict import exp as single_exp
+from exps.exp_predict import exp as single_exp
 
-exp = Experiment('predict_logistic_multi')
-basedir = join(get_output_dir(), 'predict_logistic_multi')
+exp = Experiment('predict_multi')
+basedir = join(get_output_dir(), 'predict_multi')
 if not os.path.exists(basedir):
     os.makedirs(basedir)
 exp.observers.append(FileStorageObserver.create(basedir=basedir))
@@ -27,22 +27,28 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 @exp.config
 def config():
     n_jobs = 36
-    n_seeds = 10
+    n_seeds = 3
     seed = 2
 
 
 @single_exp.config
 def config():
+    datasets = ['archi', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
+    source = 'hcp_rs_concat'
     n_subjects = None
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5}
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                   'la5c': .5}
-    model = 'logistic'
-    max_iter = 1000
-    verbose = 50
+    alpha = 0
+    beta = 0
+    model = 'trace'
+    max_iter = 300
+    verbose = 10
+    with_std = False
+    with_mean = False
 
 
 def single_run(config_updates, rundir, _id):
@@ -50,7 +56,10 @@ def single_run(config_updates, rundir, _id):
     observer = FileStorageObserver.create(basedir=rundir)
     run._id = _id
     run.observers = [observer]
-    run()
+    try:
+        run()
+    except:
+        pass
 
 
 @exp.automain
@@ -59,14 +68,24 @@ def run(n_seeds, n_jobs, _run, _seed):
                                                   size=n_seeds)
     exps = []
     for dataset in ['archi']:
-        exps += [{'datasets': [dataset],
-                  'beta': beta,
-                  'source': source,
-                  'with_std': with_std,
-                  'seed': seed} for seed in seed_list
-                 for beta in [0] + np.logspace(-5, 1, 7).tolist()
-                 for with_std in [True, False]
-                 for source in ['hcp_rs_positive']]
+        log = [{'datasets': [dataset],
+                'beta': beta,
+                'seed': seed} for seed in seed_list
+               for beta in [0] + np.logspace(-10, -1, 10).tolist()
+               ]
+        no_transfer = [{'datasets': [dataset],
+                        'alpha': alpha,
+                        'seed': seed} for seed in seed_list
+                       for alpha in [0] + np.logspace(-5, -1, 10).tolist()
+                       ]
+        transfer = [{'datasets': [dataset, 'hcp'],
+                     'alpha': alpha,
+                     'seed': seed} for seed in seed_list
+                    for alpha in [0] + np.logspace(-5, -1, 10).tolist()
+                    ]
+        exps += log
+        exps += no_transfer
+        exps += transfer
 
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):
