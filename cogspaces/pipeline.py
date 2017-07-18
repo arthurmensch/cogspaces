@@ -103,13 +103,14 @@ def split_folds(X, test_size=0.2, train_size=None, random_state=None):
 
 class MultiDatasetTransformer(TransformerMixin):
     """Utility transformer"""
-    def __init__(self, with_std=False, with_mean=True):
+    def __init__(self, with_std=False, with_mean=True, row_standardize=True):
         self.with_std = with_std
         self.with_mean = with_mean
+        self.row_standardize = row_standardize
 
     def fit(self, df):
-        self.lbins_ = {}
-        self.scs_ = {}
+        self.lbins_ = []
+        self.scs_ = []
         for dataset, sub_df in df.groupby(level='dataset'):
             lbin = LabelBinarizer()
             this_y = sub_df.index.get_level_values('contrast')
@@ -117,28 +118,28 @@ class MultiDatasetTransformer(TransformerMixin):
                                 with_mean=self.with_mean)
             sc.fit(sub_df.values)
             lbin.fit(this_y)
-            self.lbins_[dataset] = lbin
-            self.scs_[dataset] = sc
+            self.lbins_.append(lbin)
+            self.scs_.append(sc)
         return self
-
 
     def transform(self, df):
         X = []
         y = []
-        for dataset, sub_df in df.groupby(level='dataset'):
-            sc = self.scs_[dataset]
-            lbin = self.lbins_[dataset]
+        for (dataset, sub_df), lbin, sc in zip(df.groupby(level='dataset'),
+                                           self.lbins_, self.scs_):
             this_X = sc.transform(sub_df.values)
             this_y = sub_df.index.get_level_values('contrast')
             this_y = lbin.transform(this_y)
+            if self.row_standardize:
+                this_X = StandardScaler().fit_transform(this_X.T).T
             y.append(this_y)
             X.append(this_X)
         return tuple(X), tuple(y)
 
     def inverse_transform(self, df, ys):
         contrasts = []
-        for (dataset, sub_df), this_y in zip(df.groupby(level='dataset'), ys):
-            lbin = self.lbins_[dataset]
+        for (dataset, sub_df), this_y, lbin in zip(df.groupby(level='dataset'),
+                                                   ys, self.lbins_):
             these_contrasts = lbin.inverse_transform(this_y)
             these_contrasts = pd.Series(these_contrasts, index=sub_df.index)
             contrasts.append(these_contrasts)

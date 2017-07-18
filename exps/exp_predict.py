@@ -3,15 +3,15 @@ from os.path import join
 
 import numpy as np
 import pandas as pd
-from cogspaces.model import TraceNormEstimator, NonConvexEstimator
-from cogspaces.pipeline import get_output_dir, make_data_frame, split_folds, \
-    MultiDatasetTransformer
 from joblib import load
-from numpy.linalg import svd
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from sklearn.externals.joblib import dump
-from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
+from sklearn.linear_model import LogisticRegression
+
+from cogspaces.model import TraceNormEstimator, NonConvexEstimator
+from cogspaces.pipeline import get_output_dir, make_data_frame, split_folds, \
+    MultiDatasetTransformer
 
 idx = pd.IndexSlice
 
@@ -22,29 +22,31 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['archi', 'hcp']
+    datasets = ['archi', 'brainomics', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs_positive'
+    source = 'hcp_rs_positive_single'
     n_subjects = None
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
-                 'la5c': .5}
+                 'la5c': .5, 'full': .5}
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
-                  'la5c': .5}
-    dataset_weights = {'hcp': 1., 'archi': 1., 'brainomics': 1.}
-    model = 'trace'
-    alpha = 1e-3
+                  'la5c': .5, 'full': .5}
+    dataset_weights = {'hcp': 1., 'archi': 1., 'brainomics': 1., 'full': 1.}
+    model = 'non_convex'
+    alpha = 0
     beta = 0
     max_iter = 200
     verbose = 10
-    seed = 20
+    seed = 1864370243
 
     with_std = False
-    with_mean = True
+    with_mean = False
+    row_standardize = False
+    split_loss = True
 
     # Non convex only
-    n_components = 75
-    latent_dropout_rate = 0.7
+    n_components = 200
+    latent_dropout_rate = 0.8
     input_dropout_rate = 0.
     source_init = None  # join(get_output_dir(), 'clean', '557')
     optimizer = 'adam'
@@ -53,11 +55,14 @@ def config():
 
 @exp.capture
 def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_components,
+              row_standardize,
               with_std, with_mean,
+              split_loss,
               optimizer, latent_dropout_rate, input_dropout_rate,
               step_size, source_init, max_iter, verbose):
     transformer = MultiDatasetTransformer(with_std=with_std,
-                                          with_mean=with_mean)
+                                          with_mean=with_mean,
+                                          row_standardize=row_standardize)
     transformer.fit(df_train)
     Xs_train, ys_train = transformer.transform(df_train)
     dataset_weights = [dataset_weights[dataset] for dataset
@@ -70,10 +75,12 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_componen
         for X_train, X_test, y_train in zip(Xs_train, Xs_test, ys_train):
             _, n_targets = y_train.shape
             y_train = np.argmax(y_train, axis=1)
-            np.save('X_train', X_train)
-            np.save('y_train', y_train)
+            if beta == 0:
+                C = np.inf
+            else:
+                C = 1 / (X_train.shape[0] * beta)
             estimator = LogisticRegression(
-                C=1 / (X_train.shape[0] * beta),
+                C=C,
                 multi_class='multinomial',
                 fit_intercept=True,
                 max_iter=max_iter,
@@ -82,7 +89,6 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_componen
                 verbose=10,
                 random_state=0)
             estimator.fit(X_train, y_train)
-            # print(estimator.coef_ - estimator.coef_[0])
             y_pred_train = estimator.predict(X_train)
             y_pred_test = estimator.predict(X_test)
 
@@ -107,6 +113,7 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_componen
                                            fit_intercept=True,
                                            max_backtracking_iter=10,
                                            momentum=True,
+                                           split_loss=split_loss,
                                            beta=beta,
                                            max_iter=max_iter,
                                            verbose=verbose)

@@ -5,10 +5,15 @@ from numba import jit
 from numpy.linalg import svd
 from sklearn.base import BaseEstimator
 
-def lipschitz_constant(Xs, dataset_weights, fit_intercept=False):
+
+def lipschitz_constant(Xs, dataset_weights, fit_intercept=False,
+                       split_loss=False):
     max_squared_sums = np.array([(X ** 2).sum(axis=1).max() * weight
                                  for X, weight in zip(Xs, dataset_weights)])
-    max_squared_sums = np.mean(max_squared_sums)
+    if split_loss:
+        max_squared_sums = np.mean(max_squared_sums)
+    else:
+        max_squared_sums = np.max(max_squared_sums)
     L = (0.5 * (max_squared_sums + int(fit_intercept)))
     return L
 
@@ -38,11 +43,13 @@ def _prox_grad(Xs, ys, preds, coef, intercept,
     n_datasets = len(slices)
     _predict(Xs, preds, coef, intercept, slices)
     loss = .5 * beta * np.sum(coef ** 2)
+    coef_grad[:] = 0
+    intercept_grad[:] = 0
     for X, y, pred, this_slice, dataset_weight in zip(Xs, ys, preds, slices, dataset_weights):
-        coef_grad[:, this_slice[0]:this_slice[1]] = \
+        coef_grad[:, this_slice[0]:this_slice[1]] += \
             np.dot(X.T, np.exp(pred) - y) / X.shape[0] / n_datasets * dataset_weight
         for jj, j in enumerate(range(this_slice[0], this_slice[1])):
-            intercept_grad[j] = (np.exp(pred[:, jj]) - y[:, jj]).mean() / n_datasets * dataset_weight
+            intercept_grad[j] += (np.exp(pred[:, jj]) - y[:, jj]).mean() / n_datasets * dataset_weight
         loss += cross_entropy(y, pred) / n_datasets
     if beta > 0:
         coef_grad += beta * coef
@@ -176,7 +183,8 @@ class TraceNormEstimator(BaseEstimator):
                  verbose=False,
                  max_backtracking_iter=5,
                  step_size_multiplier=1,
-                 backtracking_divider=2.):
+                 backtracking_divider=2.,
+                 split_loss=True):
         self.alpha = float(alpha)
         self.beta = float(beta)
         self.max_iter = max_iter
@@ -187,6 +195,7 @@ class TraceNormEstimator(BaseEstimator):
         self.backtracking_divider = float(backtracking_divider)
         self.max_backtracking_iter = max_backtracking_iter
         self.init_multiplier = float(step_size_multiplier)
+        self.split_loss = split_loss
 
     def fit(self, Xs, ys, dataset_weights=None):
         n_datasets = len(Xs)
@@ -203,7 +212,18 @@ class TraceNormEstimator(BaseEstimator):
         for iter in range(n_datasets):
             self.slices_.append(np.array([limits[iter], limits[iter + 1]]))
         self.slices_ = tuple(self.slices_)
-        Lmax = lipschitz_constant(Xs, dataset_weights, self.fit_intercept)
+
+        if self.split_loss:
+            ys_ = tuple(np.zeros((y.shape[0], total_size), dtype=np.int64) for y in ys)
+            for y_, y, this_slice in zip(ys_, ys, self.slices_):
+                y_[:, this_slice[0]:this_slice[1]] = y
+            training_slices = tuple([np.array([0, total_size])] * n_datasets)
+            ys = ys_
+        else:
+            training_slices = self.slices_
+
+        Lmax = lipschitz_constant(Xs, dataset_weights, self.fit_intercept,
+                                  self.split_loss)
         L = Lmax / self.init_multiplier
         coef = np.ones((n_features, total_size), dtype=np.float32)
         intercept = np.zeros(total_size, dtype=np.float32)
@@ -222,7 +242,7 @@ class TraceNormEstimator(BaseEstimator):
                    dataset_weights,
                    intercept_diff, intercept_grad, old_prox_coef,
                    preds, prox_coef, prox_intercept, ys,
-                   self.max_iter, self.max_backtracking_iter, self.slices_,
+                   self.max_iter, self.max_backtracking_iter, training_slices,
                    self.alpha, self.beta,
                    self.backtracking_divider,
                    self.verbose, self.momentum

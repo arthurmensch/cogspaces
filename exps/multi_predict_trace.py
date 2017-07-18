@@ -45,10 +45,11 @@ def config():
     alpha = 0
     beta = 0
     model = 'trace'
-    max_iter = 300
+    max_iter = 600
     verbose = 10
     with_std = False
     with_mean = False
+    row_standardize = False
 
 
 def single_run(config_updates, rundir, _id):
@@ -67,25 +68,41 @@ def run(n_seeds, n_jobs, _run, _seed):
     seed_list = check_random_state(_seed).randint(np.iinfo(np.uint32).max,
                                                   size=n_seeds)
     exps = []
-    for dataset in ['archi']:
-        log = [{'datasets': [dataset],
-                'beta': beta,
-                'seed': seed} for seed in seed_list
-               for beta in [0] + np.logspace(-10, -1, 10).tolist()
-               ]
-        no_transfer = [{'datasets': [dataset],
-                        'alpha': alpha,
-                        'seed': seed} for seed in seed_list
-                       for alpha in [0] + np.logspace(-5, -1, 10).tolist()
-                       ]
-        transfer = [{'datasets': [dataset, 'hcp'],
-                     'alpha': alpha,
-                     'seed': seed} for seed in seed_list
-                    for alpha in [0] + np.logspace(-5, -1, 10).tolist()
-                    ]
-        exps += log
-        exps += no_transfer
-        exps += transfer
+    for source in ['hcp_rs_positive_single']:
+        for dataset in ['archi', 'brainomics']:
+            log = [{'datasets': [dataset],
+                    'beta': beta,
+                    'model': 'logistic',
+                    'source': source,
+                    'seed': seed} for seed in seed_list
+                   for beta in [0] + np.logspace(-10, -1, 10).tolist()
+                   ]
+            no_transfer = [{'datasets': [dataset],
+                            'alpha': alpha,
+                            'source': source,
+                            'seed': seed} for seed in seed_list
+                           for alpha in [0] + np.logspace(-6, 0, 13).tolist()
+                           ]
+            transfer = [{'datasets': [dataset, 'hcp'],
+                         'alpha': alpha,
+                         'source': source,
+                         'split_loss': split_loss,
+                         'seed': seed} for seed in seed_list
+                        for alpha in [0] + np.logspace(-6, 0, 13).tolist()
+                        for split_loss in [True]
+                        ]
+            exps += log
+            exps += no_transfer
+            exps += transfer
+        transfer_full = [{'datasets': ['brainomics', 'archi', 'hcp'],
+                          'alpha': alpha,
+                          'source': source,
+                          'split_loss': split_loss,
+                          'seed': seed} for seed in seed_list
+                         for alpha in [0] + np.logspace(-6, 0, 13).tolist()
+                         for split_loss in [True]
+                         ]
+        exps += transfer_full
 
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):
