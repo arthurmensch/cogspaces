@@ -26,7 +26,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 36
+    n_jobs = 24
     n_seeds = 20
     seed = 2
 
@@ -44,8 +44,15 @@ def config():
                   'la5c': .5}
     alpha = 0
     beta = 0
-    model = 'trace'
-    max_iter = 600
+    model = 'non_convex'
+    max_iter = 400
+    n_components = 50
+    latent_dropout_rate = 0.
+    input_dropout_rate = 0.
+    source_init = None
+    optimizer = 'adam'
+    step_size = 1e-3
+
     verbose = 10
     with_std = False
     with_mean = False
@@ -70,39 +77,26 @@ def run(n_seeds, n_jobs, _run, _seed):
     exps = []
     for source in ['hcp_rs_positive_single']:
         for dataset in ['archi', 'brainomics']:
-            log = [{'datasets': [dataset],
-                    'beta': beta,
-                    'model': 'logistic',
-                    'source': source,
-                    'seed': seed} for seed in seed_list
-                   for beta in [0] + np.logspace(-10, -1, 10).tolist()
-                   ]
-            no_transfer = [{'datasets': [dataset],
-                            'alpha': alpha,
-                            'source': source,
-                            'seed': seed} for seed in seed_list
-                           for alpha in [0] + np.logspace(-6, 0, 13).tolist()
-                           ]
             transfer = [{'datasets': [dataset, 'hcp'],
-                         'alpha': alpha,
                          'source': source,
-                         'split_loss': split_loss,
+                         'n_components': n_components,
+                         'latent_dropout_rate': latent_dropout_rate,
                          'seed': seed} for seed in seed_list
-                        for alpha in [0] + np.logspace(-6, 0, 13).tolist()
-                        for split_loss in [True]
+                        for n_components in [25, 50, 100, 200]
+                        for latent_dropout_rate in [0., 0.25, 0.5, 0.75,
+                                                    0.875]
                         ]
-            exps += log
-            exps += no_transfer
             exps += transfer
         transfer_full = [{'datasets': ['brainomics', 'archi', 'hcp'],
-                          'alpha': alpha,
                           'source': source,
-                          'split_loss': split_loss,
+                          'n_components': n_components,
+                          'latent_dropout_rate': latent_dropout_rate,
                           'seed': seed} for seed in seed_list
-                         for alpha in [0] + np.logspace(-6, 0, 13).tolist()
-                         for split_loss in [True]
+                         for n_components in [25, 50, 100, 200]
+                         for latent_dropout_rate in [0., 0.25, 0.5, 0.75,
+                                                     0.875]
                          ]
-        exps = transfer_full
+        exps += transfer_full
 
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):

@@ -32,12 +32,13 @@ def config():
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                   'la5c': .5, 'full': .5}
     dataset_weights = {'hcp': 1., 'archi': 1., 'brainomics': 1., 'full': 1.}
-    model = 'non_convex'
-    alpha = 0
+    model = 'trace'
+    alpha = 0.000316
     beta = 0
     max_iter = 200
     verbose = 10
     seed = 1864370243
+    seed = 100
 
     with_std = False
     with_mean = False
@@ -179,7 +180,11 @@ def main(datasets, source, reduced_dir, unmask_dir,
                         'true_contrast': true_contrasts})
     match = res['pred_contrast'] == res['true_contrast']
     score = match.groupby(level=['fold', 'dataset']).aggregate('mean')
+    score_mean = match.groupby(level=['fold']).aggregate('mean')
+
     score_dict = {}
+    for fold, this_score in score_mean.iteritems():
+        score_dict['%s_mean' % fold] = this_score
     for (fold, dataset), this_score in score.iteritems():
         score_dict['%s_%s' % (fold, dataset)] = this_score
     _run.info['score'] = score_dict
@@ -193,3 +198,4 @@ def main(datasets, source, reduced_dir, unmask_dir,
     dump(transformer, join(artifact_dir, 'transformer.pkl'))
     print('rank', rank)
     print(score)
+    print(score_mean)
