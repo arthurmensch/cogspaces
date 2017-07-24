@@ -45,17 +45,17 @@ def config():
     alpha = 0
     beta = 0
     model = 'non_convex'
-    max_iter = 400
+    max_iter = 600
     n_components = 50
     latent_dropout_rate = 0.
-    input_dropout_rate = 0.
+    input_dropout_rate = 0.25
     source_init = None
     optimizer = 'adam'
     step_size = 1e-3
 
     verbose = 10
-    with_std = False
-    with_mean = False
+    with_std = True
+    with_mean = True
     row_standardize = False
 
 
@@ -75,26 +75,28 @@ def run(n_seeds, n_jobs, _run, _seed):
     seed_list = check_random_state(_seed).randint(np.iinfo(np.uint32).max,
                                                   size=n_seeds)
     exps = []
-    for source in ['hcp_rs_positive_single']:
+    for source in ['hcp_rs_positive', 'hcp_rs_positive_single']:
         for dataset in ['archi', 'brainomics']:
             transfer = [{'datasets': [dataset, 'hcp'],
                          'source': source,
                          'n_components': n_components,
                          'latent_dropout_rate': latent_dropout_rate,
+                         'input_dropout_rate)': input_dropout_rate,
                          'seed': seed} for seed in seed_list
-                        for n_components in [25, 50, 100, 200]
-                        for latent_dropout_rate in [0., 0.25, 0.5, 0.75,
-                                                    0.875]
+                        for n_components in [200]
+                        for latent_dropout_rate in [0.8, 0.9, 0.95]
+                        for input_dropout_rate in [0.25, 0.5]
                         ]
             exps += transfer
         transfer_full = [{'datasets': ['brainomics', 'archi', 'hcp'],
                           'source': source,
                           'n_components': n_components,
                           'latent_dropout_rate': latent_dropout_rate,
+                          'input_dropout_rate)': input_dropout_rate,
                           'seed': seed} for seed in seed_list
-                         for n_components in [25, 50, 100, 200]
-                         for latent_dropout_rate in [0., 0.25, 0.5, 0.75,
-                                                     0.875]
+                         for n_components in [200]
+                         for latent_dropout_rate in [0.8, 0.9, 0.95]
+                         for input_dropout_rate in [0.25, 0.5]
                          ]
         exps += transfer_full
 
