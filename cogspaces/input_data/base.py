@@ -17,8 +17,7 @@ from cogspaces.pipeline import get_output_dir, make_projection_matrix
 from cogspaces.datasets import fetch_la5c, fetch_human_voice, fetch_brainomics, \
     fetch_hcp, fetch_archi, fetch_craddock_parcellation, \
     fetch_atlas_modl, fetch_mask
-from cogspaces.datasets.contrasts import fetch_camcan
-
+from cogspaces.datasets.contrasts import fetch_camcan, fetch_brainpedia
 
 
 def create_raw_contrast_data(imgs, mask, raw_dir,
@@ -83,6 +82,8 @@ def unmask(dataset, output_dir=None,
         fetch_data = fetch_human_voice
     elif dataset == 'camcan':
         fetch_data = fetch_camcan
+    elif dataset == 'brainpedia':
+        fetch_data = fetch_brainpedia
     else:
         raise ValueError
 

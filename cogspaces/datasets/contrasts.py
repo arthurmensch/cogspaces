@@ -212,3 +212,33 @@ def fetch_la5c(data_dir=None, n_subjects=None):
     subjects = df.index.get_level_values('subject').unique().values.tolist()
     df = df.loc[subjects[:n_subjects]]
     return df
+
+
+def fetch_brainpedia(data_dir=None):
+    data_dir = get_data_dirs(data_dir)[0]
+    source_dir = join(data_dir, 'brainpedia')
+    datasets = os.listdir(source_dir)
+    rec = []
+    for dataset in datasets:
+        dataset_dir = join(source_dir, dataset)
+        subjects = os.listdir(dataset_dir)
+        for subject in subjects:
+            if subject == 'models':
+                continue
+            subject_dir = join(dataset_dir, subject, 'model', 'model002',
+                               'z_maps')
+            subject = int(subject[3:])
+            maps = os.listdir(subject_dir)
+            for this_map in maps:
+                task = int(this_map[4:7])
+                contrast = this_map[8:-7]
+                rec.append({'dataset': dataset,
+                            'subject': subject,
+                            'task': task,
+                            'direction': 'level2',
+                            'contrast': contrast,
+                            'z_map': join(subject_dir, this_map)})
+    df = pd.DataFrame(rec)
+    df.set_index(['dataset',
+                  'subject', 'task', 'contrast', 'direction'], inplace=True)
+    return df

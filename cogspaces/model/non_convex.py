@@ -51,7 +51,7 @@ class NonConvexEstimator(BaseEstimator):
         self.n_jobs = n_jobs
 
     def fit(self, Xs, ys, init=None, dataset_weights=None):
-        use_generator = False
+        use_generator = True
         self.random_state = check_random_state(self.random_state)
         n_datasets = len(Xs)
         n_samples = sum(X.shape[0] for X in Xs)
@@ -127,12 +127,15 @@ class NonConvexEstimator(BaseEstimator):
         data = Input(shape=(n_features,), name='data', dtype='float32')
         mask = Input(shape=(n_targets,), name='mask', dtype='bool')
         dropout_data = Dropout(rate=self.input_dropout_rate)(data)
-        latent = Dense(self.n_components,
-                       name='latent',
-                       use_bias=False,
-                       kernel_initializer=latent_kernel_initializer,
-                       kernel_regularizer=l2(self.alpha))(dropout_data)
-        latent = Dropout(rate=self.latent_dropout_rate)(latent)
+        if self.n_components is not None:
+            latent = Dense(self.n_components,
+                           name='latent',
+                           use_bias=False,
+                           kernel_initializer=latent_kernel_initializer,
+                           kernel_regularizer=l2(self.alpha))(dropout_data)
+            latent = Dropout(rate=self.latent_dropout_rate)(latent)
+        else:
+            latent = dropout_data
         logits = Dense(n_targets,
                        use_bias=True,
                        name='supervised',

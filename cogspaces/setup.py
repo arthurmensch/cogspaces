@@ -11,6 +11,8 @@ def configuration(parent_package='', top_path=None):
 
     config.add_subpackage('input_data')
     config.add_subpackage('externals')
+    config.add_subpackage('model')
+    config.add_subpackage('tests')
     config.add_subpackage('datasets')
 
     return config

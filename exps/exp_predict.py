@@ -22,33 +22,32 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['archi', 'brainomics', 'hcp']
+    datasets = ['archi', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs_positive_single'
+    source = 'hcp_rs_concat'
     n_subjects = None
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5, 'full': .5}
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                   'la5c': .5, 'full': .5}
     dataset_weights = {'hcp': 1., 'archi': 1., 'brainomics': 1., 'full': 1.}
-    model = 'trace'
-    alpha = 0.000316
+    model = 'non_convex'
+    alpha = 1e-4
     beta = 0
-    max_iter = 200
+    max_iter = 50
     verbose = 10
-    seed = 1864370243
-    seed = 100
+    seed = 2
 
-    with_std = False
-    with_mean = False
+    with_std = True
+    with_mean = True
     row_standardize = False
     split_loss = True
 
     # Non convex only
-    n_components = 200
-    latent_dropout_rate = 0.8
-    input_dropout_rate = 0.
+    n_components = 50
+    latent_dropout_rate = 0.0
+    input_dropout_rate = 0.0
     source_init = None  # join(get_output_dir(), 'clean', '557')
     optimizer = 'adam'
     step_size = 1e-3
@@ -133,7 +132,7 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_componen
                 alpha=alpha, n_components=n_components,
                 latent_dropout_rate=latent_dropout_rate,
                 input_dropout_rate=input_dropout_rate,
-                batch_size=256,
+                batch_size=128,
                 optimizer=optimizer,
                 max_iter=max_iter,
                 latent_sparsity=None,
