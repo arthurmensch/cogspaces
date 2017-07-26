@@ -69,20 +69,14 @@ def run(n_seeds, n_jobs, _run, _seed):
                                                   size=n_seeds)
     exps = []
     for source in ['hcp_rs_positive_single']:
-        for dataset in ['archi', 'brainomics']:
-            log = [{'datasets': [dataset],
+        for dataset in ['brainpedia']:
+            log = [{'datasets': [dataset, 'hcp'],
                     'beta': beta,
                     'model': 'logistic',
                     'source': source,
                     'seed': seed} for seed in seed_list
                    for beta in [0] + np.logspace(-10, -1, 10).tolist()
                    ]
-            no_transfer = [{'datasets': [dataset],
-                            'alpha': alpha,
-                            'source': source,
-                            'seed': seed} for seed in seed_list
-                           for alpha in [0] + np.logspace(-6, 0, 13).tolist()
-                           ]
             transfer = [{'datasets': [dataset, 'hcp'],
                          'alpha': alpha,
                          'source': source,
@@ -92,17 +86,7 @@ def run(n_seeds, n_jobs, _run, _seed):
                         for split_loss in [True]
                         ]
             exps += log
-            exps += no_transfer
             exps += transfer
-        transfer_full = [{'datasets': ['brainomics', 'archi', 'hcp'],
-                          'alpha': alpha,
-                          'source': source,
-                          'split_loss': split_loss,
-                          'seed': seed} for seed in seed_list
-                         for alpha in [0] + np.logspace(-6, 0, 13).tolist()
-                         for split_loss in [True]
-                         ]
-        exps = transfer_full
 
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):

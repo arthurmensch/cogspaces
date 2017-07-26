@@ -48,13 +48,11 @@ def get_output_dir(data_dir=None):
     return os.path.expanduser('~/output/cogspaces')
 
 
-def make_data_frame(datasets, source, n_subjects=None,
+def make_data_frame(datasets, source,
                     reduced_dir=None, unmask_dir=None):
     """Aggregate and curate reduced/non reduced datasets"""
     X = []
-    if not isinstance(n_subjects, dict):
-        n_subjects = {dataset: n_subjects for dataset in datasets}
-
+    keys = []
     for dataset in datasets:
         if source == 'unmasked':
             this_X = load(join(unmask_dir, dataset, 'imgs.pkl'))
@@ -62,16 +60,26 @@ def make_data_frame(datasets, source, n_subjects=None,
             this_X = load(join(reduced_dir, source, dataset, 'Xt.pkl'))
 
         # Curation
-        if dataset in ['brainomics']:
-            this_X = this_X.drop(['effects_of_interest'], level='contrast')
         this_X = this_X.reset_index(level=['direction'], drop=True)
-        this_n_subjects = n_subjects[dataset]
-        subjects = this_X.index.get_level_values('subject').unique().values
-        subjects = subjects[:this_n_subjects]
-        this_X = this_X.loc[idx[subjects.tolist()]]
-
-        X.append(this_X)
-    X = pd.concat(X, keys=datasets, names=['dataset'])
+        if dataset == 'brainomics':
+            this_X = this_X.drop(['effects_of_interest'], level='contrast')
+        if dataset == 'brainpedia':
+            contrasts =this_X.index.get_level_values('contrast').values
+            indices = []
+            for i, contrast in enumerate(contrasts):
+                if contrast.endswith('baseline'):
+                    indices.append(i)
+            this_X = this_X.iloc[indices]
+            for sub_dataset, this_sub_X in this_X.groupby(level='dataset'):
+                if sub_dataset == 'ds102':
+                    continue
+                this_sub_X = this_sub_X.loc[sub_dataset]
+                X.append(this_sub_X.astype(np.float32))
+                keys.append(sub_dataset)
+        else:
+            X.append(this_X)
+            keys.append(dataset)
+    X = pd.concat(X, keys=keys, names=['dataset'])
     X.sort_index(inplace=True)
     return X
 
@@ -87,15 +95,24 @@ def split_folds(X, test_size=0.2, train_size=None, random_state=None):
 
     for dataset, this_X in X.groupby(level='dataset'):
         subjects = this_X.index.get_level_values('subject').values
+        if dataset in test_size:
+            this_test_size = test_size[dataset]
+        else:
+            this_test_size = .5
+        if dataset in train_size:
+            this_train_size = train_size[dataset]
+        else:
+            this_train_size = .5
         cv = GroupShuffleSplit(n_splits=1,
-                               test_size=test_size[dataset],
-                               train_size=train_size[dataset],
+                               test_size=this_test_size,
+                               train_size=this_train_size,
                                random_state=random_state)
         train, test = next(cv.split(this_X, groups=subjects))
         X_train.append(this_X.iloc[train])
         X_test.append(this_X.iloc[test])
-    X_train = pd.concat(X_train, axis=0)
-    X_test = pd.concat(X_test, axis=0)
+    # WTF autocast in pandas
+    X_train = pd.concat(X_train, axis=0).astype(np.float32)
+    X_test = pd.concat(X_test, axis=0).astype(np.float32)
     X_train.sort_index(inplace=True)
     X_test.sort_index(inplace=True)
     return X_train, X_test
@@ -109,8 +126,8 @@ class MultiDatasetTransformer(TransformerMixin):
         self.row_standardize = row_standardize
 
     def fit(self, df):
-        self.lbins_ = []
-        self.scs_ = []
+        self.lbins_ = {}
+        self.scs_ = {}
         for dataset, sub_df in df.groupby(level='dataset'):
             lbin = LabelBinarizer()
             this_y = sub_df.index.get_level_values('contrast')
@@ -118,18 +135,22 @@ class MultiDatasetTransformer(TransformerMixin):
                                 with_mean=self.with_mean)
             sc.fit(sub_df.values)
             lbin.fit(this_y)
-            self.lbins_.append(lbin)
-            self.scs_.append(sc)
+            self.lbins_[dataset] = lbin
+            self.scs_[dataset] = sc
         return self
 
     def transform(self, df):
         X = []
         y = []
-        for (dataset, sub_df), lbin, sc in zip(df.groupby(level='dataset'),
-                                           self.lbins_, self.scs_):
+        for dataset, sub_df in df.groupby(level='dataset'):
+            lbin = self.lbins_[dataset]
+            sc = self.scs_[dataset]
+
             this_X = sc.transform(sub_df.values)
             this_y = sub_df.index.get_level_values('contrast')
             this_y = lbin.transform(this_y)
+            if this_y.shape[1] == 1:
+                this_y = np.hstack([this_y, np.logical_not(this_y)])
             if self.row_standardize:
                 this_X = StandardScaler().fit_transform(this_X.T).T
             y.append(this_y)
@@ -138,8 +159,9 @@ class MultiDatasetTransformer(TransformerMixin):
 
     def inverse_transform(self, df, ys):
         contrasts = []
-        for (dataset, sub_df), this_y, lbin in zip(df.groupby(level='dataset'),
-                                                   ys, self.lbins_):
+        for (dataset, sub_df), this_y in zip(df.groupby(level='dataset'), ys):
+            lbin = self.lbins_[dataset]
+            print(dataset, len(lbin.classes_))
             these_contrasts = lbin.inverse_transform(this_y)
             these_contrasts = pd.Series(these_contrasts, index=sub_df.index)
             contrasts.append(these_contrasts)
