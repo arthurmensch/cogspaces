@@ -22,20 +22,22 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['archi', 'hcp']
+    datasets = ['la5c']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs_concat'
+    source = 'hcp_rs'
     n_subjects = None
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5, 'full': .5}
-    train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
-                  'la5c': .5, 'full': .5}
-    dataset_weights = {'hcp': 1., 'archi': 1., 'brainomics': 1., 'full': 1.}
+    train_size = dict(hcp=None, archi=30, la5c=50, brainomics=30,
+                      camcan=100,
+                      human_voice=None)
+    dataset_weights = {'hcp': 1., 'archi': 1., 'brainomics': 1., 'full': 1.,
+                       'camcan': 1., 'la5c': 1.}
     model = 'non_convex'
-    alpha = 1e-4
+    alpha = 1e-2
     beta = 0
-    max_iter = 50
+    max_iter = 300
     verbose = 10
     seed = 2
 
@@ -45,9 +47,9 @@ def config():
     split_loss = True
 
     # Non convex only
-    n_components = 50
+    n_components = None
     latent_dropout_rate = 0.0
-    input_dropout_rate = 0.0
+    input_dropout_rate = 0.
     source_init = None  # join(get_output_dir(), 'clean', '557')
     optimizer = 'adam'
     step_size = 1e-3

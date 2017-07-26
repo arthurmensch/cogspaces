@@ -182,10 +182,13 @@ class NonConvexEstimator(BaseEstimator):
                             verbose=2,
                             epochs=self.max_iter,
                             callbacks=callbacks)
-        latent = self.model_.get_layer('latent').get_weights()[0]
         supervised, self.intercept_ = self.model_.get_layer(
             'supervised').get_weights()
-        self.coef_ = latent.dot(supervised)
+        if self.n_components is not None:
+            latent = self.model_.get_layer('latent').get_weights()[0]
+            self.coef_ = latent.dot(supervised)
+        else:
+            self.coef_ = supervised
 
     def predict(self, Xs):
         n_datasets = len(Xs)

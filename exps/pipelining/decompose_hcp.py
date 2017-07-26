@@ -25,17 +25,16 @@ exp.observers.append(FileStorageObserver.create(basedir=base_artifact_dir))
 
 @exp.config
 def config():
-    n_components = 20
+    n_components = 336
     batch_size = 200
     learning_rate = 0.92
     method = 'masked'
     reduction = 10
-    alpha = 1e-3
+    alpha = 1e-4
     n_epochs = 1
     verbose = 15
     n_jobs = 5
     smoothing_fwhm = 4
-    optimizer = 'variational'
     positive = True
 
 
@@ -43,11 +42,10 @@ def config():
 def compute_components(n_components,
                        batch_size,
                        learning_rate,
-                       method,
                        positive,
                        reduction,
                        alpha,
-                       optimizer,
+                       method,
                        n_epochs,
                        verbose,
                        n_jobs,
@@ -62,12 +60,12 @@ def compute_components(n_components,
     train_imgs = train_imgs['filename'].values
     test_imgs = test_imgs['filename'].values
 
-    cb = rfMRIDictionaryScorer(test_imgs)
+    cb = rfMRIDictionaryScorer(test_imgs, info=_run.info)
     dict_fact = fMRIDictFact(method=method,
                              mask=masker,
                              verbose=verbose,
-                             optimizer=optimizer,
                              n_epochs=n_epochs,
+                             smoothing_fwhm=smoothing_fwhm,
                              n_jobs=n_jobs,
                              random_state=1,
                              n_components=n_components,
@@ -79,7 +77,8 @@ def compute_components(n_components,
                              callback=cb,
                              )
     dict_fact.fit(train_imgs)
-    dict_fact.components_img_.to_filename(join(artifact_dir, 'components.nii.gz'))
+    dict_fact.components_img_.to_filename(join(artifact_dir,
+                                               'components.nii.gz'))
     fig = plt.figure()
     display_maps(fig, dict_fact.components_img_)
     plt.savefig(join(artifact_dir, 'components.png'))
