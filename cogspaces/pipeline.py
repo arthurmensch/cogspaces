@@ -9,7 +9,7 @@ from sklearn.preprocessing import LabelBinarizer, StandardScaler
 
 import numpy as np
 
-from numpy.linalg import pinv
+from numpy.linalg import pinv, svd
 
 idx = pd.IndexSlice
 
@@ -64,13 +64,14 @@ def make_data_frame(datasets, source,
         if dataset == 'brainomics':
             this_X = this_X.drop(['effects_of_interest'], level='contrast')
         if dataset == 'brainpedia':
-            contrasts =this_X.index.get_level_values('contrast').values
+            contrasts = this_X.index.get_level_values('contrast').values
             indices = []
             for i, contrast in enumerate(contrasts):
                 if contrast.endswith('baseline'):
                     indices.append(i)
             this_X = this_X.iloc[indices]
-            for sub_dataset, this_sub_X in this_X.groupby(level='dataset'):
+            for i, (sub_dataset, this_sub_X) in \
+                    enumerate(this_X.groupby(level='dataset')):
                 if sub_dataset == 'ds102':
                     continue
                 this_sub_X = this_sub_X.loc[sub_dataset]
@@ -80,6 +81,14 @@ def make_data_frame(datasets, source,
             X.append(this_X)
             keys.append(dataset)
     X = pd.concat(X, keys=keys, names=['dataset'])
+    estimator = load(join(get_output_dir(), 'estimator.pkl'))
+    coef = estimator.coef_
+    U, S, VT = svd(coef)
+    rank = 41
+    U = U[:, :rank]
+    print(U.shape)
+    projected_X = X.values[:, -512:].dot(coef)
+    X = pd.DataFrame(data=projected_X, index=X.index)
     X.sort_index(inplace=True)
     return X
 
@@ -120,39 +129,49 @@ def split_folds(X, test_size=0.2, train_size=None, random_state=None):
 
 class MultiDatasetTransformer(TransformerMixin):
     """Utility transformer"""
-    def __init__(self, with_std=False, with_mean=True, row_standardize=True):
+    def __init__(self, with_std=False, with_mean=True,
+                 per_dataset=True):
         self.with_std = with_std
         self.with_mean = with_mean
-        self.row_standardize = row_standardize
+        self.per_dataset = per_dataset
 
     def fit(self, df):
         self.lbins_ = {}
-        self.scs_ = {}
+        if self.per_dataset:
+            self.scs_ = {}
+        else:
+            self.sc_ = StandardScaler(with_std=self.with_std,
+                                with_mean=self.with_mean)
+            self.sc_.fit(df.values)
         for dataset, sub_df in df.groupby(level='dataset'):
             lbin = LabelBinarizer()
             this_y = sub_df.index.get_level_values('contrast')
-            sc = StandardScaler(with_std=self.with_std,
-                                with_mean=self.with_mean)
-            sc.fit(sub_df.values)
+            if self.per_dataset:
+                sc = StandardScaler(with_std=self.with_std,
+                                    with_mean=self.with_mean)
+                sc.fit(sub_df.values)
+                self.scs_[dataset] = sc
             lbin.fit(this_y)
             self.lbins_[dataset] = lbin
-            self.scs_[dataset] = sc
         return self
 
     def transform(self, df):
         X = []
         y = []
+        if not self.per_dataset:
+            df = df.copy()
+            df[:] = self.sc_.transform(df.values)
         for dataset, sub_df in df.groupby(level='dataset'):
             lbin = self.lbins_[dataset]
-            sc = self.scs_[dataset]
-
-            this_X = sc.transform(sub_df.values)
+            if self.per_dataset:
+                sc = self.scs_[dataset]
+                this_X = sc.transform(sub_df.values)
+            else:
+                this_X = sub_df.values
             this_y = sub_df.index.get_level_values('contrast')
             this_y = lbin.transform(this_y)
             if this_y.shape[1] == 1:
                 this_y = np.hstack([this_y, np.logical_not(this_y)])
-            if self.row_standardize:
-                this_X = StandardScaler().fit_transform(this_X.T).T
             y.append(this_y)
             X.append(this_X)
         return tuple(X), tuple(y)
@@ -161,7 +180,6 @@ class MultiDatasetTransformer(TransformerMixin):
         contrasts = []
         for (dataset, sub_df), this_y in zip(df.groupby(level='dataset'), ys):
             lbin = self.lbins_[dataset]
-            print(dataset, len(lbin.classes_))
             these_contrasts = lbin.inverse_transform(this_y)
             these_contrasts = pd.Series(these_contrasts, index=sub_df.index)
             contrasts.append(these_contrasts)

@@ -63,7 +63,8 @@ def _prox_grad(Xs, ys, preds, coef, intercept,
         else:
             rank = prox_coef.shape[1]
         if j < max_backtracking_iter - 1:
-            new_loss = _loss(Xs, ys, preds, prox_coef, prox_intercept,
+            new_loss = _loss(Xs, ys, preds, dataset_weights,
+                             prox_coef, prox_intercept,
                              slices, beta)
             quad_approx = _quad_approx(coef, intercept,
                                        prox_coef, prox_intercept,
@@ -94,12 +95,12 @@ def _predict(Xs, preds, coef, intercept, slices):
 
 
 @jit(nopython=True, cache=True)
-def _loss(Xs, ys, preds, coef, intercept, slices, beta):
+def _loss(Xs, ys, preds, dataset_weights, coef, intercept, slices, beta):
     n_datasets = len(slices)
     _predict(Xs, preds, coef, intercept, slices)
     loss = .5 * beta * np.sum(coef ** 2)
-    for y, pred in zip(ys, preds):
-        loss += cross_entropy(y, pred) / n_datasets
+    for y, pred, dataset_weight in zip(ys, preds, dataset_weights):
+        loss += cross_entropy(y, pred) / n_datasets * dataset_weight
     return loss
 
 
@@ -140,7 +141,7 @@ def _ista_loop(L, Lmax, Xs, coef, coef_diff, coef_grad, intercept,
     old_prox_coef[:] = 0
     t = 1
     _predict(Xs, preds, coef, intercept, slices)
-    loss = _loss(Xs, ys, preds, coef, intercept, slices, beta)
+    loss = _loss(Xs, ys, preds, dataset_weights, coef, intercept, slices, beta)
     rank = np.linalg.matrix_rank(coef)
     for iter in range(max_iter):
         if verbose and iter % (max_iter // verbose) == 0:
@@ -207,6 +208,9 @@ class TraceNormEstimator(BaseEstimator):
 
         if dataset_weights is None:
             dataset_weights = [1.] * n_datasets
+        # dataset_weights = np.array(dataset_weights) * np.sqrt([X.shape[0]
+        #                                                        for X in Xs])
+        # dataset_weights /= np.sum(dataset_weights) / n_datasets
 
         self.slices_ = []
         for iter in range(n_datasets):

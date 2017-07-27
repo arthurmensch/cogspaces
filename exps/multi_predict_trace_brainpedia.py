@@ -69,17 +69,23 @@ def run(n_seeds, n_jobs, _run, _seed):
                                                   size=n_seeds)
     exps = []
     for source in ['hcp_rs_positive_single']:
-        for dataset in ['archi']:
+        for dataset in ['brainpedia']:
+            log = [{'datasets': [dataset, 'hcp'],
+                    'beta': beta,
+                    'model': 'logistic',
+                    'source': source,
+                    'seed': seed} for seed in seed_list
+                   for beta in [0] + np.logspace(-10, -1, 10).tolist()
+                   ]
             transfer = [{'datasets': [dataset, 'hcp'],
                          'alpha': alpha,
                          'source': source,
                          'split_loss': split_loss,
-                         'dataset_weights':{'hcp': gamma, 'archi': 2 - gamma},
                          'seed': seed} for seed in seed_list
-                        for alpha in [1e-4] + np.logspace(-6, 0, 13).tolist()
-                        for gamma in np.linspace(0, 2, 10)
+                        for alpha in [0] + np.logspace(-6, 0, 13).tolist()
                         for split_loss in [True]
                         ]
+            exps += log
             exps += transfer
 
     rundir = join(basedir, str(_run._id), 'run')
