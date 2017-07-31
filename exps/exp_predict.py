@@ -6,15 +6,14 @@ import pandas as pd
 from joblib import load
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
+from scipy.linalg import svd
 from sklearn.externals.joblib import dump
 from sklearn.linear_model import LogisticRegression
-from sklearn.linear_model.base import LinearClassifierMixin
-from sklearn.metrics import confusion_matrix
 
 from cogspaces.model import TraceNormEstimator, NonConvexEstimator
 from cogspaces.pipeline import get_output_dir, make_data_frame, split_folds, \
     MultiDatasetTransformer
-import matplotlib.pyplot as plt
+
 idx = pd.IndexSlice
 
 exp = Experiment('predict')
@@ -34,23 +33,25 @@ def config():
                       camcan=None,
                       human_voice=None)
     dataset_weights = {}
-    model = 'logistic'
+    model = 'trace'
     alpha = 0
-    beta = 0
+    beta = 1e-4
     max_iter = 600
     verbose = 10
-    seed = 2
+    seed = 1
 
     with_std = False
     with_mean = False
     per_dataset = False
     split_loss = True
 
+    rescale_weights = True
+
     # Non convex only
     n_components = 'auto'
     latent_dropout_rate = 0.
     input_dropout_rate = 0.0
-    batch_size = 500
+    batch_size = 128
     source_init = None  # join(get_output_dir(), 'clean', '557')
     optimizer = 'adam'
     step_size = 1e-3
@@ -60,6 +61,7 @@ def config():
 def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_components,
               per_dataset,
               batch_size,
+              rescale_weights,
               with_std, with_mean,
               split_loss,
               optimizer, latent_dropout_rate, input_dropout_rate,
@@ -94,7 +96,7 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_componen
                 fit_intercept=True,
                 max_iter=max_iter,
                 tol=0,
-                solver='saga',
+                solver='lbfgs',
                 verbose=10,
                 random_state=0)
             estimator.fit(X_train, y_train)
@@ -120,6 +122,7 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_componen
             estimator = TraceNormEstimator(alpha=alpha,
                                            step_size_multiplier=1000,
                                            fit_intercept=True,
+                                           rescale_weights=rescale_weights,
                                            max_backtracking_iter=10,
                                            momentum=True,
                                            split_loss=split_loss,
@@ -164,7 +167,7 @@ def main(datasets, source, reduced_dir, unmask_dir,
          _run, _seed):
     artifact_dir = join(_run.observers[0].basedir, str(_run._id))
     single = False
-    if source == 'hcp_rs_positive_single':
+    if source in ['hcp_rs_positive_single', 'initial_reduction']:
         source = 'hcp_rs_positive'
         single = True
     df = make_data_frame(datasets, source,
@@ -172,6 +175,14 @@ def main(datasets, source, reduced_dir, unmask_dir,
                          unmask_dir=unmask_dir)
     if single:
         df = df.iloc[:, -512:]
+    if source == 'initial_reduction':
+        estimator = load(join(get_output_dir(), 'estimator.pkl'))
+        coef = estimator.coef_
+        U, S, VT = svd(coef)
+        rank = 41
+        U = U[:, :rank]
+        projected_df = df.values[:, -512:].dot(coef)
+        df = pd.DataFrame(data=projected_df, index=df.index)
     df_train, df_test = split_folds(df, test_size=test_size,
                                     train_size=train_size,
                                     random_state=_seed)

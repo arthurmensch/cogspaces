@@ -81,14 +81,6 @@ def make_data_frame(datasets, source,
             X.append(this_X)
             keys.append(dataset)
     X = pd.concat(X, keys=keys, names=['dataset'])
-    estimator = load(join(get_output_dir(), 'estimator.pkl'))
-    coef = estimator.coef_
-    U, S, VT = svd(coef)
-    rank = 41
-    U = U[:, :rank]
-    print(U.shape)
-    projected_X = X.values[:, -512:].dot(coef)
-    X = pd.DataFrame(data=projected_X, index=X.index)
     X.sort_index(inplace=True)
     return X
 

@@ -29,7 +29,7 @@ def config():
     batch_size = 200
     learning_rate = 0.92
     method = 'masked'
-    reduction = 10
+    reduction = 12
     alpha = 1e-4
     n_epochs = 1
     verbose = 15
@@ -42,6 +42,7 @@ def config():
 def compute_components(n_components,
                        batch_size,
                        learning_rate,
+                       smoothing_fwhm,
                        positive,
                        reduction,
                        alpha,
@@ -56,7 +57,7 @@ def compute_components(n_components,
     raw_res_dir = join(get_output_dir(), 'unmasked', 'hcp')
     masker, data = get_raw_rest_data(raw_res_dir)
 
-    train_imgs, test_imgs = train_test_split(data, test_size=1, random_state=0)
+    train_imgs, test_imgs = train_test_split(data, train_size=1000, test_size=1, random_state=0)
     train_imgs = train_imgs['filename'].values
     test_imgs = test_imgs['filename'].values
 

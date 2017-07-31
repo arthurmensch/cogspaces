@@ -185,11 +185,13 @@ class TraceNormEstimator(BaseEstimator):
                  max_backtracking_iter=5,
                  step_size_multiplier=1,
                  backtracking_divider=2.,
+                 rescale_weights=False,
                  split_loss=True):
         self.alpha = float(alpha)
         self.beta = float(beta)
         self.max_iter = max_iter
         self.fit_intercept = fit_intercept
+        self.rescale_weights = rescale_weights
         self.momentum = momentum
         self.verbose = verbose
 
@@ -208,9 +210,10 @@ class TraceNormEstimator(BaseEstimator):
 
         if dataset_weights is None:
             dataset_weights = [1.] * n_datasets
-        # dataset_weights = np.array(dataset_weights) * np.sqrt([X.shape[0]
-        #                                                        for X in Xs])
-        # dataset_weights /= np.sum(dataset_weights) / n_datasets
+        if self.rescale_weights:
+            dataset_weights = np.array(dataset_weights) * np.sqrt([X.shape[0]
+                                                                   for X in Xs])
+            dataset_weights /= np.sum(dataset_weights) / n_datasets
 
         self.slices_ = []
         for iter in range(n_datasets):

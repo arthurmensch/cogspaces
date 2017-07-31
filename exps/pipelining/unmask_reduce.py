@@ -10,9 +10,9 @@ output_dir = get_output_dir()
 n_jobs = 30
 batch_size = 1200
 
-for dataset in ['brainpedia']:
+for dataset in ['hcp', 'archi', 'la5c', 'brainomics', 'camcan']:
     # unmask(dataset, output_dir=output_dir,
     #        n_jobs=n_jobs, batch_size=batch_size)
-    reduce(dataset, output_dir=output_dir, source='hcp_rs_positive',
+    reduce(dataset, output_dir=output_dir, source='hcp_336',
            direct=False)
 

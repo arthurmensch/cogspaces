@@ -26,8 +26,8 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 24
-    n_seeds = 20
+    n_jobs = 14
+    n_seeds = 3
     seed = 2
 
 
@@ -45,11 +45,12 @@ def config():
     alpha = 0
     beta = 0
     model = 'trace'
-    max_iter = 600
+    max_iter = 2000
     verbose = 10
     with_std = False
     with_mean = False
-    row_standardize = False
+    per_dataset = False
+    split_loss = True
 
 
 def single_run(config_updates, rundir, _id):
@@ -69,24 +70,23 @@ def run(n_seeds, n_jobs, _run, _seed):
                                                   size=n_seeds)
     exps = []
     for source in ['hcp_rs_positive_single']:
-        for dataset in ['brainpedia']:
-            log = [{'datasets': [dataset, 'hcp'],
-                    'beta': beta,
-                    'model': 'logistic',
-                    'source': source,
-                    'seed': seed} for seed in seed_list
-                   for beta in [0] + np.logspace(-10, -1, 10).tolist()
-                   ]
-            transfer = [{'datasets': [dataset, 'hcp'],
-                         'alpha': alpha,
-                         'source': source,
-                         'split_loss': split_loss,
-                         'seed': seed} for seed in seed_list
-                        for alpha in [0] + np.logspace(-6, 0, 13).tolist()
-                        for split_loss in [True]
-                        ]
-            exps += log
-            exps += transfer
+        log = [{'datasets': ['brainpedia', 'hcp', 'brainomics'],
+                'beta': beta,
+                'model': 'logistic',
+                'source': source,
+                'seed': seed} for seed in seed_list
+               for beta in [0] + np.logspace(-5, -1, 5).tolist()
+               ]
+        transfer = [{'datasets': ['brainpedia', 'hcp', 'brainomics'],
+                     'alpha': alpha,
+                     'source': source,
+                     'rescale_weights': rescale_weights,
+                     'seed': seed} for seed in seed_list
+                    for alpha in [0] + np.logspace(-5, -2, 7).tolist()
+                    for rescale_weights in [True, False]
+                    ]
+        exps += log
+        exps += transfer
 
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):
