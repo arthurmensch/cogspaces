@@ -1,20 +1,24 @@
 from math import sqrt
 
+import numba
 import numpy as np
 from numba import jit
 from numpy.linalg import svd
 from sklearn.base import BaseEstimator
+from sklearn.utils import check_array
 
 
 def lipschitz_constant(Xs, dataset_weights, fit_intercept=False,
                        split_loss=False):
-    max_squared_sums = np.array([(X ** 2).sum(axis=1).max() * weight
-                                 for X, weight in zip(Xs, dataset_weights)])
+    max_squared_sums = np.array([(X ** 2).sum(axis=1).max() for X in Xs])
+    if fit_intercept:
+        max_squared_sums += 1
+    max_squared_sums *= dataset_weights
     if split_loss:
         max_squared_sums = np.mean(max_squared_sums)
     else:
         max_squared_sums = np.max(max_squared_sums)
-    L = (0.5 * (max_squared_sums + int(fit_intercept)))
+    L = 0.5 * max_squared_sums
     return L
 
 
@@ -50,7 +54,7 @@ def _prox_grad(Xs, ys, preds, coef, intercept,
             np.dot(X.T, np.exp(pred) - y) / X.shape[0] / n_datasets * dataset_weight
         for jj, j in enumerate(range(this_slice[0], this_slice[1])):
             intercept_grad[j] += (np.exp(pred[:, jj]) - y[:, jj]).mean() / n_datasets * dataset_weight
-        loss += cross_entropy(y, pred) / n_datasets
+        loss += cross_entropy(y, pred) / n_datasets * dataset_weight
     if beta > 0:
         coef_grad += beta * coef
     # Gradient step
@@ -75,6 +79,7 @@ def _prox_grad(Xs, ys, preds, coef, intercept,
                 loss = new_loss
                 break
             else:
+                print('Backtracking')
                 L *= backtracking_divider
                 if L > Lmax:
                     L = Lmax
@@ -119,7 +124,7 @@ def _quad_approx(coef, intercept,
     return approx
 
 
-@jit("float32(int64[:, :], float32[:, :])", nopython=True)
+@jit("float32(i8[:, :], f4[:, :])", nopython=True)
 def cross_entropy(y_true, y_pred):
     n_samples, n_targets = y_true.shape
     loss = 0
@@ -204,16 +209,22 @@ class TraceNormEstimator(BaseEstimator):
         n_datasets = len(Xs)
         n_features = Xs[0].shape[1]
 
-        sizes = np.array([this_y.shape[1] for this_y in ys])
+        Xs, ys = check_Xs_ys(Xs, ys)
+
+        sizes = np.array([this_y.shape[1] for this_y in ys], dtype=np.int64)
         limits = [0] + np.cumsum(sizes).tolist()
         total_size = limits[-1]
 
         if dataset_weights is None:
-            dataset_weights = [1.] * n_datasets
-        if self.rescale_weights:
-            dataset_weights = np.array(dataset_weights) * np.sqrt([X.shape[0]
-                                                                   for X in Xs])
-            dataset_weights /= np.sum(dataset_weights) / n_datasets
+            dataset_weights = np.ones(n_datasets, dtype=np.float32)
+        else:
+            dataset_weights = np.array(dataset_weights, dtype=np.float32)
+            dataset_weights /= np.mean(dataset_weights)
+            print(dataset_weights)
+        # if self.rescale_weights:
+        #     dataset_weights = np.array(dataset_weights) * np.sqrt([X.shape[0]
+        #                                                            for X in Xs])
+        #     dataset_weights /= np.sum(dataset_weights) / n_datasets
 
         self.slices_ = []
         for iter in range(n_datasets):
@@ -258,6 +269,7 @@ class TraceNormEstimator(BaseEstimator):
         self.intercept_ = intercept
 
     def score(self, Xs, ys):
+        Xs, ys = check_Xs_ys(Xs, ys)
         preds = self.predict(Xs)
         scores = []
         for pred, y in zip(preds, ys):
@@ -265,7 +277,15 @@ class TraceNormEstimator(BaseEstimator):
         return scores
 
     def predict(self, Xs):
-        preds = tuple(np.empty((X.shape[0], this_slice[1] - this_slice[0]))
+        Xs = tuple(check_array(X, dtype=np.float32) for X in Xs)
+        preds = tuple(np.empty((X.shape[0], this_slice[1] - this_slice[0]),
+                               dtype=np.float32)
                       for X, this_slice in zip(Xs, self.slices_))
         _predict(Xs, preds, self.coef_, self.intercept_, self.slices_)
         return tuple(np.exp(pred) for pred in preds)
+
+
+def check_Xs_ys(Xs, ys):
+    Xs = tuple(check_array(X, dtype=np.float32) for X in Xs)
+    ys = tuple(check_array(y, dtype=np.int64) for y in ys)
+    return Xs, ys

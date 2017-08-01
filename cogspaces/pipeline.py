@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.base import TransformerMixin
 from sklearn.externals.joblib import load
 from sklearn.model_selection import GroupShuffleSplit
-from sklearn.preprocessing import LabelBinarizer, StandardScaler
+from sklearn.preprocessing import LabelBinarizer, StandardScaler, LabelEncoder
 
 import numpy as np
 
@@ -122,10 +122,11 @@ def split_folds(X, test_size=0.2, train_size=None, random_state=None):
 class MultiDatasetTransformer(TransformerMixin):
     """Utility transformer"""
     def __init__(self, with_std=False, with_mean=True,
-                 per_dataset=True):
+                 per_dataset=True, integer_coding=False):
         self.with_std = with_std
         self.with_mean = with_mean
         self.per_dataset = per_dataset
+        self.integer_coding = integer_coding
 
     def fit(self, df):
         self.lbins_ = {}
@@ -136,7 +137,10 @@ class MultiDatasetTransformer(TransformerMixin):
                                 with_mean=self.with_mean)
             self.sc_.fit(df.values)
         for dataset, sub_df in df.groupby(level='dataset'):
-            lbin = LabelBinarizer()
+            if self.integer_coding:
+                lbin = LabelEncoder()
+            else:
+                lbin = LabelBinarizer()
             this_y = sub_df.index.get_level_values('contrast')
             if self.per_dataset:
                 sc = StandardScaler(with_std=self.with_std,
@@ -162,7 +166,7 @@ class MultiDatasetTransformer(TransformerMixin):
                 this_X = sub_df.values
             this_y = sub_df.index.get_level_values('contrast')
             this_y = lbin.transform(this_y)
-            if this_y.shape[1] == 1:
+            if not self.integer_coding and this_y.shape[1] == 1:
                 this_y = np.hstack([this_y, np.logical_not(this_y)])
             y.append(this_y)
             X.append(this_X)

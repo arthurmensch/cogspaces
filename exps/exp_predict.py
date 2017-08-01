@@ -23,7 +23,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['brainpedia']
+    datasets = ['brainomics', 'hcp', 'archi']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
     source = 'hcp_rs_positive_single'
@@ -32,20 +32,20 @@ def config():
     train_size = dict(hcp=None, archi=None, la5c=None, brainomics=None,
                       camcan=None,
                       human_voice=None)
-    dataset_weights = {}
+    dataset_weights = {'brainomics': 0.33, 'archi': 0.33, 'hcp': 0.33}
     model = 'trace'
-    alpha = 0
-    beta = 1e-4
-    max_iter = 600
+    alpha = 3e-4
+    beta = 0
+    max_iter = 30
     verbose = 10
-    seed = 1
+    seed = 10
 
     with_std = False
     with_mean = False
     per_dataset = False
     split_loss = True
 
-    rescale_weights = True
+    rescale_weights = False
 
     # Non convex only
     n_components = 'auto'
@@ -65,13 +65,18 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_componen
               with_std, with_mean,
               split_loss,
               optimizer, latent_dropout_rate, input_dropout_rate,
-              step_size, source_init, max_iter, verbose):
+              step_size, source_init, max_iter, verbose, _run):
     transformer = MultiDatasetTransformer(with_std=with_std,
                                           with_mean=with_mean,
                                           per_dataset=per_dataset)
     transformer.fit(df_train)
     Xs_train, ys_train = transformer.transform(df_train)
     datasets = df_train.index.get_level_values('dataset').unique().values
+
+    # score = json.load(open(join(get_output_dir(), 'predict', str(833), 'info.json'), 'r'))
+    # score = score['test']
+    #
+
     dataset_weights_list = []
     for dataset in datasets:
         if dataset in dataset_weights:
@@ -158,6 +163,16 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_componen
         pred_df_train = transformer.inverse_transform(df_train, ys_pred_train)
         ys_pred_test = estimator.predict(Xs_test)
         pred_df_test = transformer.inverse_transform(df_test, ys_pred_test)
+
+        if model == 'trace':
+            loss_train = estimator.score(Xs_train, ys_train)
+            loss_train = {dataset: this_loss for dataset, this_loss in
+                          zip(datasets, loss_train)}
+            loss_test = estimator.score(Xs_test, ys_test)
+            loss_test = {dataset: this_loss for dataset, this_loss in
+                          zip(datasets, loss_test)}
+            _run.info['loss_train'] = loss_train
+            _run.info['loss_test'] = loss_test
     return pred_df_train, pred_df_test, estimator, transformer
 
 
@@ -186,8 +201,25 @@ def main(datasets, source, reduced_dir, unmask_dir,
     df_train, df_test = split_folds(df, test_size=test_size,
                                     train_size=train_size,
                                     random_state=_seed)
+
+    # target_dataset = 'brainomics'
+    # target_data = df_train.loc[target_dataset]
+    # dataset_weights = {}
+    # for dataset, helper_data in df_train.groupby(level='dataset'):
+    #     target_data_l2 = np.sqrt(np.sum(target_data ** 2, axis=1))
+    #     helper_data_l2 = np.sqrt(np.sum(helper_data ** 2, axis=1))
+    #     target_data_l2[target_data_l2 == 0] = 1
+    #     helper_data_l2[helper_data_l2 == 0] = 1
+    #     corr_mat = np.abs(target_data.values.dot(helper_data.values.T))
+    #     corr_mat /= target_data_l2[:, np.newaxis]
+    #     corr_mat /= helper_data_l2[np.newaxis, :]
+    #     dataset_weights[dataset] = np.mean(np.max(corr_mat, axis=1))
+    # print(dataset_weights)
+
     pred_df_train, pred_df_test, estimator, transformer \
-        = fit_model(df_train, df_test)
+        = fit_model(df_train, df_test,
+                    # dataset_weights=dataset_weights
+                    )
 
     pred_contrasts = pd.concat([pred_df_test, pred_df_train],
                                keys=['test', 'train'],

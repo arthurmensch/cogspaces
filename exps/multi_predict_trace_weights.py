@@ -26,14 +26,14 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 24
-    n_seeds = 1
+    n_jobs = 30
+    n_seeds = 20
     seed = 2
 
 
 @single_exp.config
 def config():
-    datasets = ['archi', 'hcp']
+    datasets = ['archi', 'hcp', 'brainomics']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
     source = 'hcp_rs_concat'
@@ -45,11 +45,12 @@ def config():
     alpha = 0
     beta = 0
     model = 'trace'
-    max_iter = 600
+    max_iter = 1000
     verbose = 10
     with_std = False
     with_mean = False
-    row_standardize = False
+    per_dataset = False
+    split_loss = True
 
 
 def single_run(config_updates, rundir, _id):
@@ -68,17 +69,22 @@ def run(n_seeds, n_jobs, _run, _seed):
     seed_list = check_random_state(_seed).randint(np.iinfo(np.uint32).max,
                                                   size=n_seeds)
     exps = []
+
+    random_state = check_random_state(_seed)
+    C = random_state.uniform(0, 1, size=(100, 3))
+    C = - np.log(C)
+    sum_C = np.sum(C, axis=1, keepdims=True)
+    C /= sum_C
+
     for source in ['hcp_rs_positive_single']:
-        for dataset in ['archi']:
-            transfer = [{'datasets': [dataset, 'hcp'],
-                         'alpha': alpha,
+            transfer = [{'alpha': alpha,
                          'source': source,
-                         'split_loss': split_loss,
-                         'dataset_weights':{'hcp': gamma, 'archi': 2 - gamma},
+                         'dataset_weights':{'archi': this_c[0],
+                                            'brainomics': this_c[1],
+                                            'hcp': this_c[2]},
                          'seed': seed} for seed in seed_list
-                        for alpha in [1e-4] + np.logspace(-6, -2, 9).tolist()
-                        for gamma in np.linspace(0, 2, 5)
-                        for split_loss in [True]
+                        for alpha in [3e-4]
+                        for this_c in C
                         ]
             exps += transfer
 
