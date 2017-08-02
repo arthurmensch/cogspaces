@@ -1,15 +1,13 @@
 import os
 from os.path import join
 
+import numpy as np
 import pandas as pd
+from numpy.linalg import pinv
 from sklearn.base import TransformerMixin
 from sklearn.externals.joblib import load
 from sklearn.model_selection import GroupShuffleSplit
 from sklearn.preprocessing import LabelBinarizer, StandardScaler, LabelEncoder
-
-import numpy as np
-
-from numpy.linalg import pinv, svd
 
 idx = pd.IndexSlice
 

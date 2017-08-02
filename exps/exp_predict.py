@@ -1,18 +1,16 @@
-import json
 from os.path import join
 
 import numpy as np
 import pandas as pd
+from cogspaces.model.trace import TraceNormEstimator
+from cogspaces.pipeline import get_output_dir, make_data_frame, split_folds, \
+    MultiDatasetTransformer
 from joblib import load
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from scipy.linalg import svd
 from sklearn.externals.joblib import dump
 from sklearn.linear_model import LogisticRegression
-
-from cogspaces.model import TraceNormEstimator, NonConvexEstimator
-from cogspaces.pipeline import get_output_dir, make_data_frame, split_folds, \
-    MultiDatasetTransformer
 
 idx = pd.IndexSlice
 
@@ -23,7 +21,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['brainomics', 'hcp', 'archi']
+    datasets = ['archi', 'hcp', 'brainomics']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
     source = 'hcp_rs_positive_single'
@@ -32,9 +30,9 @@ def config():
     train_size = dict(hcp=None, archi=None, la5c=None, brainomics=None,
                       camcan=None,
                       human_voice=None)
-    dataset_weights = {'brainomics': 0.33, 'archi': 0.33, 'hcp': 0.33}
-    model = 'trace'
-    alpha = 3e-4
+    dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
+    model = 'non_convex'
+    alpha = 100
     beta = 0
     max_iter = 30
     verbose = 10
@@ -50,32 +48,29 @@ def config():
     # Non convex only
     n_components = 'auto'
     latent_dropout_rate = 0.
-    input_dropout_rate = 0.0
+    input_dropout_rate = 0.
     batch_size = 128
-    source_init = None  # join(get_output_dir(), 'clean', '557')
     optimizer = 'adam'
     step_size = 1e-3
 
 
 @exp.capture
-def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_components,
+def fit_model(df_train, df_test, dataset_weights, model, alpha, beta,
+              n_components,
               per_dataset,
               batch_size,
               rescale_weights,
               with_std, with_mean,
               split_loss,
               optimizer, latent_dropout_rate, input_dropout_rate,
-              step_size, source_init, max_iter, verbose, _run):
+              step_size, max_iter, verbose, _run):
     transformer = MultiDatasetTransformer(with_std=with_std,
                                           with_mean=with_mean,
+                                          integer_coding=model == 'non_convex',
                                           per_dataset=per_dataset)
     transformer.fit(df_train)
     Xs_train, ys_train = transformer.transform(df_train)
     datasets = df_train.index.get_level_values('dataset').unique().values
-
-    # score = json.load(open(join(get_output_dir(), 'predict', str(833), 'info.json'), 'r'))
-    # score = score['test']
-    #
 
     dataset_weights_list = []
     for dataset in datasets:
@@ -135,16 +130,7 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_componen
                                            max_iter=max_iter,
                                            verbose=verbose)
         elif model == 'non_convex':
-            if source_init is not None:
-                estimator = load(join(source_init, 'estimator.pkl'))
-                info = json.load(open(join(source_init, 'info.json'), 'r'))
-                n_components = info['rank']
-                score = info['score']
-                print('init', score)
-                coef = estimator.coef_
-                intercept = estimator.intercept_
-            else:
-                coef, intercept = None, None
+            from cogspaces.model.non_convex_pytorch import NonConvexEstimator
             estimator = NonConvexEstimator(
                 alpha=alpha, n_components=n_components,
                 latent_dropout_rate=latent_dropout_rate,
@@ -152,9 +138,15 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_componen
                 batch_size=batch_size,
                 optimizer=optimizer,
                 max_iter=max_iter,
-                latent_sparsity=None,
-                coef_init=coef,
-                intercept_init=intercept,
+                step_size=step_size)
+        elif model == 'non_convex_keras':
+            from cogspaces.model.non_convex import NonConvexEstimator
+            estimator = NonConvexEstimator(
+                alpha=alpha, n_components=n_components,
+                latent_dropout_rate=latent_dropout_rate,
+                input_dropout_rate=input_dropout_rate,
+                batch_size=batch_size,
+                max_iter=max_iter,
                 step_size=step_size)
         else:
             raise ValueError('Wrong model argument')
@@ -170,7 +162,7 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha, beta, n_componen
                           zip(datasets, loss_train)}
             loss_test = estimator.score(Xs_test, ys_test)
             loss_test = {dataset: this_loss for dataset, this_loss in
-                          zip(datasets, loss_test)}
+                         zip(datasets, loss_test)}
             _run.info['loss_train'] = loss_train
             _run.info['loss_test'] = loss_test
     return pred_df_train, pred_df_test, estimator, transformer
@@ -214,7 +206,6 @@ def main(datasets, source, reduced_dir, unmask_dir,
     #     corr_mat /= target_data_l2[:, np.newaxis]
     #     corr_mat /= helper_data_l2[np.newaxis, :]
     #     dataset_weights[dataset] = np.mean(np.max(corr_mat, axis=1))
-    # print(dataset_weights)
 
     pred_df_train, pred_df_test, estimator, transformer \
         = fit_model(df_train, df_test,

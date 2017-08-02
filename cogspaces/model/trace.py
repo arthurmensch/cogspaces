@@ -1,6 +1,5 @@
 from math import sqrt
 
-import numba
 import numpy as np
 from numba import jit
 from numpy.linalg import svd

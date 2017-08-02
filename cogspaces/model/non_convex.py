@@ -1,13 +1,8 @@
 import numpy as np
 import tensorflow as tf
-from keras import backend as K, Input
-# Cut verbosity
-# _stderr = sys.stderr
-# null = open(os.devnull, 'wb')
-# sys.stderr = null
+from keras import backend as K
 from keras.callbacks import Callback, LearningRateScheduler
-from keras.engine import Layer
-from keras.engine import Model
+from keras.engine import Layer, Input, Model
 from keras.layers import Dropout, Dense
 from keras.optimizers import Adam, SGD, RMSprop
 from keras.regularizers import l2
@@ -29,7 +24,7 @@ class NonConvexEstimator(BaseEstimator):
                  latent_dropout_rate=0.,
                  input_dropout_rate=0.,
                  coef_init=None,
-                 optimizer='sgd',
+                 optimizer='adam',
                  intercept_init=None,
                  batch_size=256,
                  latent_sparsity=None,
@@ -75,8 +70,8 @@ class NonConvexEstimator(BaseEstimator):
 
         if dataset_weights is None:
             dataset_weights = [1.] * n_datasets
+        dataset_weights /= np.sum(dataset_weights) / n_datasets
         # dataset_weights = np.array(dataset_weights) * np.sqrt([X.shape[0] for X in Xs])
-        # dataset_weights /= np.sum(dataset_weights) / n_datasets
 
         padded_ys = []
         masks = []
