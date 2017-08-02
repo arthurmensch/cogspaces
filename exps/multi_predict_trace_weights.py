@@ -77,16 +77,16 @@ def run(n_seeds, n_jobs, _run, _seed):
     C /= sum_C
 
     for source in ['hcp_rs_positive_single']:
-            transfer = [{'alpha': alpha,
-                         'source': source,
-                         'dataset_weights':{'archi': this_c[0],
-                                            'brainomics': this_c[1],
-                                            'hcp': this_c[2]},
-                         'seed': seed} for seed in seed_list
-                        for alpha in [3e-4]
-                        for this_c in C
-                        ]
-            exps += transfer
+        transfer = [{'alpha': alpha,
+                     'source': source,
+                     'dataset_weights': {'archi': this_c[0],
+                                         'brainomics': this_c[1],
+                                         'hcp': this_c[2]},
+                     'seed': seed} for seed in seed_list
+                    for alpha in [3e-4]
+                    for this_c in C
+                    ]
+        exps += transfer
 
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):
