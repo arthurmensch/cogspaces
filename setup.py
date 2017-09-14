@@ -8,7 +8,7 @@ import sys
 from setuptools import find_packages
 
 DISTNAME = 'cogspaces'
-DESCRIPTION = "Subsampled Online Matrix Factorization in Python"
+DESCRIPTION = "fMRI Multi dataset learning"
 LONG_DESCRIPTION = open('README.md').read()
 MAINTAINER = 'Arthur Mensch'
 MAINTAINER_EMAIL = 'arthur.mensch@m4x.org'

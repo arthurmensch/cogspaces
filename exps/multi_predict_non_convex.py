@@ -33,30 +33,34 @@ def config():
 
 @single_exp.config
 def config():
-    datasets = ['archi', 'hcp']
+    datasets = ['archi', 'hcp', 'brainomics']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs_concat'
-    n_subjects = None
+    source = 'hcp_rs_positive_single'
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
-                 'la5c': .5}
-    train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
-                  'la5c': .5}
-    alpha = 0
-    beta = 0
-    model = 'non_convex'
-    max_iter = 600
-    n_components = 50
-    latent_dropout_rate = 0.
-    input_dropout_rate = 0.25
-    source_init = None
-    optimizer = 'adam'
-    step_size = 1e-3
-
+                 'la5c': .5, 'full': .5}
+    train_size = dict(hcp=None, archi=None, la5c=None, brainomics=None,
+                      camcan=None,
+                      human_voice=None)
+    dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
+    model = ''
+    alpha = 7e-4
+    max_iter = 100
     verbose = 10
-    with_std = True
-    with_mean = True
-    row_standardize = False
+    seed = 10
+
+    with_std = False
+    with_mean = False
+    per_dataset = False
+    split_loss = True
+
+    # Factored only
+    n_components = 'auto'
+    latent_dropout_rate = 0.
+    input_dropout_rate = 0.
+    batch_size = 128
+    optimizer = 'lbfgs'
+    step_size = 1
 
 
 def single_run(config_updates, rundir, _id):
@@ -64,10 +68,7 @@ def single_run(config_updates, rundir, _id):
     observer = FileStorageObserver.create(basedir=rundir)
     run._id = _id
     run.observers = [observer]
-    try:
-        run()
-    except:
-        pass
+    run()
 
 
 @exp.automain
@@ -75,41 +76,14 @@ def run(n_seeds, n_jobs, _run, _seed):
     seed_list = check_random_state(_seed).randint(np.iinfo(np.uint32).max,
                                                   size=n_seeds)
     exps = []
-    for source in ['hcp_rs_positive', 'hcp_rs_positive_single']:
-        for dataset in ['archi', 'brainomics']:
-            no_transfer = [{'datasets': [dataset, 'hcp'],
-                         'source': source,
-                         'n_components': n_components,
-                         'latent_dropout_rate': latent_dropout_rate,
-                         'input_dropout_rate': input_dropout_rate,
-                         'seed': seed} for seed in seed_list
-                        for n_components in [200]
-                        for latent_dropout_rate in [0.8, 0.9, 0.95]
-                        for input_dropout_rate in [0.25, 0.5]
-                        ]
-            transfer = [{'datasets': [dataset, 'hcp'],
-                         'source': source,
-                         'n_components': n_components,
-                         'latent_dropout_rate': latent_dropout_rate,
-                         'input_dropout_rate': input_dropout_rate,
-                         'seed': seed} for seed in seed_list
-                        for n_components in [200]
-                        for latent_dropout_rate in [0.8, 0.9, 0.95]
-                        for input_dropout_rate in [0.25, 0.5]
-                        ]
-            exps += no_transfer
-            # exps += transfer
-        transfer_full = [{'datasets': ['brainomics', 'archi', 'hcp'],
-                          'source': source,
-                          'n_components': n_components,
-                          'latent_dropout_rate': latent_dropout_rate,
-                          'input_dropout_rate': input_dropout_rate,
-                          'seed': seed} for seed in seed_list
-                         for n_components in [200]
-                         for latent_dropout_rate in [0.8, 0.9, 0.95]
-                         for input_dropout_rate in [0.25, 0.5]
-                         ]
-        # exps += transfer_full
+    for seed in seed_list:
+        for alpha in np.logspace(-7, 0, 15):
+            for model in ['logistic', 'trace', 'factored']:
+                exps.append({'alpha': alpha,
+                             'model': model,
+                             'max_iter': 2000 if model == 'trace' else 100,
+                             'seed': seed})
+    np.random.shuffle(exps)
 
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):

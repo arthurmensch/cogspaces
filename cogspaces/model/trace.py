@@ -6,15 +6,15 @@ from numpy.linalg import svd
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_array
 
-
-def lipschitz_constant(Xs, dataset_weights, fit_intercept=False,
+def lipschitz_constant(X, dataset_weights, xslices, fit_intercept=False,
                        split_loss=False):
+    Xs = [X[xslice[0]:xslice[1]] for xslice in xslices]
     max_squared_sums = np.array([(X ** 2).sum(axis=1).max() for X in Xs])
     if fit_intercept:
         max_squared_sums += 1
     max_squared_sums *= dataset_weights
     if split_loss:
-        max_squared_sums = np.mean(max_squared_sums)
+        max_squared_sums = np.sum(max_squared_sums)
     else:
         max_squared_sums = np.max(max_squared_sums)
     L = 0.5 * max_squared_sums
@@ -37,23 +37,30 @@ def proximal_operator(coef, threshold):
 
 
 @jit(nopython=True, cache=True)
-def _prox_grad(Xs, ys, preds, coef, intercept,
+def _prox_grad(X, y, pred, coef, intercept,
                dataset_weights,
                prox_coef, prox_intercept, coef_grad, intercept_grad,
-               slices, L, Lmax, alpha, beta, max_backtracking_iter,
+               xslices, yslices, L, Lmax, alpha, beta, max_backtracking_iter,
                backtracking_divider,
                coef_diff, intercept_diff):
-    n_datasets = len(slices)
-    _predict(Xs, preds, coef, intercept, slices)
+    _predict(X, pred, coef, intercept, xslices, yslices)
     loss = .5 * beta * np.sum(coef ** 2)
     coef_grad[:] = 0
     intercept_grad[:] = 0
-    for X, y, pred, this_slice, dataset_weight in zip(Xs, ys, preds, slices, dataset_weights):
-        coef_grad[:, this_slice[0]:this_slice[1]] += \
-            np.dot(X.T, np.exp(pred) - y) / X.shape[0] / n_datasets * dataset_weight
-        for jj, j in enumerate(range(this_slice[0], this_slice[1])):
-            intercept_grad[j] += (np.exp(pred[:, jj]) - y[:, jj]).mean() / n_datasets * dataset_weight
-        loss += cross_entropy(y, pred) / n_datasets * dataset_weight
+    n_datasets = len(xslices)
+    for i in range(n_datasets):
+        xslice, yslice, dataset_weight = xslices[i], yslices[i], \
+                                         dataset_weights[i]
+        this_X = X[xslice[0]:xslice[1]]
+        this_y = y[xslice[0]:xslice[1], yslice[0]:yslice[1]]
+        this_pred = pred[xslice[0]:xslice[1], yslice[0]:yslice[1]]
+        coef_grad[:, yslice[0]:yslice[1]] += \
+            np.dot(this_X.T, np.exp(this_pred) - this_y) / this_X.shape[
+                0] * dataset_weight
+        for jj, j in enumerate(range(yslice[0], yslice[1])):
+            intercept_grad[j] += (np.exp(this_pred[:, jj]) - this_y[:,
+                                                             jj]).mean() * dataset_weight
+        loss += cross_entropy(this_y, this_pred) * dataset_weight
     if beta > 0:
         coef_grad += beta * coef
     # Gradient step
@@ -66,9 +73,9 @@ def _prox_grad(Xs, ys, preds, coef, intercept,
         else:
             rank = prox_coef.shape[1]
         if j < max_backtracking_iter - 1:
-            new_loss = _loss(Xs, ys, preds, dataset_weights,
+            new_loss = _loss(X, y, pred, dataset_weights,
                              prox_coef, prox_intercept,
-                             slices, beta)
+                             xslices, yslices, beta)
             quad_approx = _quad_approx(coef, intercept,
                                        prox_coef, prox_intercept,
                                        coef_grad, intercept_grad,
@@ -88,10 +95,13 @@ def _prox_grad(Xs, ys, preds, coef, intercept,
 
 
 @jit(nopython=True, cache=True)
-def _predict(Xs, preds, coef, intercept, slices):
-    for X, pred, this_slice in zip(Xs, preds, slices):
-        pred[:] = np.dot(X, coef[:, this_slice[0]:this_slice[1]])
-        pred += intercept[this_slice[0]:this_slice[1]]
+def _predict(X, pred, coef, intercept, xslices, yslices):
+    n_datasets = len(xslices)
+    for i in range(n_datasets):
+        xslice, yslice = xslices[i], yslices[i]
+        pred[xslice[0]:xslice[1], yslice[0]:yslice[1]] = np.dot(
+            X[xslice[0]:xslice[1]], coef[:, yslice[0]:yslice[1]])
+        pred[:, yslice[0]:yslice[1]] += intercept[yslice[0]:yslice[1]]
         for i in range(pred.shape[0]):
             pred[i] -= pred[i].max()
             logsumexp = np.log(np.sum(np.exp(pred[i])))
@@ -99,12 +109,17 @@ def _predict(Xs, preds, coef, intercept, slices):
 
 
 @jit(nopython=True, cache=True)
-def _loss(Xs, ys, preds, dataset_weights, coef, intercept, slices, beta):
-    n_datasets = len(slices)
-    _predict(Xs, preds, coef, intercept, slices)
+def _loss(X, y, pred, dataset_weights, coef, intercept,
+          xslices, yslices, beta):
+    _predict(X, pred, coef, intercept, xslices, yslices)
     loss = .5 * beta * np.sum(coef ** 2)
-    for y, pred, dataset_weight in zip(ys, preds, dataset_weights):
-        loss += cross_entropy(y, pred) / n_datasets * dataset_weight
+    n_datasets = len(xslices)
+    for i in range(n_datasets):
+        xslice, yslice, dataset_weight = xslices[i], yslices[i], \
+                                         dataset_weights[i]
+        this_y = y[xslice[0]:xslice[1], yslice[0]:yslice[1]]
+        this_pred = pred[xslice[0]:xslice[1], yslice[0]:yslice[1]]
+        loss += cross_entropy(this_y, this_pred) * dataset_weight
     return loss
 
 
@@ -123,7 +138,7 @@ def _quad_approx(coef, intercept,
     return approx
 
 
-@jit("float32(i8[:, :], f4[:, :])", nopython=True)
+@jit(nopython=True)
 def cross_entropy(y_true, y_pred):
     n_samples, n_targets = y_true.shape
     loss = 0
@@ -135,17 +150,19 @@ def cross_entropy(y_true, y_pred):
 
 
 @jit(nopython=True, cache=True)
-def _ista_loop(L, Lmax, Xs, coef, coef_diff, coef_grad, intercept,
+def _ista_loop(L, Lmax, X, coef, coef_diff, coef_grad, intercept,
                dataset_weights,
                intercept_diff, intercept_grad, old_prox_coef, preds,
-               prox_coef, prox_intercept, ys,
-               max_iter, max_backtracking_iter, slices, alpha, beta,
+               prox_coef, prox_intercept, y,
+               max_iter, max_backtracking_iter, xslices, yslices,
+               alpha, beta,
                backtracking_divider,
                verbose, momentum):
     old_prox_coef[:] = 0
     t = 1
-    _predict(Xs, preds, coef, intercept, slices)
-    loss = _loss(Xs, ys, preds, dataset_weights, coef, intercept, slices, beta)
+    _predict(X, preds, coef, intercept, xslices, yslices)
+    loss = _loss(X, y, preds, dataset_weights, coef, intercept, xslices,
+                 yslices, beta)
     rank = np.linalg.matrix_rank(coef)
     for iter in range(max_iter):
         if verbose and iter % (max_iter // verbose) == 0:
@@ -154,14 +171,15 @@ def _ista_loop(L, Lmax, Xs, coef, coef_diff, coef_grad, intercept,
             print('Iteration', iter, 'rank', rank, 'loss', loss,
                   'step size', 1 / L)
 
-        loss, rank, L, max_backtracking_iter = _prox_grad(Xs, ys, preds, coef,
+        loss, rank, L, max_backtracking_iter = _prox_grad(X, y, preds, coef,
                                                           intercept,
                                                           dataset_weights,
                                                           prox_coef,
                                                           prox_intercept,
                                                           coef_grad,
                                                           intercept_grad,
-                                                          slices, L, Lmax,
+                                                          xslices, yslices, L,
+                                                          Lmax,
                                                           alpha,
                                                           beta,
                                                           max_backtracking_iter,
@@ -189,13 +207,11 @@ class TraceNormEstimator(BaseEstimator):
                  max_backtracking_iter=5,
                  step_size_multiplier=1,
                  backtracking_divider=2.,
-                 rescale_weights=False,
                  split_loss=True):
         self.alpha = float(alpha)
         self.beta = float(beta)
         self.max_iter = max_iter
         self.fit_intercept = fit_intercept
-        self.rescale_weights = rescale_weights
         self.momentum = momentum
         self.verbose = verbose
 
@@ -206,44 +222,24 @@ class TraceNormEstimator(BaseEstimator):
 
     def fit(self, Xs, ys, dataset_weights=None):
         n_datasets = len(Xs)
-        n_features = Xs[0].shape[1]
-
-        Xs, ys = check_Xs_ys(Xs, ys)
-
-        sizes = np.array([this_y.shape[1] for this_y in ys], dtype=np.int64)
-        limits = [0] + np.cumsum(sizes).tolist()
-        total_size = limits[-1]
 
         if dataset_weights is None:
             dataset_weights = np.ones(n_datasets, dtype=np.float32)
         else:
             dataset_weights = np.array(dataset_weights, dtype=np.float32)
             dataset_weights /= np.mean(dataset_weights)
-            print(dataset_weights)
-        # if self.rescale_weights:
-        #     dataset_weights = np.array(dataset_weights) * np.sqrt([X.shape[0]
-        #                                                            for X in Xs])
-        #     dataset_weights /= np.sum(dataset_weights) / n_datasets
 
-        self.slices_ = []
-        for iter in range(n_datasets):
-            self.slices_.append(np.array([limits[iter], limits[iter + 1]]))
-        self.slices_ = tuple(self.slices_)
+        X, y, xslices, yslices = check_Xs_ys(Xs, ys)
+        n_samples, n_features = X.shape
+        n_targets = y.shape[1]
 
-        if self.split_loss:
-            ys_ = tuple(np.zeros((y.shape[0], total_size), dtype=np.int64) for y in ys)
-            for y_, y, this_slice in zip(ys_, ys, self.slices_):
-                y_[:, this_slice[0]:this_slice[1]] = y
-            training_slices = tuple([np.array([0, total_size])] * n_datasets)
-            ys = ys_
-        else:
-            training_slices = self.slices_
+        self.yslices_ = yslices
 
-        Lmax = lipschitz_constant(Xs, dataset_weights, self.fit_intercept,
-                                  self.split_loss)
+        Lmax = lipschitz_constant(X, dataset_weights, xslices,
+                                  self.fit_intercept, self.split_loss)
         L = Lmax / self.init_multiplier
-        coef = np.ones((n_features, total_size), dtype=np.float32)
-        intercept = np.zeros(total_size, dtype=np.float32)
+        coef = np.ones((n_features, n_targets), dtype=np.float32)
+        intercept = np.zeros(n_targets, dtype=np.float32)
 
         prox_coef = np.empty_like(coef, dtype=np.float32)
         coef_grad = np.empty_like(coef, dtype=np.float32)
@@ -253,13 +249,14 @@ class TraceNormEstimator(BaseEstimator):
         intercept_diff = np.empty_like(intercept, dtype=np.float32)
         old_prox_coef = np.empty_like(coef)
 
-        preds = tuple(np.empty_like(y, dtype=np.float32) for y in ys)
+        pred = np.empty_like(y, dtype=np.float32)
 
-        _ista_loop(L, Lmax, Xs, coef, coef_diff, coef_grad, intercept,
+        _ista_loop(L, Lmax, X, coef, coef_diff, coef_grad, intercept,
                    dataset_weights,
                    intercept_diff, intercept_grad, old_prox_coef,
-                   preds, prox_coef, prox_intercept, ys,
-                   self.max_iter, self.max_backtracking_iter, training_slices,
+                   pred, prox_coef, prox_intercept, y,
+                   self.max_iter, self.max_backtracking_iter, xslices,
+                   yslices,
                    self.alpha, self.beta,
                    self.backtracking_divider,
                    self.verbose, self.momentum
@@ -267,24 +264,45 @@ class TraceNormEstimator(BaseEstimator):
         self.coef_ = coef
         self.intercept_ = intercept
 
-    def score(self, Xs, ys):
-        Xs, ys = check_Xs_ys(Xs, ys)
-        preds = self.predict(Xs)
-        scores = []
-        for pred, y in zip(preds, ys):
-            scores.append(cross_entropy(y, pred))
-        return scores
-
     def predict(self, Xs):
-        Xs = tuple(check_array(X, dtype=np.float32) for X in Xs)
-        preds = tuple(np.empty((X.shape[0], this_slice[1] - this_slice[0]),
-                               dtype=np.float32)
-                      for X, this_slice in zip(Xs, self.slices_))
-        _predict(Xs, preds, self.coef_, self.intercept_, self.slices_)
-        return tuple(np.exp(pred) for pred in preds)
+        yslices = self.yslices_
+        n_targets = yslices[-1, 1]
+        X, xslices = check_Xs(Xs)
+        n_samples = X.shape[0]
+        pred = np.empty((n_samples, n_targets), dtype=np.float32)
+        _predict(X, pred, self.coef_, self.intercept_, xslices, yslices)
+        preds = []
+        for xslice, yslice in zip(xslices, yslices):
+            preds.append(np.exp(pred[xslice[0]:xslice[1],
+                                yslice[0]:yslice[1]]))
+        return tuple(preds)
+
+
+def check_Xs(Xs):
+    Xs = tuple(check_array(X, dtype=np.float32) for X in Xs)
+    len_X = [X.shape[0] for X in Xs]
+    cum_len_X = np.array([0] + np.cumsum(np.array(len_X)).tolist())[:,
+                np.newaxis]
+    xslices = np.hstack([cum_len_X[:-1], cum_len_X[1:]])
+    X = np.concatenate(Xs)
+    return X, xslices
 
 
 def check_Xs_ys(Xs, ys):
     Xs = tuple(check_array(X, dtype=np.float32) for X in Xs)
     ys = tuple(check_array(y, dtype=np.int64) for y in ys)
-    return Xs, ys
+    len_X = [X.shape[0] for X in Xs]
+    len_y = [y.shape[1] for y in ys]
+    cum_len_X = np.array([0] + np.cumsum(np.array(len_X)).tolist())[:,
+                np.newaxis]
+    cum_len_y = np.array([0] + np.cumsum(np.array(len_y)).tolist())[:,
+                np.newaxis]
+    xslices = np.hstack([cum_len_X[:-1], cum_len_X[1:]])
+    yslices = np.hstack([cum_len_y[:-1], cum_len_y[1:]])
+    X = np.concatenate(Xs)
+    n_samples = xslices[-1, 1]
+    n_targets = yslices[-1, 1]
+    y_new = np.zeros((n_samples, n_targets), dtype=np.int64)
+    for y, xslice, yslice in zip(ys, xslices, yslices):
+        y_new[xslice[0]:xslice[1], yslice[0]:yslice[1]] = y
+    return X, y_new, xslices, yslices
