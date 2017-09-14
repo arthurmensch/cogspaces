@@ -31,7 +31,7 @@ def config():
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
     model = 'factored'
-    alpha = 0.
+    alpha = 0
     max_iter = 200
     verbose = 10
     seed = 10
