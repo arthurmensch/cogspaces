@@ -27,7 +27,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 12
+    n_jobs = 24
     n_seeds = 10
     seed = 100
 
@@ -78,7 +78,7 @@ def run(n_seeds, n_jobs, _run, _seed):
     seed_list = check_random_state(_seed).randint(np.iinfo(np.uint32).max,
                                                   size=n_seeds)
     exps = []
-    for source in ['hcp_rs_concat', 'hcp_rs']:
+    for source in ['hcp_rs_positive', 'hcp_rs_positive_single']:
         for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
             # Multinomial model
             multinomial = [{'datasets': [dataset],
@@ -108,11 +108,12 @@ def run(n_seeds, n_jobs, _run, _seed):
                          'source': source,
                          'seed': seed} for seed in seed_list
                         ]
-            # exps += no_transfer
-            # exps += transfer
+            exps += no_transfer
+            exps += transfer
             exps += multinomial_dropout
             exps += multinomial
 
+    # Slow (uncomment if needed)
     source = 'unmasked'
 
     multinomial = [{'datasets': [dataset],
@@ -132,7 +133,6 @@ def run(n_seeds, n_jobs, _run, _seed):
                             'input_dropout_rate': 0.25,
                             'seed': seed} for seed in seed_list
                            ]
-    # Slow (uncomment if needed)
     # exps += multinomial_dropout
     # exps += multinomial
 
