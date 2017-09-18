@@ -43,13 +43,13 @@ def config():
                       camcan=100,
                       human_voice=None)
 
-    max_iter = 200
+    max_iter = 1000
     verbose = 10
     seed = 10
 
-    with_std = False
-    with_mean = False
-    per_dataset = False
+    with_std = True
+    with_mean = True
+    per_dataset = True
     split_loss = True
 
     # Factored only
@@ -80,6 +80,25 @@ def run(n_seeds, n_jobs, _run, _seed):
     exps = []
     for source in ['hcp_rs_concat', 'hcp_rs']:
         for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
+            # Multinomial model
+            multinomial = [{'datasets': [dataset],
+                            'source': source,
+                            'alpha': alpha,
+                            'model': 'logistic',
+                            'latent_dropout_rate': 0.,
+                            'input_dropout_rate': 0.,
+                            'seed': seed} for seed in seed_list
+                           for alpha in np.logspace(-6, -1, 6)
+                           ]
+            multinomial_dropout = [{'datasets': [dataset],
+                                    'source': source,
+                                    'alpha': 0,
+                                    'model': 'logistic',
+                                    'latent_dropout_rate': 0.,
+                                    'input_dropout_rate': 0.25,
+                                    'seed': seed} for seed in seed_list
+                                   ]
+            # Latent space model
             no_transfer = [{'datasets': [dataset],
                             'source': source,
                             'model': 'factored',
@@ -91,16 +110,31 @@ def run(n_seeds, n_jobs, _run, _seed):
                         ]
             exps += no_transfer
             exps += transfer
-    for source in ['hcp_rs_concat', 'hcp_rs']:
-        for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
-            multinomial = [{'datasets': [dataset],
-                            'source': source,
-                            'alpha': alpha,
-                            'model': 'logistic',
-                            'seed': seed} for seed in seed_list
-                           for alpha in np.logspace(-6, -1, 6)
-                           ]
+            exps += multinomial_dropout
             exps += multinomial
+
+    # Slow (uncomment if needed)
+    source = 'unmasked'
+
+    multinomial = [{'datasets': [dataset],
+                    'source': source,
+                    'alpha': alpha,
+                    'model': 'logistic',
+                    'latent_dropout_rate': 0.,
+                    'input_dropout_rate': 0.,
+                    'seed': seed} for seed in seed_list
+                   for alpha in np.logspace(-6, -1, 6)
+                   ]
+    multinomial_dropout = [{'datasets': [dataset],
+                            'source': source,
+                            'alpha': 0,
+                            'model': 'logistic',
+                            'latent_dropout_rate': 0.,
+                            'input_dropout_rate': 0.25,
+                            'seed': seed} for seed in seed_list
+                           ]
+    exps += multinomial_dropout
+    exps += multinomial
 
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):
