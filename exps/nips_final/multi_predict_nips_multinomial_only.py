@@ -47,9 +47,9 @@ def config():
     verbose = 10
     seed = 10
 
-    with_std = True
-    with_mean = True
-    per_dataset = True
+    with_std = False
+    with_mean = False
+    per_dataset = False
     split_loss = True
 
     # Factored only
@@ -108,12 +108,11 @@ def run(n_seeds, n_jobs, _run, _seed):
                          'source': source,
                          'seed': seed} for seed in seed_list
                         ]
-            exps += no_transfer
-            exps += transfer
+            # exps += no_transfer
+            # exps += transfer
             exps += multinomial_dropout
             exps += multinomial
 
-    # Slow (uncomment if needed)
     source = 'unmasked'
 
     multinomial = [{'datasets': [dataset],
@@ -133,6 +132,7 @@ def run(n_seeds, n_jobs, _run, _seed):
                             'input_dropout_rate': 0.25,
                             'seed': seed} for seed in seed_list
                            ]
+    # Slow (uncomment if needed)
     # exps += multinomial_dropout
     # exps += multinomial
 

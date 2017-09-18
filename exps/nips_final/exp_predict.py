@@ -20,7 +20,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['archi', 'hcp']
+    datasets = ['archi']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
     source = 'hcp_rs_concat'
@@ -30,21 +30,21 @@ def config():
                       camcan=None,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
-    model = 'factored'
-    alpha = 0
-    max_iter = 200
+    model = 'logistic'
+    alpha = 1e-4
+    max_iter = 1000
     verbose = 10
     seed = 10
 
-    with_std = True
-    with_mean = True
-    per_dataset = True
+    with_std = False
+    with_mean = False
+    per_dataset = False
     split_loss = True
 
     # Factored only
     n_components = 200
-    latent_dropout_rate = 0.8
-    input_dropout_rate = 0.25
+    latent_dropout_rate = 0.0
+    input_dropout_rate = 0.0
     batch_size = 128
     optimizer = 'adam'
     step_size = 1e-3
