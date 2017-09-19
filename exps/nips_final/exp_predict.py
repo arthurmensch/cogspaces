@@ -20,31 +20,31 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['archi']
+    datasets = ['archi', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs_concat'
+    source = 'hcp_rs_positive'
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5, 'full': .5}
-    train_size = dict(hcp=None, archi=None, la5c=None, brainomics=None,
-                      camcan=None,
+    train_size = dict(hcp=None, archi=30, la5c=50, brainomics=30,
+                      camcan=100,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
-    model = 'logistic'
-    alpha = 1e-4
-    max_iter = 1000
+    model = 'factored'
+    alpha = 0
+    max_iter = 200
     verbose = 10
     seed = 10
 
     with_std = False
     with_mean = False
-    per_dataset = False
+    per_dataset = True
     split_loss = True
 
     # Factored only
-    n_components = 200
-    latent_dropout_rate = 0.0
-    input_dropout_rate = 0.0
+    n_components = 50
+    latent_dropout_rate = 0.5
+    input_dropout_rate = 0.
     batch_size = 128
     optimizer = 'adam'
     step_size = 1e-3
@@ -66,6 +66,10 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha,
                                           per_dataset=per_dataset)
     transformer.fit(df_train)
     Xs_train, ys_train = transformer.transform(df_train)
+    # for X_train in Xs_train:
+    #     X_train[:, :16] /= np.sqrt(16)
+    #     X_train[:, 16:80] /= np.sqrt(64)
+    #     X_train[:, -512:] /= np.sqrt(512)
     datasets = df_train.index.get_level_values('dataset').unique().values
 
     dataset_weights_list = []
@@ -76,6 +80,10 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha,
             dataset_weights_list.append(1.)
     dataset_weights = dataset_weights_list
     Xs_test, ys_test = transformer.transform(df_test)
+    # for X_test in Xs_test:
+    #     X_test[:, :16] /= np.sqrt(16)
+    #     X_test[:, 16:80] /= np.sqrt(64)
+    #     X_test[:, -512:] /= np.sqrt(512)
     if model == 'trace':
         estimator = TraceNormEstimator(alpha=alpha,
                                        step_size_multiplier=1000,

@@ -102,16 +102,23 @@ def run(n_seeds, n_jobs, _run, _seed):
             no_transfer = [{'datasets': [dataset],
                             'source': source,
                             'model': 'factored',
+                            'with_std': True,
+                            'with_mean': True,
+                            'per_dataset': True,
                             'seed': seed} for seed in seed_list
                            ]
             transfer = [{'datasets': [dataset, 'hcp'],
                          'source': source,
+                         'model': 'factored',
+                         'with_std': True,
+                         'with_mean': True,
+                         'per_dataset': True,
                          'seed': seed} for seed in seed_list
                         ]
-            exps += no_transfer
+            # exps += no_transfer
             exps += transfer
-            exps += multinomial_dropout
-            exps += multinomial
+            # exps += multinomial_dropout
+            # exps += multinomial
 
     # Slow (uncomment if needed)
     source = 'unmasked'
