@@ -27,7 +27,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 24
+    n_jobs = 10
     n_seeds = 10
     seed = 100
 
