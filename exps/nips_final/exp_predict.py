@@ -23,7 +23,7 @@ def config():
     datasets = ['archi', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs_positive'
+    source = 'hcp_rs_positive_direct'
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5, 'full': .5}
     train_size = dict(hcp=None, archi=30, la5c=50, brainomics=30,
@@ -36,8 +36,8 @@ def config():
     verbose = 10
     seed = 10
 
-    with_std = False
-    with_mean = False
+    with_std = True
+    with_mean = True
     per_dataset = True
     split_loss = True
 
