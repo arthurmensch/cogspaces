@@ -7,6 +7,7 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 import torch.nn.init as init
 from torch.autograd import Variable
+from torch.optim.lr_scheduler import StepLR, ExponentialLR
 from torch.utils.data import DataLoader, TensorDataset
 
 CUDA = torch.cuda.is_available()
@@ -160,6 +161,10 @@ class NonConvexEstimator(BaseEstimator):
                                'weight_decay': self.alpha}
                 options_list.append(options)
             optimizer = torch.optim.Adam(options_list)
+            # scheduler = StepLR(optimizer,
+            #                    step_size=self.max_iter // 2, gamma=0.1)
+            # scheduler = ExponentialLR(optimizer,
+            #                           gamma=.999)
 
             # Train loop
             n_iter = 0
@@ -195,6 +200,7 @@ class NonConvexEstimator(BaseEstimator):
                     loss = self._loss(Xs, ys, dataset_weights)
                     print('Epoch %i: train loss %.4f rank %i'
                           % (epoch, loss, rank))
+                    # scheduler.step()
                 old_epoch = epoch
         elif self.optimizer == 'lbfgs':
             optimizer = torch.optim.LBFGS(params=self.model.parameters(),

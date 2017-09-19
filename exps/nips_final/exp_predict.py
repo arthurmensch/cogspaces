@@ -2,6 +2,8 @@ from os.path import join
 
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import LogisticRegressionCV
+
 from cogspaces.model.trace import TraceNormEstimator
 from cogspaces.pipeline import get_output_dir, make_data_frame, split_folds, \
     MultiDatasetTransformer
@@ -20,31 +22,31 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['archi', 'hcp']
+    datasets = ['archi']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs_concatk'
+    source = 'hcp_rs_positive_single'
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5, 'full': .5}
     train_size = dict(hcp=None, archi=30, la5c=50, brainomics=30,
                       camcan=100,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
-    model = 'factored'
-    alpha = 0
+    model = 'logistic_sklearn'
+    alpha = np.logspace(-6, -1, 12)
     max_iter = 200
     verbose = 10
-    seed = 10
+    seed = 20
 
-    with_std = True
-    with_mean = True
-    per_dataset = True
+    with_std = False
+    with_mean = False
+    per_dataset = False
     split_loss = True
 
     # Factored only
-    n_components = 50
+    n_components = 75
     latent_dropout_rate = 0.5
-    input_dropout_rate = 0.
+    input_dropout_rate = 0.25
     batch_size = 128
     optimizer = 'adam'
     step_size = 1e-3
@@ -62,14 +64,11 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha,
     transformer = MultiDatasetTransformer(with_std=with_std,
                                           with_mean=with_mean,
                                           integer_coding=model in ['factored',
-                                                                   'logistic'],
+                                                                   'logistic',
+                                                                   'logistic_sklearn'],
                                           per_dataset=per_dataset)
     transformer.fit(df_train)
     Xs_train, ys_train = transformer.transform(df_train)
-    # for X_train in Xs_train:
-    #     X_train[:, :16] /= np.sqrt(16)
-    #     X_train[:, 16:80] /= np.sqrt(64)
-    #     X_train[:, -512:] /= np.sqrt(512)
     datasets = df_train.index.get_level_values('dataset').unique().values
 
     dataset_weights_list = []
@@ -80,10 +79,6 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha,
             dataset_weights_list.append(1.)
     dataset_weights = dataset_weights_list
     Xs_test, ys_test = transformer.transform(df_test)
-    # for X_test in Xs_test:
-    #     X_test[:, :16] /= np.sqrt(16)
-    #     X_test[:, 16:80] /= np.sqrt(64)
-    #     X_test[:, -512:] /= np.sqrt(512)
     if model == 'trace':
         estimator = TraceNormEstimator(alpha=alpha,
                                        step_size_multiplier=1000,
@@ -122,15 +117,28 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha,
             alpha=alpha, n_components=n_components,
             latent_dropout_rate=latent_dropout_rate,
             input_dropout_rate=input_dropout_rate,
+            use_generator=True,
             batch_size=batch_size,
             max_iter=max_iter,
             step_size=step_size)
+    elif model == 'logistic_sklearn':
+        n_samples = Xs_train[0].shape[0]
+        if not hasattr(alpha, '__iter__'):
+            alpha = [alpha]
+        alpha = np.array(alpha)
+        estimator = LogisticRegressionCV(solver='saga', max_iter=max_iter,
+                                         Cs=1. / n_samples / alpha, verbose=10)
     else:
         raise ValueError('Wrong model argument')
-    estimator.fit(Xs_train, ys_train, dataset_weights=dataset_weights)
-    ys_pred_train = estimator.predict(Xs_train)
+    if model == 'logistic_sklearn':
+        estimator.fit(Xs_train[0], ys_train[0])
+        ys_pred_train = [estimator.predict(Xs_train[0])]
+        ys_pred_test = [estimator.predict(Xs_test[0])]
+    else:
+        estimator.fit(Xs_train, ys_train, dataset_weights=dataset_weights)
+        ys_pred_train = estimator.predict(Xs_train)
+        ys_pred_test = estimator.predict(Xs_test)
     pred_df_train = transformer.inverse_transform(df_train, ys_pred_train)
-    ys_pred_test = estimator.predict(Xs_test)
     pred_df_test = transformer.inverse_transform(df_test, ys_pred_test)
 
     return pred_df_train, pred_df_test, estimator, transformer
