@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 from sklearn.base import BaseEstimator
 
@@ -7,7 +9,6 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 import torch.nn.init as init
 from torch.autograd import Variable
-from torch.optim.lr_scheduler import StepLR, ExponentialLR
 from torch.utils.data import DataLoader, TensorDataset
 
 CUDA = torch.cuda.is_available()
@@ -161,10 +162,6 @@ class NonConvexEstimator(BaseEstimator):
                                'weight_decay': self.alpha}
                 options_list.append(options)
             optimizer = torch.optim.Adam(options_list)
-            # scheduler = StepLR(optimizer,
-            #                    step_size=self.max_iter // 2, gamma=0.1)
-            # scheduler = ExponentialLR(optimizer,
-            #                           gamma=.999)
 
             # Train loop
             n_iter = 0
@@ -200,7 +197,6 @@ class NonConvexEstimator(BaseEstimator):
                     loss = self._loss(Xs, ys, dataset_weights)
                     print('Epoch %i: train loss %.4f rank %i'
                           % (epoch, loss, rank))
-                    # scheduler.step()
                 old_epoch = epoch
         elif self.optimizer == 'lbfgs':
             optimizer = torch.optim.LBFGS(params=self.model.parameters(),
@@ -227,8 +223,6 @@ class NonConvexEstimator(BaseEstimator):
                     return total_loss
 
                 optimizer.step(closure)
-                # S = svd(self.coef_, compute_uv=False)
-                # print(S)
                 rank = np.linalg.matrix_rank(self.coef_)
                 loss = self._loss(Xs, ys, dataset_weights)
                 print(
@@ -245,7 +239,7 @@ class NonConvexEstimator(BaseEstimator):
             y_pred = self.model(X, output_index=i)
             total_loss += criterion(y_pred, y) * dataset_weights[i]
         if penalty:
-            total_loss += .5 * self.alpha * self.model.penalty()
+            total_loss += self.model.penalty() * .5 * self.alpha
         return total_loss.data[0]
 
     def predict(self, Xs):
@@ -281,6 +275,86 @@ class NonConvexEstimator(BaseEstimator):
         intercept = [classifier.bias.data
                      for classifier in self.model.classifiers]
         intercept = torch.cat(intercept, dim=0)
+        if CUDA:
+            intercept = intercept.cpu()
+        return intercept.numpy()
+
+
+class TransferEstimator(NonConvexEstimator):
+    def __init__(self, alpha=1.,
+                 n_components=25,
+                 step_size=1e-3,
+                 latent_dropout_rate=0.,
+                 input_dropout_rate=0.,
+                 batch_size=256,
+                 optimizer='adam',
+                 architecture='flat',
+                 n_jobs=1,
+                 max_iter=1000,
+                 Xs_helpers=None,
+                 ys_helpers=None,
+                 dataset_weights_helpers=None):
+        super(TransferEstimator,
+              self).__init__(alpha=alpha,
+                             n_components=n_components,
+                             step_size=step_size,
+                             latent_dropout_rate=latent_dropout_rate,
+                             input_dropout_rate=input_dropout_rate,
+                             batch_size=batch_size,
+                             optimizer=optimizer,
+                             architecture=architecture,
+                             n_jobs=n_jobs,
+                             max_iter=max_iter)
+
+        self.Xs_helpers = Xs_helpers
+        self.ys_helpers = ys_helpers
+        self.dataset_weights_helpers = dataset_weights_helpers
+
+    def fit(self, X, y):
+        if self.architecture == 'flat':
+            if self.Xs_helpers is not None or self.ys_helpers is not None:
+                warnings.warn('Ignoring helper datasets'
+                              ' as architecture is flat')
+            Xs = [X]
+            ys = [y]
+            dataset_weights = [1.]
+        else:
+            Xs = [X] + list(self.Xs_helpers)
+            ys = [y] + list(self.ys_helpers)
+            dataset_weights = [1.] + self.dataset_weights_helpers
+        super(TransferEstimator, self).fit(Xs, ys,
+                                           dataset_weights=dataset_weights)
+
+    def predict(self, X):
+        X = Variable(torch.from_numpy(X))
+        if CUDA:
+            X = X.cuda(device_id=DEVICE)
+        y_pred = self.model(X, output_index=0)
+
+        if CUDA:
+            y_pred = y_pred.cpu()
+        y_pred = np.argmax(y_pred.data.numpy(), axis=1)
+        return y_pred
+
+    def score(self, X, y):
+        y_pred = self.predict(X)
+        return np.mean(y_pred == y)
+
+    @property
+    def coef_(self):
+        if self.architecture == 'factored':
+            latent_weight = self.model.latent.weight.data
+            classifier_weights = self.model.classifiers[0].weight.data
+            coef = torch.mm(classifier_weights, latent_weight)
+        else:
+            coef = self.model.classifiers[0].weight.data
+        if CUDA:
+            coef = coef.cpu()
+        return coef.numpy()
+
+    @property
+    def intercept_(self):
+        intercept = self.model.classifiers[0].bias.data
         if CUDA:
             intercept = intercept.cpu()
         return intercept.numpy()
