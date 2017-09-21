@@ -63,9 +63,10 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha,
               step_size, max_iter, verbose, _run):
     transformer = MultiDatasetTransformer(with_std=with_std,
                                           with_mean=with_mean,
-                                          integer_coding=model in ['factored',
-                                                                   'logistic',
-                                                                   'logistic_sklearn'],
+                                          integer_coding=model in
+                                                         ['factored',
+                                                          'logistic',
+                                                          'logistic_sklearn'],
                                           per_dataset=per_dataset)
     transformer.fit(df_train)
     Xs_train, ys_train = transformer.transform(df_train)
