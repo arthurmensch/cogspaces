@@ -16,10 +16,10 @@ print(path.dirname(path.dirname(path.abspath(__file__))))
 # Add examples to known modules
 sys.path.append(
     path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
-from exps.exp_predict import exp as single_exp
+from exps.nips_final.nested import exp as single_exp
 
-exp = Experiment('nips')
-basedir = join(get_output_dir(), 'nips')
+exp = Experiment('multi_nested')
+basedir = join(get_output_dir(), 'multi_nested')
 if not os.path.exists(basedir):
     os.makedirs(basedir)
 exp.observers.append(FileStorageObserver.create(basedir=basedir))
@@ -27,39 +27,45 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 24
-    n_seeds = 10
-    seed = 100
+    n_jobs = 1
+    n_seeds = 1
+    seed = 1
 
 
 @single_exp.config
 def config():
+    datasets = ['archi', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-
+    source = 'hcp_rs_positive_single'
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
-                 'la5c': .5}
+                 'la5c': .5, 'full': .5}
     train_size = dict(hcp=None, archi=30, la5c=50, brainomics=30,
                       camcan=100,
                       human_voice=None)
-
-    max_iter = 1000
+    dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
+    max_iter = 10
     verbose = 10
-    seed = 10
+    seed = 20
 
-    with_std = True
-    with_mean = True
+    with_std = False
+    with_mean = False
     per_dataset = True
-    split_loss = True
 
     # Factored only
-    n_components = 75
-    alpha = 0.
-    latent_dropout_rate = 0.5
-    input_dropout_rate = 0.25
+    n_components = 100
+
     batch_size = 128
     optimizer = 'adam'
     step_size = 1e-3
+
+    alphas = np.logspace(-6, -1, 12)
+    latent_dropout_rates = [0.2, 0.4, 0.6]
+    input_dropout_rates = [0., 0.1, 0.2]
+    dataset_weights_helpers = [[1]]
+
+    n_splits = 1
+    n_jobs = 1
 
 
 def single_run(config_updates, rundir, _id):
@@ -81,22 +87,20 @@ def run(n_seeds, n_jobs, _run, _seed):
     for source in ['hcp_rs_concat', 'hcp_rs']:
         for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
             # Multinomial model
-            multinomial = [{'datasets': [dataset],
-                            'source': source,
-                            'alpha': np.logspace(-6, -1, 6),
-                            'model': 'logistic_sklearn',
-                            'latent_dropout_rate': 0.,
-                            'input_dropout_rate': 0.,
-                            'seed': seed} for seed in seed_list
-                           ]
-            multinomial_dropout = [{'datasets': [dataset],
-                                    'source': source,
-                                    'alpha': 0,
-                                    'model': 'logistic',
-                                    'latent_dropout_rate': 0.,
-                                    'input_dropout_rate': 0.25,
-                                    'seed': seed} for seed in seed_list
-                                   ]
+            multinomial_l2 = [{'datasets': [dataset],
+                               'source': source,
+                               'model': 'logistic_sklearn',
+                               # 'max_iter': 200,
+                               'seed': seed} for seed in seed_list
+                              ]
+            multinomial_l2_dropout = [{'datasets': [dataset],
+                                       'source': source,
+                                       'model': 'logistic_dropout',
+                                       # Finer dropout grid to be fair against l2
+                                       'input_dropout_rates':
+                                           np.linspace(0, 0.4, 5),
+                                       'seed': seed} for seed in seed_list
+                                      ]
             # Latent space model
             no_transfer = [{'datasets': [dataset],
                             'source': source,
@@ -110,8 +114,6 @@ def run(n_seeds, n_jobs, _run, _seed):
                         ]
             exps += no_transfer
             exps += transfer
-            # exps += multinomial_dropout
-            # exps += multinomial
 
     # Slow (uncomment if needed)
     source = 'unmasked'

@@ -254,6 +254,7 @@ class NonConvexEstimator(BaseEstimator):
                    for y_pred in y_preds]
         return y_preds
 
+
     @property
     def coef_(self):
         if self.architecture == 'factored':
@@ -324,6 +325,10 @@ class TransferEstimator(NonConvexEstimator):
             dataset_weights = [1.] + self.dataset_weights_helpers
         super(TransferEstimator, self).fit(Xs, ys,
                                            dataset_weights=dataset_weights)
+
+
+    def predict_all(self, Xs):
+        return super(TransferEstimator, self).predict(Xs)
 
     def predict(self, X):
         X = Variable(torch.from_numpy(X))
