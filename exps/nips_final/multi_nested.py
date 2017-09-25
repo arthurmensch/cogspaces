@@ -27,9 +27,9 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 1
+    n_jobs = 24
     n_seeds = 1
-    seed = 1
+    seed = 10
 
 
 @single_exp.config
@@ -59,12 +59,12 @@ def config():
     optimizer = 'adam'
     step_size = 1e-3
 
-    alphas = np.logspace(-6, -1, 12)
+    alphas = np.logspace(-6, -1, 9)
     latent_dropout_rates = [0.2, 0.4, 0.6]
     input_dropout_rates = [0., 0.1, 0.2]
     dataset_weights_helpers = [[1]]
 
-    n_splits = 1
+    n_splits = 10
     n_jobs = 1
 
 
