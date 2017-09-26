@@ -28,7 +28,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 @exp.config
 def config():
     n_jobs = 24
-    n_seeds = 1
+    n_seeds = 10
     seed = 10
 
 
@@ -44,12 +44,12 @@ def config():
                       camcan=100,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
-    max_iter = 10
+    max_iter = 1000
     verbose = 10
     seed = 20
 
-    with_std = False
-    with_mean = False
+    with_std = True
+    with_mean = True
     per_dataset = True
 
     # Factored only
@@ -114,6 +114,8 @@ def run(n_seeds, n_jobs, _run, _seed):
                         ]
             exps += no_transfer
             exps += transfer
+            exps += multinomial_l2
+            exps += multinomial_l2_dropout
 
     # Slow (uncomment if needed)
     source = 'unmasked'

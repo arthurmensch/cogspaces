@@ -22,7 +22,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['la5c', 'hcp']
+    datasets = ['brainomics', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
     source = 'hcp_rs_positive_single'
@@ -33,12 +33,12 @@ def config():
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
     model = 'factored'
-    max_iter = 1
+    max_iter = 100
     verbose = 10
     seed = 20
 
-    with_std = False
-    with_mean = False
+    with_std = True
+    with_mean = True
     per_dataset = True
 
     # Factored only
@@ -49,8 +49,8 @@ def config():
     step_size = 1e-3
 
     alphas = np.logspace(-6, -1, 12)
-    latent_dropout_rates = [0.2, 0.4, 0.6]
-    input_dropout_rates = [0., 0.1, 0.2]
+    latent_dropout_rates = [0.5]
+    input_dropout_rates = [0.25]
     dataset_weights_helpers = [[1]]
 
     n_splits = 1
@@ -58,7 +58,7 @@ def config():
 
 
 @exp.capture
-def fit_model(df_train, df_test, datasets, model,
+def fit_model(df_train, df_test, model,
               n_components,
               per_dataset,
               batch_size,
@@ -120,6 +120,7 @@ def fit_model(df_train, df_test, datasets, model,
             ys_helpers=ys_train_helpers, )
         estimator = GridSearchCV(estimator,
                                  n_jobs=n_jobs,
+                                 cv=cv,
                                  param_grid={
                                      'latent_dropout_rate': latent_dropout_rates,
                                      'input_dropout_rate': input_dropout_rates,
