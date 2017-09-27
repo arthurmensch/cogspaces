@@ -27,9 +27,9 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 24
+    n_jobs = 20
     n_seeds = 10
-    seed = 10
+    seed = 1
 
 
 @single_exp.config
@@ -60,8 +60,8 @@ def config():
     step_size = 1e-3
 
     alphas = np.logspace(-6, -1, 9)
-    latent_dropout_rates = [0.2, 0.4, 0.6]
-    input_dropout_rates = [0., 0.1, 0.2]
+    latent_dropout_rates = [0.5]
+    input_dropout_rates = [0.25]
     dataset_weights_helpers = [[1]]
 
     n_splits = 10
@@ -73,10 +73,7 @@ def single_run(config_updates, rundir, _id):
     observer = FileStorageObserver.create(basedir=rundir)
     run._id = _id
     run.observers = [observer]
-    try:
-        run()
-    except:
-        pass
+    run()
 
 
 @exp.automain
@@ -89,16 +86,16 @@ def run(n_seeds, n_jobs, _run, _seed):
             # Multinomial model
             multinomial_l2 = [{'datasets': [dataset],
                                'source': source,
-                               'model': 'logistic_sklearn',
-                               # 'max_iter': 200,
+                               'model': 'logistic_l2_sklearn',
+                               'max_iter': 200,
+                               # Multinomial l2 works better with no standardization
+                               'with_std': False,
+                               'with_mean': False,
                                'seed': seed} for seed in seed_list
                               ]
-            multinomial_l2_dropout = [{'datasets': [dataset],
+            multinomial_dropout = [{'datasets': [dataset],
                                        'source': source,
                                        'model': 'logistic_dropout',
-                                       # Finer dropout grid to be fair against l2
-                                       'input_dropout_rates':
-                                           np.linspace(0, 0.4, 5),
                                        'seed': seed} for seed in seed_list
                                       ]
             # Latent space model
@@ -115,7 +112,7 @@ def run(n_seeds, n_jobs, _run, _seed):
             exps += no_transfer
             exps += transfer
             exps += multinomial_l2
-            exps += multinomial_l2_dropout
+            exps += multinomial_dropout
 
     # Slow (uncomment if needed)
     source = 'unmasked'
@@ -139,6 +136,8 @@ def run(n_seeds, n_jobs, _run, _seed):
                            ]
     # exps += multinomial_dropout
     # exps += multinomial
+
+    np.random.shuffle(exps)
 
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):

@@ -6,7 +6,7 @@ import torch
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from sklearn.externals.joblib import dump
-from sklearn.linear_model import LogisticRegressionCV
+from sklearn.linear_model import LogisticRegressionCV, LogisticRegression
 from sklearn.model_selection import GridSearchCV, StratifiedShuffleSplit
 
 from cogspaces.model.non_convex_pytorch import TransferEstimator
@@ -33,7 +33,7 @@ def config():
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
     model = 'factored'
-    max_iter = 100
+    max_iter = 200
     verbose = 10
     seed = 20
 
@@ -49,7 +49,7 @@ def config():
     step_size = 1e-3
 
     alphas = np.logspace(-6, -1, 12)
-    latent_dropout_rates = [0.5]
+    latent_dropout_rates = [0.6]
     input_dropout_rates = [0.25]
     dataset_weights_helpers = [[1]]
 
@@ -88,12 +88,15 @@ def fit_model(df_train, df_test, model,
             architecture='flat',
             batch_size=batch_size,
             optimizer=optimizer,
+            alpha=alphas[0],
             max_iter=max_iter,
             step_size=step_size, n_jobs=1)
-        estimator = GridSearchCV(estimator,
-                                 cv=cv,
-                                 n_jobs=n_jobs,
-                                 param_grid={'alpha': alphas})
+        cross_val = len(alphas) > 1
+        if cross_val:
+            estimator = GridSearchCV(estimator,
+                                     cv=cv,
+                                     n_jobs=n_jobs,
+                                     param_grid={'alpha': alphas})
     elif model == 'logistic_dropout':
         torch.set_num_threads(1)
         estimator = TransferEstimator(
@@ -102,11 +105,15 @@ def fit_model(df_train, df_test, model,
             batch_size=batch_size,
             optimizer=optimizer,
             max_iter=max_iter,
+            input_dropout_rate=input_dropout_rates[0],
             step_size=step_size, n_jobs=1)
-        estimator = GridSearchCV(estimator,
-                                 cv=cv,
-                                 n_jobs=n_jobs,
-                                 param_grid={'input_dropout_rate': input_dropout_rates})
+        cross_val = len(input_dropout_rates) > 1
+        if cross_val:
+            estimator = GridSearchCV(estimator,
+                                     cv=cv,
+                                     n_jobs=n_jobs,
+                                     param_grid={
+                                         'input_dropout_rate': input_dropout_rates})
     elif model == 'factored':
         torch.set_num_threads(1)
         estimator = TransferEstimator(
@@ -117,34 +124,56 @@ def fit_model(df_train, df_test, model,
             max_iter=max_iter,
             step_size=step_size,
             Xs_helpers=Xs_train_helpers,
+            latent_dropout_rate=latent_dropout_rates[0],
+            input_dropout_rate=input_dropout_rates[0],
+            dataset_weights_helpers=dataset_weights_helpers[0],
             ys_helpers=ys_train_helpers, )
-        estimator = GridSearchCV(estimator,
-                                 n_jobs=n_jobs,
-                                 cv=cv,
-                                 param_grid={
-                                     'latent_dropout_rate': latent_dropout_rates,
-                                     'input_dropout_rate': input_dropout_rates,
-                                     'dataset_weights_helpers':
-                                         dataset_weights_helpers})
+        cross_val = len(input_dropout_rates) > 1 \
+                    or len(latent_dropout_rates) > 1 \
+                    or len(dataset_weights_helpers) > 1
+        if cross_val:
+            estimator = GridSearchCV(estimator,
+                                     n_jobs=n_jobs,
+                                     cv=cv,
+                                     param_grid={
+                                         'latent_dropout_rate': latent_dropout_rates,
+                                         'input_dropout_rate': input_dropout_rates,
+                                         'dataset_weights_helpers':
+                                             dataset_weights_helpers})
     elif model == 'logistic_l2_sklearn':
         n_samples = X_train.shape[0]
-        estimator = LogisticRegressionCV(solver='saga', max_iter=max_iter,
-                                         Cs=1. / alphas / n_samples,
-                                         n_jobs=n_jobs,
-                                         cv=cv,
-                                         verbose=10)
+        if len(alphas) > 1:
+            estimator = LogisticRegressionCV(solver='saga', max_iter=max_iter,
+                                             Cs=1. / alphas / n_samples,
+                                             n_jobs=n_jobs,
+                                             cv=cv,
+                                             verbose=10)
+        else:
+            alpha = alphas[0]
+            estimator = LogisticRegression(solver='saga', max_iter=max_iter,
+                                             C=1. / alphas / n_samples,
+                                             n_jobs=n_jobs,
+                                             cv=cv,
+                                             verbose=10)
     else:
         raise ValueError('Wrong model argument')
 
     estimator.fit(X_train, y_train)
 
-    if model != 'sklearn':
-        print(estimator.cv_results_)
-
-    ys_pred_train = estimator.best_estimator_.predict_all(Xs_train)
-    ys_pred_test = estimator.best_estimator_.predict_all(Xs_test)
-    pred_df_train = transformer.inverse_transform(df_train, ys_pred_train)
-    pred_df_test = transformer.inverse_transform(df_test, ys_pred_test)
+    if model != 'logistic_l2_sklearn':
+        if cross_val:
+            ys_pred_train = estimator.best_estimator_.predict_all(Xs_train)
+            ys_pred_test = estimator.best_estimator_.predict_all(Xs_test)
+        else:
+            ys_pred_train = estimator.predict_all(Xs_train)
+            ys_pred_test = estimator.predict_all(Xs_test)
+        pred_df_train = transformer.inverse_transform(df_train, ys_pred_train)
+        pred_df_test = transformer.inverse_transform(df_test, ys_pred_test)
+    else:
+        y_pred_train = estimator.predict(X_train)
+        y_pred_test = estimator.predict(X_test)
+        pred_df_train = transformer.inverse_transform(df_train, [y_pred_train])
+        pred_df_test = transformer.inverse_transform(df_test, [y_pred_test])
 
     return pred_df_train, pred_df_test, estimator, transformer
 
@@ -167,7 +196,7 @@ def main(datasets, source, reduced_dir, unmask_dir,
                                     train_size=train_size,
                                     random_state=_seed)
     pred_df_train, pred_df_test, estimator, transformer \
-        = fit_model(df_train, df_test,)
+        = fit_model(df_train, df_test, )
 
     pred_contrasts = pd.concat([pred_df_test, pred_df_train],
                                keys=['test', 'train'],
