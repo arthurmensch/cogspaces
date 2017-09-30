@@ -28,7 +28,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 @exp.config
 def config():
     n_jobs = 20
-    n_seeds = 10
+    n_seeds = 105
     seed = 1
 
 
@@ -44,7 +44,7 @@ def config():
                       camcan=80,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
-    max_iter = 300
+    max_iter = 500
     verbose = 10
     seed = 20
 
@@ -87,7 +87,6 @@ def run(n_seeds, n_jobs, _run, _seed):
             multinomial_l2 = [{'datasets': [dataset],
                                'source': source,
                                'model': 'logistic_l2_sklearn',
-                               'max_iter': 200,
                                # Multinomial l2 works better with no standardization
                                'with_std': False,
                                'with_mean': False,
