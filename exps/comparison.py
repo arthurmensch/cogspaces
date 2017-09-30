@@ -11,8 +11,9 @@ from json import JSONDecodeError
 # 11 factored
 # 12 aborted logistic
 # 24 all best standardization   |  logistic dropout to rerun
-# 28 no cross val on dropout    |
-basedir_ids = [28]
+# 28 no cross val on dropout (good)   |
+# 30 Last one ?
+basedir_ids = [30]
 basedirs = [join(get_output_dir(), 'multi_nested', str(_id), 'run') for _id in basedir_ids]
 res_list = []
 for basedir in basedirs:
@@ -33,7 +34,7 @@ for basedir in basedirs:
         res_list.append(res)
 res = pd.DataFrame(res_list)
 
-df_agg = res.groupby(by=['datasets', 'model', 'with_std', 'source']).aggregate(['mean', 'std'])
+df_agg = res.groupby(by=['datasets', 'model', 'with_std', 'source']).aggregate(['mean', 'std', 'count'])
 
 df_agg = df_agg.fillna(0)
 

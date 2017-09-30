@@ -15,7 +15,7 @@ from cogspaces.pipeline import get_output_dir
 # Add examples to known modules
 sys.path.append(path.dirname(path.dirname
                              (path.dirname(path.abspath(__file__)))))
-from exps.exp_predict import exp as single_exp
+from exps.old.exp_predict import exp as single_exp
 
 exp = Experiment('predict_multi')
 basedir = join(get_output_dir(), 'predict_multi')
@@ -26,31 +26,36 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 30
-    n_seeds = 20
+    n_jobs = 1
+    n_seeds = 1
     seed = 2
 
 
 @single_exp.config
 def config():
-    datasets = ['archi', 'hcp', 'brainomics']
+    datasets = ['archi', 'brainomics']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs_concat'
+    source = 'hcp_rs_positive_single'
     n_subjects = None
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5}
     train_size = {'hcp': .9, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                   'la5c': .5}
     alpha = 0
-    beta = 0
-    model = 'trace'
-    max_iter = 1000
+    model = 'logistic'
+    max_iter = 600
+    n_components = 50
+    latent_dropout_rate = 0.
+    input_dropout_rate = 0.25
+    source_init = None
+    optimizer = 'adam'
+    step_size = 1e-3
+
     verbose = 10
-    with_std = False
-    with_mean = False
-    per_dataset = False
-    split_loss = True
+    with_std = True
+    with_mean = True
+    row_standardize = False
 
 
 def single_run(config_updates, rundir, _id):
@@ -68,26 +73,11 @@ def single_run(config_updates, rundir, _id):
 def run(n_seeds, n_jobs, _run, _seed):
     seed_list = check_random_state(_seed).randint(np.iinfo(np.uint32).max,
                                                   size=n_seeds)
-    exps = []
-
-    random_state = check_random_state(_seed)
-    C = random_state.uniform(0, 1, size=(100, 3))
-    C = - np.log(C)
-    sum_C = np.sum(C, axis=1, keepdims=True)
-    C /= sum_C
-
-    for source in ['hcp_rs_positive_single']:
-        transfer = [{'alpha': alpha,
-                     'source': source,
-                     'dataset_weights': {'archi': this_c[0],
-                                         'brainomics': this_c[1],
-                                         'hcp': this_c[2]},
-                     'seed': seed} for seed in seed_list
-                    for alpha in [3e-4]
-                    for this_c in C
-                    ]
-        exps += transfer
-
+    exps = [{'datasets': ['archi'],
+                 'beta': beta,
+                 'seed': seed} for seed in seed_list
+                for beta in np.logspace(-10, 0, 11)
+                ]
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):
         os.makedirs(rundir)

@@ -16,10 +16,10 @@ print(path.dirname(path.dirname(path.abspath(__file__))))
 # Add examples to known modules
 sys.path.append(
     path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
-from exps.exp_predict import exp as single_exp
+from exps.single import exp as single_exp
 
-exp = Experiment('nips')
-basedir = join(get_output_dir(), 'nips')
+exp = Experiment('benchmark')
+basedir = join(get_output_dir(), 'benchmark')
 if not os.path.exists(basedir):
     os.makedirs(basedir)
 exp.observers.append(FileStorageObserver.create(basedir=basedir))
@@ -27,39 +27,45 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 12
-    n_seeds = 10
-    seed = 100
+    n_jobs = 20
+    n_seeds = 20
+    seed = 1000
 
 
 @single_exp.config
 def config():
+    datasets = ['archi', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-
+    source = 'hcp_rs_positive_single'
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
-                 'la5c': .5}
+                 'la5c': .5, 'full': .5}
     train_size = dict(hcp=None, archi=30, la5c=50, brainomics=30,
-                      camcan=100,
+                      camcan=80,
                       human_voice=None)
-
-    max_iter = 1000
+    dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
+    max_iter = 500
     verbose = 10
-    seed = 10
+    seed = 20
 
-    with_std = False
-    with_mean = False
-    per_dataset = False
-    split_loss = True
+    with_std = True
+    with_mean = True
+    per_dataset = True
 
     # Factored only
-    n_components = 75
-    alpha = 0.
-    latent_dropout_rate = 0.5
-    input_dropout_rate = 0.25
+    n_components = 100
+
     batch_size = 128
     optimizer = 'adam'
     step_size = 1e-3
+
+    alphas = np.logspace(-6, -1, 9)
+    latent_dropout_rates = [0.75]
+    input_dropout_rates = [0.25]
+    dataset_weights_helpers = [[1]]
+
+    n_splits = 10
+    n_jobs = 1
 
 
 def single_run(config_updates, rundir, _id):
@@ -67,10 +73,7 @@ def single_run(config_updates, rundir, _id):
     observer = FileStorageObserver.create(basedir=rundir)
     run._id = _id
     run.observers = [observer]
-    try:
-        run()
-    except:
-        pass
+    run()
 
 
 @exp.automain
@@ -78,24 +81,20 @@ def run(n_seeds, n_jobs, _run, _seed):
     seed_list = check_random_state(_seed).randint(np.iinfo(np.uint32).max,
                                                   size=n_seeds)
     exps = []
-    for source in ['hcp_rs_concat', 'hcp_rs']:
+    for source in ['hcp_rs_positive_single', 'hcp_rs_positive']:
         for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
             # Multinomial model
-            multinomial = [{'datasets': [dataset],
-                            'source': source,
-                            'alpha': alpha,
-                            'model': 'logistic',
-                            'latent_dropout_rate': 0.,
-                            'input_dropout_rate': 0.,
-                            'seed': seed} for seed in seed_list
-                           for alpha in np.logspace(-6, -1, 6)
-                           ]
+            multinomial_l2 = [{'datasets': [dataset],
+                               'source': source,
+                               'model': 'logistic_l2_sklearn',
+                               # Multinomial l2 works better with no standardization
+                               'with_std': False,
+                               'with_mean': False,
+                               'seed': seed} for seed in seed_list
+                              ]
             multinomial_dropout = [{'datasets': [dataset],
                                     'source': source,
-                                    'alpha': 0,
-                                    'model': 'logistic',
-                                    'latent_dropout_rate': 0.,
-                                    'input_dropout_rate': 0.25,
+                                    'model': 'logistic_dropout',
                                     'seed': seed} for seed in seed_list
                                    ]
             # Latent space model
@@ -106,13 +105,15 @@ def run(n_seeds, n_jobs, _run, _seed):
                            ]
             transfer = [{'datasets': [dataset, 'hcp'],
                          'source': source,
+                         'model': 'factored',
                          'seed': seed} for seed in seed_list
                         ]
-            # exps += no_transfer
-            # exps += transfer
+            exps += no_transfer
+            exps += transfer
+            exps += multinomial_l2
             exps += multinomial_dropout
-            exps += multinomial
 
+    # Slow (uncomment if needed)
     source = 'unmasked'
 
     multinomial = [{'datasets': [dataset],
@@ -132,9 +133,10 @@ def run(n_seeds, n_jobs, _run, _seed):
                             'input_dropout_rate': 0.25,
                             'seed': seed} for seed in seed_list
                            ]
-    # Slow (uncomment if needed)
     # exps += multinomial_dropout
     # exps += multinomial
+
+    np.random.shuffle(exps)
 
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):

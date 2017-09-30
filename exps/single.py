@@ -15,8 +15,8 @@ from cogspaces.pipeline import get_output_dir, make_data_frame, split_folds, \
 
 idx = pd.IndexSlice
 
-exp = Experiment('nested')
-basedir = join(get_output_dir(), 'nested')
+exp = Experiment('single_exp')
+basedir = join(get_output_dir(), 'single_exp')
 exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 

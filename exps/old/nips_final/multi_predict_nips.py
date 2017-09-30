@@ -16,7 +16,7 @@ print(path.dirname(path.dirname(path.abspath(__file__))))
 # Add examples to known modules
 sys.path.append(
     path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
-from exps.exp_predict import exp as single_exp
+from exps.old.exp_predict import exp as single_exp
 
 exp = Experiment('nips')
 basedir = join(get_output_dir(), 'nips')
@@ -27,7 +27,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 10
+    n_jobs = 24
     n_seeds = 10
     seed = 100
 
@@ -47,9 +47,9 @@ def config():
     verbose = 10
     seed = 10
 
-    with_std = False
-    with_mean = False
-    per_dataset = False
+    with_std = True
+    with_mean = True
+    per_dataset = True
     split_loss = True
 
     # Factored only
@@ -78,17 +78,16 @@ def run(n_seeds, n_jobs, _run, _seed):
     seed_list = check_random_state(_seed).randint(np.iinfo(np.uint32).max,
                                                   size=n_seeds)
     exps = []
-    for source in ['hcp_rs_positive', 'hcp_rs_positive_single']:
+    for source in ['hcp_rs_concat', 'hcp_rs']:
         for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
             # Multinomial model
             multinomial = [{'datasets': [dataset],
                             'source': source,
-                            'alpha': alpha,
-                            'model': 'logistic',
+                            'alpha': np.logspace(-6, -1, 6),
+                            'model': 'logistic_sklearn',
                             'latent_dropout_rate': 0.,
                             'input_dropout_rate': 0.,
                             'seed': seed} for seed in seed_list
-                           for alpha in np.logspace(-6, -1, 6)
                            ]
             multinomial_dropout = [{'datasets': [dataset],
                                     'source': source,
@@ -102,20 +101,14 @@ def run(n_seeds, n_jobs, _run, _seed):
             no_transfer = [{'datasets': [dataset],
                             'source': source,
                             'model': 'factored',
-                            'with_std': True,
-                            'with_mean': True,
-                            'per_dataset': True,
                             'seed': seed} for seed in seed_list
                            ]
             transfer = [{'datasets': [dataset, 'hcp'],
                          'source': source,
                          'model': 'factored',
-                         'with_std': True,
-                         'with_mean': True,
-                         'per_dataset': True,
                          'seed': seed} for seed in seed_list
                         ]
-            # exps += no_transfer
+            exps += no_transfer
             exps += transfer
             # exps += multinomial_dropout
             # exps += multinomial
