@@ -41,10 +41,10 @@ def config():
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5, 'full': .5}
     train_size = dict(hcp=None, archi=30, la5c=50, brainomics=30,
-                      camcan=100,
+                      camcan=80,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
-    max_iter = 1000
+    max_iter = 300
     verbose = 10
     seed = 20
 
@@ -60,7 +60,7 @@ def config():
     step_size = 1e-3
 
     alphas = np.logspace(-6, -1, 9)
-    latent_dropout_rates = [0.5]
+    latent_dropout_rates = [0.75]
     input_dropout_rates = [0.25]
     dataset_weights_helpers = [[1]]
 
@@ -81,7 +81,7 @@ def run(n_seeds, n_jobs, _run, _seed):
     seed_list = check_random_state(_seed).randint(np.iinfo(np.uint32).max,
                                                   size=n_seeds)
     exps = []
-    for source in ['hcp_rs_concat', 'hcp_rs']:
+    for source in ['hcp_rs_positive_single', 'hcp_rs_positive']:
         for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
             # Multinomial model
             multinomial_l2 = [{'datasets': [dataset],
@@ -94,10 +94,10 @@ def run(n_seeds, n_jobs, _run, _seed):
                                'seed': seed} for seed in seed_list
                               ]
             multinomial_dropout = [{'datasets': [dataset],
-                                       'source': source,
-                                       'model': 'logistic_dropout',
-                                       'seed': seed} for seed in seed_list
-                                      ]
+                                    'source': source,
+                                    'model': 'logistic_dropout',
+                                    'seed': seed} for seed in seed_list
+                                   ]
             # Latent space model
             no_transfer = [{'datasets': [dataset],
                             'source': source,

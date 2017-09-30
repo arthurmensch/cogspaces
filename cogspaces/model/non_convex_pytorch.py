@@ -282,7 +282,7 @@ class NonConvexEstimator(BaseEstimator):
 
 
 class TransferEstimator(NonConvexEstimator):
-    def __init__(self, alpha=1.,
+    def __init__(self, alpha=0.,
                  n_components=25,
                  step_size=1e-3,
                  latent_dropout_rate=0.,

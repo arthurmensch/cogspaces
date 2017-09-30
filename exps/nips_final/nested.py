@@ -22,7 +22,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['brainomics', 'hcp']
+    datasets = ['archi', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
     source = 'hcp_rs_positive_single'
@@ -49,7 +49,7 @@ def config():
     step_size = 1e-3
 
     alphas = np.logspace(-6, -1, 12)
-    latent_dropout_rates = [0.6]
+    latent_dropout_rates = [0.75]
     input_dropout_rates = [0.25]
     dataset_weights_helpers = [[1]]
 
@@ -100,6 +100,7 @@ def fit_model(df_train, df_test, model,
     elif model == 'logistic_dropout':
         torch.set_num_threads(1)
         estimator = TransferEstimator(
+            alpha=0.,
             n_components=n_components,
             architecture='flat',
             batch_size=batch_size,
