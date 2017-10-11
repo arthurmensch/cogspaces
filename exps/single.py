@@ -25,7 +25,7 @@ def config():
     datasets = ['archi']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs_positive_single'
+    source = 'unmasked'
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5, 'full': .5}
     train_size = dict(hcp=None, archi=30, la5c=50, brainomics=30,
@@ -35,7 +35,7 @@ def config():
     model = 'logistic_l2_sklearn'
     max_iter = 1000
     verbose = 10
-    seed = 20
+    seed = 100
 
     with_std = False
     with_mean = False
@@ -48,13 +48,14 @@ def config():
     optimizer = 'adam'
     step_size = 1e-3
 
-    alphas = np.logspace(-6, -1, 12)
+    alphas = [1e-6]  # np.logspace(-6, -1, 12)
     latent_dropout_rates = [0.75]
     input_dropout_rates = [0.25]
     dataset_weights_helpers = [[1, 1, 1]]
 
     n_splits = 10
-    n_jobs = 10
+    n_jobs = 1
+
 
 @exp.capture
 def fit_model(df_train, df_test, model,
@@ -80,6 +81,8 @@ def fit_model(df_train, df_test, model,
 
     cv = StratifiedShuffleSplit(n_splits=n_splits, test_size=0.25)
 
+    cross_val = len(alphas) > 1
+
     if model == 'logistic_l2':
         torch.set_num_threads(1)
         estimator = TransferEstimator(
@@ -90,7 +93,6 @@ def fit_model(df_train, df_test, model,
             alpha=alphas[0],
             max_iter=max_iter,
             step_size=step_size, n_jobs=1)
-        cross_val = len(alphas) > 1
         if cross_val:
             estimator = GridSearchCV(estimator,
                                      cv=cv,
@@ -142,7 +144,7 @@ def fit_model(df_train, df_test, model,
                                              dataset_weights_helpers})
     elif model == 'logistic_l2_sklearn':
         n_samples = X_train.shape[0]
-        if len(alphas) > 1:
+        if cross_val:
             estimator = LogisticRegressionCV(solver='lbfgs', max_iter=max_iter,
                                              Cs=1. / alphas / n_samples,
                                              n_jobs=n_jobs,
@@ -151,10 +153,10 @@ def fit_model(df_train, df_test, model,
         else:
             alpha = alphas[0]
             estimator = LogisticRegression(solver='lbfgs', max_iter=max_iter,
-                                             C=1. / alphas / n_samples,
-                                             n_jobs=n_jobs,
-                                             cv=cv,
-                                             verbose=10)
+                                           multi_class='multinomial',
+                                           C=1. / alpha / n_samples,
+                                           n_jobs=n_jobs,
+                                           verbose=10)
     else:
         raise ValueError('Wrong model argument')
 

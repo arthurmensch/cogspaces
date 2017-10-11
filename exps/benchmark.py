@@ -28,7 +28,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 18
+    n_jobs = 10
     n_seeds = 20
     seed = 1000
 
@@ -45,7 +45,7 @@ def config():
                       camcan=80,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
-    max_iter = 10
+    max_iter = 1000
     verbose = 10
     seed = 20
 
@@ -60,7 +60,7 @@ def config():
     optimizer = 'adam'
     step_size = 1e-3
 
-    alphas = np.logspace(-6, -1, 9)
+    alphas = np.logspace(-6, -1, 6)
     latent_dropout_rates = [0.75]
     input_dropout_rates = [0.25]
     dataset_weights_helpers = [[1]]
@@ -83,8 +83,8 @@ def run(n_seeds, n_jobs, _run, _seed):
                                                   size=n_seeds)
     exps = []
     transfer_datasets = ['archi', 'brainomics', 'camcan', 'hcp']
-    for source in ['hcp_rs_positive_single', 'hcp_rs_positive']:
-        for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
+    for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
+        for source in ['hcp_rs_positive_single', 'hcp_rs_positive']:
             # Multinomial model
             multinomial_l2 = [{'datasets': [dataset],
                                'source': source,
@@ -114,42 +114,37 @@ def run(n_seeds, n_jobs, _run, _seed):
             if dataset in these_transfer_datasets:
                 these_transfer_datasets.remove(dataset)
             datasets = [dataset] + these_transfer_datasets
-            # print(dataset, datasets)
             large_transfer = [{'datasets': datasets,
                                'source': source,
                                'dataset_weights_helpers': [[1] * len(these_transfer_datasets)],
-                               'max_iter': 1000,
+                               # 'max_iter': 1000,
                                'model': 'factored',
                                'seed': seed} for seed in seed_list
                               ]
             # exps += no_transfer
             # exps += transfer
-            exps += large_transfer
+            # exps += large_transfer
             # exps += multinomial_l2
-            # exps += multinomial_dropout
 
-    # Slow (uncomment if needed)
-    source = 'unmasked'
 
-    multinomial = [{'datasets': [dataset],
-                    'source': source,
-                    'alpha': alpha,
-                    'model': 'logistic',
-                    'latent_dropout_rate': 0.,
-                    'input_dropout_rate': 0.,
-                    'seed': seed} for seed in seed_list
-                   for alpha in np.logspace(-6, -1, 6)
-                   ]
-    multinomial_dropout = [{'datasets': [dataset],
-                            'source': source,
-                            'alpha': 0,
-                            'model': 'logistic',
-                            'latent_dropout_rate': 0.,
-                            'input_dropout_rate': 0.25,
-                            'seed': seed} for seed in seed_list
-                           ]
-    # exps += multinomial_dropout
-    # exps += multinomial
+        # Slow (uncomment if needed)
+        multinomial = [{'datasets': [dataset],
+                        'source': 'unmasked',
+                        'model': 'logistic_l2_sklearn',
+                        'max_iter': 500,
+                        'n_splits': 3,
+                        'seed': seed} for seed in seed_list
+                       ]
+        multinomial_dropout = [{'datasets': [dataset],
+                                'source': 'unmasked',
+                                'alpha': 0,
+                                'model': 'logistic',
+                                'latent_dropout_rate': 0.,
+                                'input_dropout_rate': 0.25,
+                                'seed': seed} for seed in seed_list
+                               ]
+        # exps += multinomial_dropout
+        exps += multinomial
 
     np.random.shuffle(exps)
 

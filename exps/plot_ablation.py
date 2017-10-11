@@ -17,7 +17,7 @@ df = pd.read_csv(expanduser('results.csv'), index_col=list(range(5)))
 
 df = df.query("source == 'hcp_rs_positive_single'")
 
-fig = plt.figure(figsize=(5.5015, 1.5), dpi=144)
+fig = plt.figure(figsize=(5.5015, 1.5))
 #make outer gridspec
 outer = gridspec.GridSpec(1, 2, hspace=.1)
 #make nested gridspecs
