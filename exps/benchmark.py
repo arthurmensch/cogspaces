@@ -1,16 +1,17 @@
+
 import os
 import sys
+from copy import copy
 from os import path
 from os.path import join
 
 import numpy as np
+from cogspaces.pipeline import get_output_dir
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from sklearn.externals.joblib import Parallel
 from sklearn.externals.joblib import delayed
 from sklearn.utils import check_random_state
-
-from cogspaces.pipeline import get_output_dir
 
 print(path.dirname(path.dirname(path.abspath(__file__))))
 # Add examples to known modules
@@ -27,7 +28,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 20
+    n_jobs = 18
     n_seeds = 20
     seed = 1000
 
@@ -44,7 +45,7 @@ def config():
                       camcan=80,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
-    max_iter = 500
+    max_iter = 10
     verbose = 10
     seed = 20
 
@@ -81,6 +82,7 @@ def run(n_seeds, n_jobs, _run, _seed):
     seed_list = check_random_state(_seed).randint(np.iinfo(np.uint32).max,
                                                   size=n_seeds)
     exps = []
+    transfer_datasets = ['archi', 'brainomics', 'camcan', 'hcp']
     for source in ['hcp_rs_positive_single', 'hcp_rs_positive']:
         for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
             # Multinomial model
@@ -108,10 +110,23 @@ def run(n_seeds, n_jobs, _run, _seed):
                          'model': 'factored',
                          'seed': seed} for seed in seed_list
                         ]
-            exps += no_transfer
-            exps += transfer
-            exps += multinomial_l2
-            exps += multinomial_dropout
+            these_transfer_datasets = copy(transfer_datasets)
+            if dataset in these_transfer_datasets:
+                these_transfer_datasets.remove(dataset)
+            datasets = [dataset] + these_transfer_datasets
+            # print(dataset, datasets)
+            large_transfer = [{'datasets': datasets,
+                               'source': source,
+                               'dataset_weights_helpers': [[1] * len(these_transfer_datasets)],
+                               'max_iter': 1000,
+                               'model': 'factored',
+                               'seed': seed} for seed in seed_list
+                              ]
+            # exps += no_transfer
+            # exps += transfer
+            exps += large_transfer
+            # exps += multinomial_l2
+            # exps += multinomial_dropout
 
     # Slow (uncomment if needed)
     source = 'unmasked'

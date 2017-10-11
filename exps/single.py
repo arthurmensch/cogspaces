@@ -22,7 +22,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['archi', 'hcp']
+    datasets = ['archi']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
     source = 'hcp_rs_positive_single'
@@ -32,30 +32,29 @@ def config():
                       camcan=100,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
-    model = 'factored'
-    max_iter = 200
+    model = 'logistic_l2_sklearn'
+    max_iter = 1000
     verbose = 10
     seed = 20
 
-    with_std = True
-    with_mean = True
+    with_std = False
+    with_mean = False
     per_dataset = True
 
     # Factored only
     n_components = 100
 
-    batch_size = 128
+    batch_size = 256
     optimizer = 'adam'
     step_size = 1e-3
 
     alphas = np.logspace(-6, -1, 12)
     latent_dropout_rates = [0.75]
     input_dropout_rates = [0.25]
-    dataset_weights_helpers = [[1]]
+    dataset_weights_helpers = [[1, 1, 1]]
 
-    n_splits = 1
-    n_jobs = 1
-
+    n_splits = 10
+    n_jobs = 10
 
 @exp.capture
 def fit_model(df_train, df_test, model,
@@ -144,14 +143,14 @@ def fit_model(df_train, df_test, model,
     elif model == 'logistic_l2_sklearn':
         n_samples = X_train.shape[0]
         if len(alphas) > 1:
-            estimator = LogisticRegressionCV(solver='saga', max_iter=max_iter,
+            estimator = LogisticRegressionCV(solver='lbfgs', max_iter=max_iter,
                                              Cs=1. / alphas / n_samples,
                                              n_jobs=n_jobs,
                                              cv=cv,
                                              verbose=10)
         else:
             alpha = alphas[0]
-            estimator = LogisticRegression(solver='saga', max_iter=max_iter,
+            estimator = LogisticRegression(solver='lbfgs', max_iter=max_iter,
                                              C=1. / alphas / n_samples,
                                              n_jobs=n_jobs,
                                              cv=cv,
