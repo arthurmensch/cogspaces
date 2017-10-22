@@ -53,9 +53,9 @@ def make_data_frame(datasets, source,
     keys = []
     for dataset in datasets:
         if source == 'unmasked':
-            this_X = load(join(unmask_dir, dataset, 'imgs.pkl'))
+            this_X = pd.read_pickle(join(unmask_dir, dataset, 'imgs.pkl'))
         else:
-            this_X = load(join(reduced_dir, source, dataset, 'Xt.pkl'))
+            this_X = pd.read_pickle(join(reduced_dir, source, dataset, 'Xt.pkl'))
 
         # Curation
         this_X = this_X.reset_index(level=['direction'], drop=True)

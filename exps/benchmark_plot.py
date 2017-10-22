@@ -3,15 +3,19 @@ import numpy as np
 from matplotlib import gridspec
 from matplotlib.cm import get_cmap
 
+from cogspaces.pipeline import get_output_dir
+
 mpl.use('pdf')
 
 import matplotlib.pyplot as plt
 
-from os.path import expanduser
+from os.path import join
 
 import pandas as pd
 
-df = pd.read_csv(expanduser('results.csv'), index_col=list(range(5)))
+output_dir = join(get_output_dir(), 'nips')
+
+df = pd.read_csv(join(output_dir, 'results.csv'), index_col=list(range(5)))
 
 df = df.query("source == 'hcp_rs_positive_single' or source == 'unmasked'")
 
@@ -36,10 +40,10 @@ limits = {'archi': [0.75, 0.935],
           'camcan': [0.5, 0.685],
           'la5c': [0.5, 0.685]}
 global_limits = [.52, .93]
-keys = [5, 3, 4, 2, 1, 0]
+keys = [5, 4, 3, 2, 1, 0]
 labels = ['Full input + L2',
-          'Dim. red. + dropout',
           'Dim. reduction + L2',
+          'Dim. red. + dropout',
           '\\textbf{Factored model} + dropout',
           '\\textbf{Transfer} from HCP',
           '\\textbf{Transfer} from all datasets']
@@ -64,7 +68,7 @@ for ax, dataset in zip(axes, ['archi', 'brainomics', 'camcan', 'la5c']):
                         label=[], alpha=.8)
     for bar, std in zip(these_bars, stds):
         height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height + std,
+        ax.text(bar.get_x() + bar.get_width() / 2., height + std,
                 '%2.1f' % (height * 100), fontsize=6.5,
                 ha='center', va='bottom')
     # Legend
@@ -106,6 +110,6 @@ for ax, dataset in zip(axes, ['archi', 'brainomics', 'camcan', 'la5c']):
 axes[0].set_ylabel('Test accuracy')
 
 axes[0].legend(bars, labels, frameon=False, loc='lower left',
-                        ncol=3,
-                        bbox_to_anchor=(-.3, .93))
-fig.savefig('ablation.pdf')
+               ncol=3,
+               bbox_to_anchor=(-.3, .93))
+fig.savefig(join(output_dir, 'ablation.pdf'))

@@ -19,18 +19,18 @@ from modl.utils.system import get_output_dir
 
 from sacred import Experiment
 
-exp = Experiment('decompose_rest')
+exp = Experiment('decompose')
 base_artifact_dir = join(get_output_dir(), 'components', 'hcp')
 exp.observers.append(FileStorageObserver.create(basedir=base_artifact_dir))
 
 @exp.config
 def config():
-    n_components = 336
+    n_components = 128
     batch_size = 200
     learning_rate = 0.92
     method = 'masked'
     reduction = 12
-    alpha = 1e-4
+    alpha = 1e-5
     n_epochs = 1
     verbose = 15
     n_jobs = 5
