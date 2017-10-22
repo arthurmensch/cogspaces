@@ -101,4 +101,4 @@ ENV/
 .mypy_cache/
 
 .idea/
-/exps/results.csv
+exps/results.csv
