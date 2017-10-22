@@ -43,7 +43,7 @@ def create_raw_contrast_data(imgs, mask, raw_dir,
         print('Batch %i' % i)
         data[batch] = masker.transform(imgs['z_map'].values[batch])
     imgs = pd.DataFrame(data=data, index=imgs.index, dtype=np.float32)
-    dump(imgs, join(raw_dir, 'imgs.pkl'))
+    imgs.to_pickle(join(raw_dir, 'imgs.pkl'))
 
 
 def get_raw_contrast_data(raw_dir):
@@ -138,7 +138,7 @@ def reduce(dataset, output_dir=None, direct=False, source='hcp_rs_concat'):
             components = masker.transform(components_imgs)
         print('Transform and fit data')
         proj, proj_inv, _ = memory.cache(make_projection_matrix)(components,
-                                                          scale_bases=True)
+                                                                 scale_bases=True)
         if direct:
             proj = proj_inv.T
         Xt = X.dot(proj)
@@ -151,6 +151,6 @@ def reduce(dataset, output_dir=None, direct=False, source='hcp_rs_concat'):
     if not os.path.exists(this_output_dir):
         os.makedirs(this_output_dir)
     print(join(this_output_dir, 'Xt.pkl'))
-    dump(Xt, join(this_output_dir, 'Xt.pkl'))
+    Xt.to_pickle(join(this_output_dir, 'Xt.pkl'))
     dump(masker, join(this_output_dir, 'masker.pkl'))
     np.save(join(output_dir, 'components'), components)

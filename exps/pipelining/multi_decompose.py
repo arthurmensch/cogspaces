@@ -63,7 +63,6 @@ def run(n_jobs, _run, _seed):
         for alpha in np.logspace(-5, -2, 7):
             seed = random_state.randint(np.iinfo(np.uint32).max)
             exps.append(dict(n_components=n_components, alpha=alpha, seed=seed))
-
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):
         os.makedirs(rundir)

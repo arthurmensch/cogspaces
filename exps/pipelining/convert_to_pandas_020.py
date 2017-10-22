@@ -7,11 +7,11 @@ from sklearn.externals.joblib import load
 
 from cogspaces.pipeline import get_output_dir
 
-unmasked_dir = join(get_output_dir(), 'reduced')
-reduced_dir = join(get_output_dir(), 'unmasked')
+reduced_dir = join(get_output_dir(), 'reduced')
+# unmasked_dir = join(get_output_dir(), 'unmasked')
 
-for base_dir in [unmasked_dir, reduced_dir]:
-    for root, dirs, files in os.walk(reduced_dir):
+for base_dir in [reduced_dir]:
+    for root, dirs, files in os.walk(base_dir):
         for this_file in files:
             if this_file in ['Xt.pkl', 'imgs.pkl']:
                 this_file = join(root, this_file)

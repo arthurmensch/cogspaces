@@ -17,7 +17,7 @@ output_dir = join(get_output_dir(), 'nips')
 
 df = pd.read_csv(join(output_dir, 'results.csv'), index_col=list(range(5)))
 
-df = df.query("source == 'hcp_rs_positive_single' or source == 'unmasked'")
+df = df.query("source == 'hcp_rs_positive' or source == 'unmasked'")
 
 fig = plt.figure(figsize=(5.5015, 1.5))
 # make outer gridspec
@@ -112,4 +112,4 @@ axes[0].set_ylabel('Test accuracy')
 axes[0].legend(bars, labels, frameon=False, loc='lower left',
                ncol=3,
                bbox_to_anchor=(-.3, .93))
-fig.savefig(join(output_dir, 'ablation.pdf'))
+fig.savefig(join(output_dir, 'ablation_cat.pdf'))
