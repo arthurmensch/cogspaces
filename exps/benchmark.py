@@ -30,8 +30,9 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 def config():
     n_jobs = 30
     n_seeds = 20
+    train_size = dict(hcp=None, archi=None, la5c=100, brainomics=None,
+                      camcan=100)
     seed = 1000
-
 
 @single_exp.config
 def config():
@@ -41,11 +42,11 @@ def config():
     source = 'hcp_rs_positive_single'
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5, 'full': .5}
-    train_size = dict(hcp=None, archi=30, la5c=50, brainomics=30,
-                      camcan=80,
+    train_size = dict(hcp=None, archi=None, la5c=None, brainomics=None,
+                      camcan=None,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
-    max_iter = 100
+    max_iter = 500
     verbose = 10
     seed = 20
 
@@ -78,11 +79,17 @@ def single_run(config_updates, rundir, _id):
 
 
 @exp.automain
-def run(n_seeds, n_jobs, _run, _seed):
+def run(n_seeds, n_jobs, train_size, _run, _seed):
     seed_list = check_random_state(_seed).randint(np.iinfo(np.uint32).max,
                                                   size=n_seeds)
     exps = []
     transfer_datasets = ['archi', 'brainomics', 'camcan', 'hcp']
+
+    transfer_train_size = dict(hcp=None, archi=None, la5c=None,
+                               brainomics=None,
+                               camcan=None,
+                               human_voice=None)
+
     for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
         for source in ['mix']:
             # Multinomial model
@@ -100,6 +107,8 @@ def run(n_seeds, n_jobs, _run, _seed):
                                     'seed': seed} for seed in seed_list
                                    ]
             # Latent space model
+            this_train_size = copy(transfer_train_size)
+            this_train_size[dataset] = train_size[dataset]
             no_transfer = [{'datasets': [dataset],
                             'source': source,
                             'model': 'factored',
@@ -124,7 +133,7 @@ def run(n_seeds, n_jobs, _run, _seed):
             exps += no_transfer
             exps += transfer
             exps += large_transfer
-            exps += multinomial_l2
+            # exps += multinomial_l2
 
 
         # Slow (uncomment if needed)
