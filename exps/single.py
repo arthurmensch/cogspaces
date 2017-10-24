@@ -22,23 +22,24 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['archi']
+    datasets = ['archi', 'brainomics', 'hcp', 'camcan']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs_positive'
+    # source = 'mix'
+    source = 'hcp_rs_positive_single'
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5, 'full': .5}
     train_size = dict(hcp=None, archi=30, la5c=50, brainomics=30,
                       camcan=100,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
-    model = 'logistic_l2_sklearn'
-    max_iter = 1000
+    model = 'factored'
+    max_iter = 300
     verbose = 10
     seed = 100
 
-    with_std = False
-    with_mean = False
+    with_std = True
+    with_mean = True
     per_dataset = True
 
     # Factored only
@@ -48,7 +49,7 @@ def config():
     optimizer = 'adam'
     step_size = 1e-3
 
-    alphas = [1e-6]  # np.logspace(-6, -1, 12)
+    alphas = [5e-4]  # np.logspace(-6, -1, 12)
     latent_dropout_rates = [0.75]
     input_dropout_rates = [0.25]
     dataset_weights_helpers = [[1, 1, 1]]
@@ -186,14 +187,26 @@ def main(datasets, source, reduced_dir, unmask_dir,
          _run, _seed):
     artifact_dir = join(_run.observers[0].basedir, str(_run._id))
     single = False
-    if source in ['hcp_rs_positive_single']:
-        source = 'hcp_rs_positive'
-        single = True
-    df = make_data_frame(datasets, source,
-                         reduced_dir=reduced_dir,
-                         unmask_dir=unmask_dir)
-    if single:
-        df = df.iloc[:, -512:]
+    if source != 'mix':
+        if source in ['hcp_rs_positive_single']:
+            source = 'hcp_rs_positive'
+            single = True
+        df = make_data_frame(datasets, source,
+                             reduced_dir=reduced_dir,
+                             unmask_dir=unmask_dir)
+        if single:
+            df = df.iloc[:, -512:]
+    else:
+        df_positive = make_data_frame(datasets, 'hcp_rs_positive',
+                                      reduced_dir=reduced_dir,
+                                      unmask_dir=unmask_dir)
+        df = make_data_frame(datasets, 'hcp_rs_concat',
+                             reduced_dir=reduced_dir,
+                             unmask_dir=unmask_dir)
+        df = pd.concat([
+            df.iloc[:, :80],
+            df_positive.iloc[:, -512:]
+        ], axis=1)
     df_train, df_test = split_folds(df, test_size=test_size,
                                     train_size=train_size,
                                     random_state=_seed)

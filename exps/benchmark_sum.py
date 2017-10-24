@@ -15,7 +15,7 @@ from json import JSONDecodeError
 # 30 Last one ?
 basedir_ids = [31]
 basedirs = [join(get_output_dir(), 'multi_nested', str(_id), 'run') for _id in basedir_ids]
-basedir_ids = [6, 9]
+basedir_ids = [6, 9, 13]
 basedirs += [join(get_output_dir(), 'benchmark', str(_id), 'run') for _id in basedir_ids]
 res_list = []
 for basedir in basedirs:
@@ -52,4 +52,4 @@ for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
 
 results = pd.concat(results, names=['dataset'])
 print(results)
-results.to_csv('results.csv')
+results.to_csv('results_mix.csv')

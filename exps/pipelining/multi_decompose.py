@@ -19,8 +19,8 @@ sys.path.append(
     path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
 from exps.pipelining.decompose import exp as single_exp
 
-exp = Experiment('decompose')
-basedir = join(get_output_dir(), 'decompose')
+exp = Experiment('multi_decompose')
+basedir = join(get_output_dir(), 'multi_decompose')
 if not os.path.exists(basedir):
     os.makedirs(basedir)
 exp.observers.append(FileStorageObserver.create(basedir=basedir))
@@ -28,7 +28,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 21
+    n_jobs = 7
     seed = 1000
 
 
@@ -59,7 +59,7 @@ def single_run(config_updates, rundir, _id):
 def run(n_jobs, _run, _seed):
     random_state = check_random_state(_seed)
     exps = []
-    for n_components in [16, 64, 128]:
+    for n_components in [256]:
         for alpha in np.logspace(-5, -2, 7):
             seed = random_state.randint(np.iinfo(np.uint32).max)
             exps.append(dict(n_components=n_components, alpha=alpha, seed=seed))

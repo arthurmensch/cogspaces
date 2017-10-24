@@ -28,7 +28,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 10
+    n_jobs = 30
     n_seeds = 20
     seed = 1000
 
@@ -45,7 +45,7 @@ def config():
                       camcan=80,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
-    max_iter = 1000
+    max_iter = 100
     verbose = 10
     seed = 20
 
@@ -84,7 +84,7 @@ def run(n_seeds, n_jobs, _run, _seed):
     exps = []
     transfer_datasets = ['archi', 'brainomics', 'camcan', 'hcp']
     for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
-        for source in ['hcp_rs_positive_single', 'hcp_rs_positive']:
+        for source in ['mix']:
             # Multinomial model
             multinomial_l2 = [{'datasets': [dataset],
                                'source': source,
@@ -121,10 +121,10 @@ def run(n_seeds, n_jobs, _run, _seed):
                                'model': 'factored',
                                'seed': seed} for seed in seed_list
                               ]
-            # exps += no_transfer
-            # exps += transfer
-            # exps += large_transfer
-            # exps += multinomial_l2
+            exps += no_transfer
+            exps += transfer
+            exps += large_transfer
+            exps += multinomial_l2
 
 
         # Slow (uncomment if needed)
@@ -144,7 +144,7 @@ def run(n_seeds, n_jobs, _run, _seed):
                                 'seed': seed} for seed in seed_list
                                ]
         # exps += multinomial_dropout
-        exps += multinomial
+        # exps += multinomial
 
     np.random.shuffle(exps)
 

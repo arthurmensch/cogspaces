@@ -8,6 +8,8 @@ from sacred.observers import FileStorageObserver
 
 from modl.input_data.fmri.fixes import monkey_patch_nifti_image
 
+from cogspaces.pipeline import get_output_dir
+
 monkey_patch_nifti_image()
 
 from sklearn.model_selection import train_test_split
@@ -15,12 +17,11 @@ from sklearn.model_selection import train_test_split
 from modl.input_data.fmri.rest import get_raw_rest_data
 from modl.decomposition.fmri import fMRIDictFact, rfMRIDictionaryScorer
 from modl.plotting.fmri import display_maps
-from modl.utils.system import get_output_dir
 
 from sacred import Experiment
 
 exp = Experiment('decompose')
-base_artifact_dir = join(get_output_dir(), 'components', 'hcp')
+base_artifact_dir = join(get_output_dir(), 'decompose')
 exp.observers.append(FileStorageObserver.create(basedir=base_artifact_dir))
 
 @exp.config

@@ -68,6 +68,9 @@ def fetch_atlas_modl(data_dir=None, url=None,
         'positive/components_64.nii.gz',
         'positive/components_256.nii.gz',
         'positive/components_512.nii.gz',
+        'positive_new/components_16.nii.gz',
+        'positive_new/components_64.nii.gz',
+        'positive_new/components_128.nii.gz',
     ]
 
     if isinstance(url, str):
@@ -92,6 +95,9 @@ def fetch_atlas_modl(data_dir=None, url=None,
             'positive_components64',
             'positive_components256',
             'positive_components512',
+            'positive_new_components16',
+            'positive_new_components64',
+            'positive_new_components128',
             ]
 
     params = dict(zip(keys, files_))
