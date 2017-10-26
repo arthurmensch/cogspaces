@@ -117,10 +117,8 @@ def reduce(dataset, output_dir=None, direct=False, source='hcp_rs_concat'):
         Xt = label_masker.transform(niimgs)
     else:
         if source == 'msdl':
-            components = fetch_atlas_msdl()['maps']
-            components = masker.transform(components)
-        elif source in ['hcp_rs', 'hcp_rs_concat', 'hcp_rs_positive',
-                        'hcp_336', 'hcp_new']:
+            components = [fetch_atlas_msdl()['maps']]
+        else:
             data = fetch_atlas_modl()
             if source == 'hcp_rs':
                 components_imgs = [data.nips2017_components256]
@@ -134,7 +132,11 @@ def reduce(dataset, output_dir=None, direct=False, source='hcp_rs_concat'):
                 components_imgs = [data.positive_new_components16,
                                    data.positive_new_components64,
                                    data.positive_new_components128]
-            else:
+            elif source == 'hcp_new_big':
+                components_imgs = [data.positive_new_components16,
+                                   data.positive_new_components64,
+                                   data.positive_components512]
+            elif source == 'hcp_rs_positive_concat':
                 components_imgs = [data.positive_components16,
                                    data.positive_components64,
                                    data.positive_components512]

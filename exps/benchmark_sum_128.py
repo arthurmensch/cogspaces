@@ -20,7 +20,7 @@ def summarize():
     # basedir_ids = [6, 9, 15, 23]
     # 12 unmasked
     # 25 hcp_new_big / hcp_new_big_single
-    basedir_ids = [12, 25]
+    basedir_ids = [26]
     basedirs = [join(get_output_dir(), 'benchmark', str(_id), 'run') for _id in basedir_ids]
     res_list = []
     for basedir in basedirs:
@@ -52,12 +52,12 @@ def summarize():
     df_agg = df_agg.fillna(0)
 
     results = {}
-    for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
+    for dataset in ['archi', 'brainomics', 'camcan']:
         results[dataset] = df_agg.loc[dataset]['test_%s' % dataset]
 
     results = pd.concat(results, names=['dataset'])
     print(results)
-    results.to_csv(join(output_dir, 'results.csv'))
+    results.to_csv(join(output_dir, 'results_128.csv'))
 
 
 def plot():
@@ -108,7 +108,7 @@ def plot():
 
     colors = get_cmap('tab10').colors[:6]
     bars = []
-    for ax, dataset in zip(axes, ['archi', 'brainomics', 'camcan', 'la5c']):
+    for ax, dataset in zip(axes, ['archi', 'brainomics', 'camcan']): 
         dataset_df = df.loc[dataset]
         dataset_df.reset_index(['source', 'with_std'], drop=True,
                                inplace=True)

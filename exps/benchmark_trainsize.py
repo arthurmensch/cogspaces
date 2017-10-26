@@ -37,7 +37,7 @@ def config():
     datasets = ['archi', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs_positive_single'
+    source = 'hcp_rs_positive_single    '
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5, 'full': .5}
     train_size = dict(hcp=None, archi=30, la5c=50, brainomics=30,
@@ -81,8 +81,6 @@ def run(n_seeds, n_jobs, _run, _seed):
     seed_list = check_random_state(_seed).randint(np.iinfo(np.uint32).max,
                                                   size=n_seeds)
     exps = []
-    transfer_datasets = ['archi', 'brainomics', 'camcan', 'hcp']
-
     transfer_train_size = dict(hcp=None, archi=None, la5c=None,
                                brainomics=None,
                                camcan=None,
@@ -90,7 +88,7 @@ def run(n_seeds, n_jobs, _run, _seed):
     transfer_datasets = ['archi', 'brainomics', 'camcan', 'hcp']
 
     for dataset in ['archi', 'brainomics', 'camcan']:
-        for target_train_size in np.linspace(.1, .5, 5):
+        for target_train_size in [5, 10, 20]:
                 this_train_size = copy(transfer_train_size)
                 this_train_size[dataset] = target_train_size
                 # Latent space model

@@ -22,11 +22,11 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['archi', 'brainomics', 'hcp', 'camcan']
+    datasets = ['archi', 'brainomics']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
     # source = 'mix'
-    source = 'hcp_rs_positive_single'
+    source = 'hcp_new_single'
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5, 'full': .5}
     train_size = dict(hcp=None, archi=30, la5c=50, brainomics=30,
@@ -187,26 +187,18 @@ def main(datasets, source, reduced_dir, unmask_dir,
          _run, _seed):
     artifact_dir = join(_run.observers[0].basedir, str(_run._id))
     single = False
-    if source != 'mix':
-        if source in ['hcp_rs_positive_single']:
-            source = 'hcp_rs_positive'
-            single = True
-        df = make_data_frame(datasets, source,
-                             reduced_dir=reduced_dir,
-                             unmask_dir=unmask_dir)
-        if single:
-            df = df.iloc[:, -512:]
+    if source in ['hcp_rs_positive_single', 'hcp_new_big_single']:
+        source = 'hcp_new_big'
+        indices = slice(-512, None)
+    elif source in ['hcp_new_single']:
+        source = 'hcp_new'
+        indices = slice(-128, None)
     else:
-        df_positive = make_data_frame(datasets, 'hcp_rs_positive',
-                                      reduced_dir=reduced_dir,
-                                      unmask_dir=unmask_dir)
-        df = make_data_frame(datasets, 'hcp_rs_concat',
-                             reduced_dir=reduced_dir,
-                             unmask_dir=unmask_dir)
-        df = pd.concat([
-            df.iloc[:, :80],
-            df_positive.iloc[:, -512:]
-        ], axis=1)
+        indices = slice(None)
+    df = make_data_frame(datasets, source,
+                         reduced_dir=reduced_dir,
+                         unmask_dir=unmask_dir)
+    df = df.iloc[:, indices]
     df_train, df_test = split_folds(df, test_size=test_size,
                                     train_size=train_size,
                                     random_state=_seed)

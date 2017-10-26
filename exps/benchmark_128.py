@@ -28,7 +28,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 10
+    n_jobs = 20
     n_seeds = 20
     train_size = dict(hcp=None, archi=None, la5c=None, brainomics=None,
                       camcan=100)
