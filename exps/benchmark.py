@@ -91,7 +91,7 @@ def run(n_seeds, n_jobs, train_size, _run, _seed):
                                human_voice=None)
 
     for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
-        for source in ['hcp_new', 'hcp_new_single']:
+        for source in ['hcp_new_big', 'hcp_new_big_single']:
             this_train_size = copy(transfer_train_size)
             this_train_size[dataset] = train_size[dataset]
             # Large transfer model
@@ -136,10 +136,10 @@ def run(n_seeds, n_jobs, train_size, _run, _seed):
                                'seed': seed} for seed in seed_list
                               ]
             exps += no_transfer
-            # exps += transfer
+            exps += transfer
             exps += large_transfer
-            # exps += multinomial_dropout
-            # exps += multinomial_l2
+            exps += multinomial_dropout
+            exps += multinomial_l2
 
 
         # Slow (uncomment if needed)

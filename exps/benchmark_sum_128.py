@@ -20,7 +20,8 @@ def summarize():
     # basedir_ids = [6, 9, 15, 23]
     # 12 unmasked
     # 25 hcp_new_big / hcp_new_big_single
-    basedir_ids = [26]
+    # 28, 29 hcp_new hcp_new_single
+    basedir_ids = [28, 29]
     basedirs = [join(get_output_dir(), 'benchmark', str(_id), 'run') for _id in basedir_ids]
     res_list = []
     for basedir in basedirs:

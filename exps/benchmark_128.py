@@ -135,11 +135,12 @@ def run(n_seeds, n_jobs, train_size, _run, _seed):
                                'model': 'factored',
                                'seed': seed} for seed in seed_list
                               ]
-            exps += no_transfer
-            # exps += transfer
-            exps += large_transfer
-            # exps += multinomial_dropout
-            # exps += multinomial_l2
+            exps += transfer
+            if dataset == 'la5c':
+                exps += no_transfer
+                exps += large_transfer
+            exps += multinomial_dropout
+            exps += multinomial_l2
 
 
         # Slow (uncomment if needed)

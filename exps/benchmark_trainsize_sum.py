@@ -21,7 +21,9 @@ output_dir = join(get_output_dir(), 'benchmark_trainsize')
 
 
 def summarize():
+    # 1, 4 hcp_rs_positive_single
     basedir_ids = [1, 4]
+    # 5 hcp_new_big
     basedirs = [join(output_dir, str(_id), 'run')
                 for _id in basedir_ids]
     res_list = []

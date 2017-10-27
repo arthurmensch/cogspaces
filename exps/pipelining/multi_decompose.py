@@ -59,7 +59,7 @@ def single_run(config_updates, rundir, _id):
 def run(n_jobs, _run, _seed):
     random_state = check_random_state(_seed)
     exps = []
-    for n_components in [256]:
+    for n_components in [208]:
         for alpha in np.logspace(-5, -2, 7):
             seed = random_state.randint(np.iinfo(np.uint32).max)
             exps.append(dict(n_components=n_components, alpha=alpha, seed=seed))

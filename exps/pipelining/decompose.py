@@ -17,6 +17,7 @@ from sklearn.model_selection import train_test_split
 from modl.input_data.fmri.rest import get_raw_rest_data
 from modl.decomposition.fmri import fMRIDictFact, rfMRIDictionaryScorer
 from modl.plotting.fmri import display_maps
+from modl.utils.system import get_output_dir as modl_get_output_dir
 
 from sacred import Experiment
 
@@ -55,7 +56,7 @@ def compute_components(n_components,
     artifact_dir = join(base_artifact_dir, str(_run._id), 'artifacts')
     if not os.path.exists(artifact_dir):
         os.makedirs(artifact_dir)
-    raw_res_dir = join(get_output_dir(), 'unmasked', 'hcp')
+    raw_res_dir = join(modl_get_output_dir(), 'unmasked', 'hcp')
     masker, data = get_raw_rest_data(raw_res_dir)
 
     train_imgs, test_imgs = train_test_split(data, train_size=1000, test_size=1, random_state=0)

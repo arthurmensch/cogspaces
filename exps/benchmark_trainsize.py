@@ -27,7 +27,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 30
+    n_jobs = 20
     n_seeds = 20
     seed = 1000
 
@@ -37,7 +37,7 @@ def config():
     datasets = ['archi', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
-    source = 'hcp_rs_positive_single    '
+    source = 'hcp_new_big'
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5, 'full': .5}
     train_size = dict(hcp=None, archi=30, la5c=50, brainomics=30,
@@ -88,7 +88,7 @@ def run(n_seeds, n_jobs, _run, _seed):
     transfer_datasets = ['archi', 'brainomics', 'camcan', 'hcp']
 
     for dataset in ['archi', 'brainomics', 'camcan']:
-        for target_train_size in [5, 10, 20]:
+        for target_train_size in [5, 10, 20, .1, .2, .3, .4, .5]:
                 this_train_size = copy(transfer_train_size)
                 this_train_size[dataset] = target_train_size
                 # Latent space model
