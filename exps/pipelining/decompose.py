@@ -53,7 +53,7 @@ def compute_components(n_components,
                        verbose,
                        n_jobs,
                        _run):
-    artifact_dir = join(base_artifact_dir, str(_run._id), 'artifacts')
+    artifact_dir = join(_run.observers[0].basedir, 'artifacts')
     if not os.path.exists(artifact_dir):
         os.makedirs(artifact_dir)
     raw_res_dir = join(modl_get_output_dir(), 'unmasked', 'hcp')

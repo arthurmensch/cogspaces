@@ -167,6 +167,6 @@ def plot():
     axes[0].legend(bars, labels, frameon=False, loc='lower left',
                    ncol=3,
                    bbox_to_anchor=(-.3, .93))
-    fig.savefig(join(output_dir, 'ablation.pdf'))
+    fig.savefig(join(output_dir, 'ablation_128.pdf'))
 
 summarize()

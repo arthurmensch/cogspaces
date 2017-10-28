@@ -50,7 +50,7 @@ def get_raw_contrast_data(raw_dir):
     mask_img = os.path.join(raw_dir, 'mask_img.nii.gz')
     masker = MultiRawMasker(smoothing_fwhm=0, mask_img=mask_img)
     masker.fit()
-    imgs = load(join(raw_dir, 'imgs.pkl'))
+    imgs = pd.read_pickle(join(raw_dir, 'imgs.pkl'))
     return masker, imgs
 
 
@@ -135,11 +135,13 @@ def reduce(dataset, output_dir=None, direct=False, source='hcp_rs_concat'):
             elif source == 'hcp_new_big':
                 components_imgs = [data.positive_new_components16,
                                    data.positive_new_components64,
-                                   data.positive_components512]
+                                   data.positive_new_components512]
             elif source == 'hcp_rs_positive_concat':
                 components_imgs = [data.positive_components16,
                                    data.positive_components64,
                                    data.positive_components512]
+            elif source == 'hcp_new_208':
+                components_imgs = [data.positive_new_components208]
 
             components = masker.transform(components_imgs)
         print('Transform and fit data')

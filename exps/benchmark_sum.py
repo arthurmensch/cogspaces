@@ -70,7 +70,7 @@ def plot():
     df = pd.read_csv(join(output_dir, 'results.csv'),
                      index_col=list(range(5)))
 
-    df = df.query("source == 'hcp_rs_positive' or source == 'unmasked'")
+    df = df.query("source == 'hcp_new_big' or source == 'unmasked'")
 
     fig = plt.figure(figsize=(5.5015, 1.5))
     # make outer gridspec
@@ -88,8 +88,8 @@ def plot():
 
     fig.subplots_adjust(bottom=.1, left=.08, right=1, top=.8)
 
-    limits = {'archi': [0.75, 0.935],
-              'brainomics': [0.75, 0.935],
+    limits = {'archi': [0.75, 0.95],
+              'brainomics': [0.75, 0.95],
               'camcan': [0.5, 0.685],
               'la5c': [0.5, 0.685]}
     global_limits = [.52, .93]
@@ -168,4 +168,5 @@ def plot():
                    bbox_to_anchor=(-.3, .93))
     fig.savefig(join(output_dir, 'ablation.pdf'))
 
-summarize()
+# summarize()
+plot()

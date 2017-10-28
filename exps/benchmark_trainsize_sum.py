@@ -22,8 +22,8 @@ output_dir = join(get_output_dir(), 'benchmark_trainsize')
 
 def summarize():
     # 1, 4 hcp_rs_positive_single
-    basedir_ids = [1, 4]
-    # 5 hcp_new_big
+    basedir_ids = [6]
+    # 6 hcp_new_big
     basedirs = [join(output_dir, str(_id), 'run')
                 for _id in basedir_ids]
     res_list = []
@@ -75,8 +75,8 @@ def plot():
                                'results.csv'), index_col=[0, 1])
     print(results)
     fig = plt.figure(figsize=(5.5015, 1.2))
-    fig.subplots_adjust(top=.85, bottom=.18, right=.95, left=.08)
-    gs = gridspec.GridSpec(1, 3, hspace=.1)
+    fig.subplots_adjust(top=.85, bottom=.18, right=.98, left=.09)
+    gs = gridspec.GridSpec(1, 3, wspace=.23)
     colors = get_cmap('tab10').colors[3:6]
     labels = ['No transfer', 'Transfer from HCP', 'Transfer from all datasets']
     datasets_names = ['Archi', 'Brainomics', 'Camcan']
@@ -95,15 +95,18 @@ def plot():
             handle = ax.plot(x, y, color=colors[j], label=labels[j])
             handles.append(handle)
         if dataset == 'camcan':
-            ax.set_xticks([5, 60, 100, 200, 300])
-            ax.set_ylim([.4, .7])
-            ax.set_yticks([.4, .5, .6, .7])
+            ax.set_xticks([20, 60, 100, 200, np.max(x)])
+            ax.set_xlim([20, np.max(x)])
+            ax.set_ylim([.5, .68])
+            ax.set_yticks([.5, .6, .68])
         else:
             if dataset == 'brainomics':
-                ax.set_xticks([5, 10, 20, 30, 40, 50])
+                ax.set_xticks([5, 10, 20, 30, 40, 49])
+                ax.set_xlim([5, 49])
                 ax.set_yticks([.6, .7, .8, .9])
             else:
-                ax.set_xticks([5, 10, 20, 30, 40])
+                ax.set_xticks([5, 10, 20, 30, 39])
+                ax.set_xlim([5, 39])
                 ax.set_yticks([.65, .7, .8, .9])
 
         ax.annotate(datasets_names[i], xy=(.5, .1),
@@ -113,7 +116,7 @@ def plot():
             ax.set_ylabel('Test accuracy')
             ax.set_xlabel('Train size')
             ax.annotate('Train \n subjects', xy=(0, 0),
-                        xytext=(-30, 0),
+                        xytext=(-33, 1),
                         textcoords='offset points',
                         xycoords='axes fraction',
                         va='top', ha='left')
