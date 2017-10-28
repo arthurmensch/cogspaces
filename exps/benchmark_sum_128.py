@@ -22,7 +22,8 @@ def summarize():
     # 25 hcp_new_big / hcp_new_big_single
     # 28, 29 hcp_new hcp_new_single
     basedir_ids = [28, 29]
-    basedirs = [join(get_output_dir(), 'benchmark', str(_id), 'run') for _id in basedir_ids]
+    basedirs = [join(get_output_dir(), 'benchmark', str(_id), 'run') for _id in
+                basedir_ids]
     res_list = []
     for basedir in basedirs:
         for exp_dir in os.listdir(basedir):
@@ -48,7 +49,8 @@ def summarize():
     res = pd.DataFrame(res_list)
 
     df_agg = res.groupby(by=['dataset', 'source', 'model', 'with_std',
-                             'helper_datasets']).aggregate(['mean', 'std', 'count'])
+                             'helper_datasets']).aggregate(
+        ['mean', 'std', 'count'])
 
     df_agg = df_agg.fillna(0)
 
@@ -68,73 +70,91 @@ def plot():
     from matplotlib.cm import get_cmap
     import matplotlib.pyplot as plt
 
-    df = pd.read_csv(join(output_dir, 'results.csv'),
+    df = pd.read_csv(join(output_dir, 'results_128.csv'),
                      index_col=list(range(5)))
+    print(df)
+    df = df.query("source == 'hcp_new' or source == 'hcp_new_single'")
 
-    df = df.query("source == 'hcp_rs_positive' or source == 'unmasked'")
-
-    fig = plt.figure(figsize=(5.5015, 1.5))
+    fig = plt.figure(figsize=(5.5015, 1.7))
     # make outer gridspec
-    outer = gridspec.GridSpec(1, 2, wspace=.12)
+    outer = gridspec.GridSpec(1, 2, wspace=.12, width_ratios=[2, 1])
     # make nested gridspecs
     gs1 = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=outer[0],
                                            wspace=.03)
-    gs2 = gridspec.GridSpecFromSubplotSpec(1, 2,
+    gs2 = gridspec.GridSpecFromSubplotSpec(1, 1,
                                            subplot_spec=outer[1], wspace=.03)
     axes = []
     for i in range(2):
         axes.append(fig.add_subplot(gs1[i], zorder=100 if i == 0 else 0))
-    for i in range(2):
+    for i in range(1):
         axes.append(fig.add_subplot(gs2[i]))
 
-    fig.subplots_adjust(bottom=.1, left=.08, right=1, top=.8)
+    fig.subplots_adjust(bottom=.2, left=.08, right=1, top=.8)
 
     limits = {'archi': [0.75, 0.935],
               'brainomics': [0.75, 0.935],
               'camcan': [0.5, 0.685],
               'la5c': [0.5, 0.685]}
     global_limits = [.52, .93]
-    keys = [5, 4, 3, 2, 1, 0]
-    labels = ['Full input + L2',
-              'Dim. reduction + L2',
-              'Dim. red. + dropout',
-              '\\textbf{Factored model} + dropout',
-              '\\textbf{Transfer} from HCP',
-              '\\textbf{Transfer} from all datasets']
+    keys = np.array([4, 3, 2, 1, 0])
+    labels = [
+        'Dim. reduction + L2',
+        'Dim. red. + dropout',
+        '\\textbf{Factored model} + dropout',
+        '\\textbf{Transfer} from HCP',
+        '\\textbf{Transfer} from all datasets', ]
     names = {'archi': 'Archi',
              'brainomics': 'Brainomics',
              'camcan': 'CamCan',
              'la5c': 'LA5C',
              }
 
-    colors = get_cmap('tab10').colors[:6]
+    colors_single = get_cmap('tab20').colors[3:12:2]
+    colors = get_cmap('tab20').colors[2:12:2]
     bars = []
-    for ax, dataset in zip(axes, ['archi', 'brainomics', 'camcan']): 
+    comp_bars = []
+    comp_labels = ['128 components dictionary', '16 + 64 + 128 components dictionary']
+    for ax, dataset in zip(axes, ['archi', 'brainomics', 'camcan']):
         dataset_df = df.loc[dataset]
-        dataset_df.reset_index(['source', 'with_std'], drop=True,
-                               inplace=True)
-        data = dataset_df.iloc[keys]
-        values = data['mean']
-        stds = data['std']
-        xs = np.linspace(.5, 5.5, 6)
-        these_bars = ax.bar(xs, values, width=.8, color=colors, edgecolor=None,
-                            linewidth=0,
-                            label=[], alpha=.8)
-        for bar, std in zip(these_bars, stds):
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width() / 2., height + std,
-                    '%2.1f' % (height * 100), fontsize=6.5,
-                    ha='center', va='bottom')
-        # Legend
-        if dataset == 'archi':
-            bars = these_bars
-        errorbars = []
-        for x, color, value, std in zip(xs, colors, values, stds):
-            errorbar = ax.errorbar(x, value, yerr=std, elinewidth=1.2,
-                                   capsize=2, linewidth=0, ecolor=color,
-                                   alpha=.8)
-            errorbars.append(errorbar)
-        idx = np.argmax(values.values)
+        for source in ['hcp_new_single', 'hcp_new']:
+            source_df = dataset_df.loc[source]
+
+            source_df.reset_index(['with_std'], drop=True,
+                                  inplace=True)
+            data = source_df.iloc[keys]
+            values = data['mean']
+            stds = data['std']
+            xs = np.linspace(.5, 4.5, 5) - .25
+            if source == 'hcp_new':
+                xs += .5
+                these_colors = colors
+            else:
+                these_colors = colors_single
+            these_bars = ax.bar(xs, values, width=.4, color=these_colors,
+                                edgecolor=None,
+                                linewidth=0,
+                                label=[], alpha=.8)
+            if source =='hcp_new_single':
+                for this_bar, color in zip(these_bars, these_colors):
+                    this_bar.set_edgecolor(color)
+                    this_bar.set_hatch("""//////""")
+            for bar, std in zip(these_bars, stds):
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width() / 2., height + std,
+                        '%2.1f' % (height * 100), fontsize=5,
+                        ha='center', va='bottom')
+            # Legend
+            if dataset == 'archi':
+                if source == 'hcp_new':
+                    bars += these_bars
+                comp_bars.append(these_bars[0])
+            errorbars = []
+            for x, color, value, std in zip(xs, these_colors, values, stds):
+                errorbar = ax.errorbar(x, value, yerr=std, elinewidth=1.2,
+                                       capsize=2, linewidth=0, ecolor=color,
+                                       alpha=.8)
+                errorbars.append(errorbar)
+            idx = np.argmax(values.values)
 
         # plt.setp(these_bars[idx], edgecolor='k', linewidth=1.5)
         x = these_bars[idx].get_x()
@@ -163,10 +183,15 @@ def plot():
         ax.set_xticks([])
 
     axes[0].set_ylabel('Test accuracy')
-
+    legend = axes[0].legend(comp_bars, comp_labels, frameon=False,
+                            loc='upper left',
+                            ncol=2,
+                            bbox_to_anchor=(-.3, -.1))
     axes[0].legend(bars, labels, frameon=False, loc='lower left',
                    ncol=3,
                    bbox_to_anchor=(-.3, .93))
+    axes[0].add_artist(legend)
     fig.savefig(join(output_dir, 'ablation_128.pdf'))
 
-summarize()
+
+plot()
