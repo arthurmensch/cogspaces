@@ -1,11 +1,10 @@
 from os.path import join
 
-import numpy as np
 import pandas as pd
 import torch
+from joblib import dump
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
-from sklearn.externals.joblib import dump
 from sklearn.linear_model import LogisticRegressionCV, LogisticRegression
 from sklearn.model_selection import GridSearchCV, StratifiedShuffleSplit
 
@@ -22,19 +21,19 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['archi', 'brainomics']
+    datasets = ['archi', 'brainomics', 'camcan', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
     # source = 'mix'
-    source = 'hcp_new_single'
+    source = 'hcp_new_big'
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5, 'full': .5}
-    train_size = dict(hcp=None, archi=30, la5c=50, brainomics=30,
-                      camcan=100,
+    train_size = dict(hcp=None, archi=20, la5c=None, brainomics=None,
+                      camcan=None,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
     model = 'factored'
-    max_iter = 300
+    max_iter = 50
     verbose = 10
     seed = 100
 
@@ -224,7 +223,7 @@ def main(datasets, source, reduced_dir, unmask_dir,
     _run.info['score'] = score_dict
 
     try:
-        dump(estimator, join(artifact_dir, 'estimator.pkl'))
+        dump(estimator.intercept_, join(artifact_dir, 'intercept.pkl'))
     except TypeError:
         pass
     dump(transformer, join(artifact_dir, 'transformer.pkl'))
