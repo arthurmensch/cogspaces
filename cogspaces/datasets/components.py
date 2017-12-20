@@ -57,22 +57,13 @@ def fetch_atlas_modl(data_dir=None, url=None,
     http://www.fmrib.ox.ac.uk/datasets/brainmap+rsns/
     """
     if url is None:
-        url = 'http://www.amensch.fr/data/modl/'
+        url = 'http://www.amensch.fr/data/cogspaces/modl/'
 
     files = [
-        'nips2017/components_16.nii.gz',
-        'nips2017/components_64.nii.gz',
-        'nips2017/components_256.nii.gz',
-        'nips2017/components_336.nii.gz',
-        'positive/components_16.nii.gz',
-        'positive/components_64.nii.gz',
-        'positive/components_256.nii.gz',
-        'positive/components_512.nii.gz',
-        'positive_new/components_16.nii.gz',
-        'positive_new/components_64.nii.gz',
-        'positive_new/components_128.nii.gz',
-        'positive_new/components_208.nii.gz',
-        'positive_new/components_512.nii.gz',
+        'components_16.nii.gz',
+        'components_64.nii.gz',
+        'components_128.nii.gz',
+        'components_512.nii.gz',
     ]
 
     if isinstance(url, str):
@@ -89,19 +80,10 @@ def fetch_atlas_modl(data_dir=None, url=None,
     fdescr = 'Components computed using the MODL package, at various scale,' \
              'from HCP900 data'
 
-    keys = ['nips2017_components16',
-            'nips2017_components64',
-            'nips2017_components256',
-            'nips2017_components336',
-            'positive_components16',
-            'positive_components64',
-            'positive_components256',
-            'positive_components512',
-            'positive_new_components16',
-            'positive_new_components64',
-            'positive_new_components128',
-            'positive_new_components208',
-            'positive_new_components512',
+    keys = ['components16',
+            'components64',
+            'components128',
+            'components512',
             ]
 
     params = dict(zip(keys, files_))

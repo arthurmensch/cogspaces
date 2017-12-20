@@ -5,7 +5,7 @@ from nilearn.datasets.utils import readlinkabs, _fetch_files
 
 def fetch_mask(data_dir=None, url=None, resume=True, verbose=1):
     if url is None:
-        url = 'http://www.amensch.fr/data/mask/'
+        url = 'http://www.amensch.fr/data/cogspaces/mask/'
 
     files = ['mask_img.nii.gz']
 

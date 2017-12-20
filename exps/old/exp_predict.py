@@ -30,7 +30,7 @@ def config():
                       camcan=None,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
-    model = 'logistic'
+    model = 'trace'
     alpha = 1e-2
     max_iter = 1000
     verbose = 10

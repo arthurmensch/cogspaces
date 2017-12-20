@@ -261,15 +261,19 @@ class NonConvexEstimator(BaseEstimator):
             latent_weight = self.model.latent.weight.data
             classifier_weights = [classifier.weight.data
                                   for classifier in self.model.classifiers]
-            classifier_weights = torch.cat(classifier_weights, dim=0)
-            coef = torch.mm(classifier_weights, latent_weight)
+            coefs = [torch.mm(classifier_weight, latent_weight) for classifier_weight in classifier_weights]
         else:
-            classifier_weights = [classifier.weight.data
-                                  for classifier in self.model.classifiers]
-            coef = torch.cat(classifier_weights, dim=0)
+            coefs = [classifier.weight.data for classifier in self.model.classifiers]
         if CUDA:
-            coef = coef.cpu()
-        return coef.numpy()
+            cpu_coefs = []
+            for coef in coefs:
+                cpu_coef = coef.cpu()
+                cpu_coefs.append(cpu_coef)
+            coefs = cpu_coefs
+        numpy_coefs = []
+        for coef in coefs:
+            numpy_coefs.append(coef.numpy())
+        return numpy_coefs
 
     @property
     def intercept_(self):
@@ -345,21 +349,21 @@ class TransferEstimator(NonConvexEstimator):
         y_pred = self.predict(X)
         return np.mean(y_pred == y)
 
-    @property
-    def coef_(self):
-        if self.architecture == 'factored':
-            latent_weight = self.model.latent.weight.data
-            classifier_weights = self.model.classifiers[0].weight.data
-            coef = torch.mm(classifier_weights, latent_weight)
-        else:
-            coef = self.model.classifiers[0].weight.data
-        if CUDA:
-            coef = coef.cpu()
-        return coef.numpy()
-
-    @property
-    def intercept_(self):
-        intercept = self.model.classifiers[0].bias.data
-        if CUDA:
-            intercept = intercept.cpu()
-        return intercept.numpy()
+    # @property
+    # def coef_(self):
+    #     if self.architecture == 'factored':
+    #         latent_weight = self.model.latent.weight.data
+    #         classifier_weights = self.model.classifiers[0].weight.data
+    #         coef = torch.mm(classifier_weights, latent_weight)
+    #     else:
+    #         coef = self.model.classifiers[0].weight.data
+    #     if CUDA:
+    #         coef = coef.cpu()
+    #     return coef.numpy()
+    #
+    # @property
+    # def intercept_(self):
+    #     intercept = self.model.classifiers[0].bias.data
+    #     if CUDA:
+    #         intercept = intercept.cpu()
+    #     return intercept.numpy()

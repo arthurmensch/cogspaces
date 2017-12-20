@@ -6,6 +6,7 @@ from numpy.linalg import svd
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_array
 
+
 def lipschitz_constant(X, dataset_weights, xslices, fit_intercept=False,
                        split_loss=False):
     Xs = [X[xslice[0]:xslice[1]] for xslice in xslices]
@@ -276,6 +277,45 @@ class TraceNormEstimator(BaseEstimator):
             preds.append(np.exp(pred[xslice[0]:xslice[1],
                                 yslice[0]:yslice[1]]))
         return tuple(preds)
+
+
+class TransferTraceNormEstimator(TraceNormEstimator):
+    def __init__(self, alpha=1., beta=0., max_iter=1000,
+                 momentum=True,
+                 fit_intercept=True,
+                 verbose=False,
+                 max_backtracking_iter=5,
+                 step_size_multiplier=1,
+                 backtracking_divider=2.,
+                 split_loss=True,
+                 Xs_helpers=None,
+                 ys_helpers=None,
+                 dataset_weights_helpers=None):
+        super(TransferTraceNormEstimator,
+              self).__init__(alpha=alpha,
+                             beta=beta,
+                             max_iter=max_iter,
+                             momentum=momentum,
+                             fit_intercept=fit_intercept,
+                             verbose=verbose,
+                             max_backtracking_iter=max_backtracking_iter,
+                             step_size_multiplier=step_size_multiplier,
+                             backtracking_divider=backtracking_divider,
+                             split_loss=split_loss)
+
+        self.Xs_helpers = Xs_helpers
+        self.ys_helpers = ys_helpers
+        self.dataset_weights_helpers = dataset_weights_helpers
+
+    def fit(self, X, y):
+        Xs = [X] + list(self.Xs_helpers)
+        ys = [y] + list(self.ys_helpers)
+        dataset_weights = [1.] + self.dataset_weights_helpers
+        super(TransferTraceNormEstimator, self).fit(Xs, ys,
+                                                    dataset_weights=dataset_weights)
+
+    def predict_all(self, Xs):
+        return super(TransferTraceNormEstimator, self).predict(Xs)
 
 
 def check_Xs(Xs):

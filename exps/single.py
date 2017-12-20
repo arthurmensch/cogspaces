@@ -9,6 +9,8 @@ from sklearn.linear_model import LogisticRegressionCV, LogisticRegression
 from sklearn.model_selection import GridSearchCV, StratifiedShuffleSplit
 
 from cogspaces.model.non_convex_pytorch import TransferEstimator
+from cogspaces.model.trace import TraceNormEstimator, \
+    TransferTraceNormEstimator
 from cogspaces.pipeline import get_output_dir, make_data_frame, split_folds, \
     MultiDatasetTransformer
 
@@ -21,19 +23,19 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    datasets = ['archi', 'brainomics', 'camcan', 'hcp']
+    datasets = ['brainomics', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
     # source = 'mix'
-    source = 'hcp_new_big'
+    source = 'hcp_new'
     test_size = {'hcp': .1, 'archi': .5, 'brainomics': .5, 'camcan': .5,
                  'la5c': .5, 'full': .5}
-    train_size = dict(hcp=None, archi=20, la5c=None, brainomics=None,
+    train_size = dict(hcp=None, archi=None, la5c=None, brainomics=None,
                       camcan=None,
                       human_voice=None)
     dataset_weights = {'brainomics': 1, 'archi': 1, 'hcp': 1}
-    model = 'factored'
-    max_iter = 50
+    model = 'trace'
+    max_iter = 500
     verbose = 10
     seed = 100
 
@@ -42,16 +44,16 @@ def config():
     per_dataset = True
 
     # Factored only
-    n_components = 100
+    n_components = 10
 
-    batch_size = 256
+    batch_size = 128
     optimizer = 'adam'
     step_size = 1e-3
 
     alphas = [5e-4]  # np.logspace(-6, -1, 12)
-    latent_dropout_rates = [0.75]
-    input_dropout_rates = [0.25]
-    dataset_weights_helpers = [[1, 1, 1]]
+    latent_dropout_rates = [0.0]
+    input_dropout_rates = [0.0]
+    dataset_weights_helpers = [[1.]]
 
     n_splits = 10
     n_jobs = 1
@@ -69,7 +71,7 @@ def fit_model(df_train, df_test, model,
               step_size, max_iter, n_jobs, _run):
     transformer = MultiDatasetTransformer(with_std=with_std,
                                           with_mean=with_mean,
-                                          integer_coding=True,
+                                          integer_coding=model != 'trace',
                                           per_dataset=per_dataset)
     transformer.fit(df_train)
     Xs_train, ys_train = transformer.transform(df_train)
@@ -157,6 +159,21 @@ def fit_model(df_train, df_test, model,
                                            C=1. / alpha / n_samples,
                                            n_jobs=n_jobs,
                                            verbose=10)
+    elif model == 'trace':
+        alpha = alphas[0]
+        estimator = TransferTraceNormEstimator(alpha=alpha,
+                                               step_size_multiplier=1000,
+                                               fit_intercept=True,
+                                               Xs_helpers=Xs_train_helpers,
+                                               ys_helpers=ys_train_helpers,
+                                               dataset_weights_helpers=
+                                               dataset_weights_helpers[0],
+                                               max_backtracking_iter=10,
+                                               momentum=True,
+                                               split_loss=True,
+                                               beta=0,
+                                               max_iter=max_iter,
+                                               verbose=10)
     else:
         raise ValueError('Wrong model argument')
 
@@ -223,7 +240,7 @@ def main(datasets, source, reduced_dir, unmask_dir,
     _run.info['score'] = score_dict
 
     try:
-        dump(estimator.intercept_, join(artifact_dir, 'intercept.pkl'))
+        dump(estimator, join(artifact_dir, 'estimator.pkl'))
     except TypeError:
         pass
     dump(transformer, join(artifact_dir, 'transformer.pkl'))
