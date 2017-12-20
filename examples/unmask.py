@@ -13,6 +13,6 @@ mask = fetch_mask()
 maps = fetch_atlas_modl().components128
 
 dataframe = fetch_all()
-X = make_array_data(dataframe['z_map'], mask=mask, n_jobs=5)
+X = make_array_data(dataframe['z_map'], mask=mask, n_jobs=5, maps=maps)
 y = dataframe.index.values
 dump((X, y), join(get_output_dir(), 'unmasked_data.pkl'))

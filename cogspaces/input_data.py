@@ -28,8 +28,8 @@ def make_array_data(imgs, mask=None, n_jobs=1, memory=None, maps=None):
         these_imgs = imgs[batch]
         masked = masker.transform(these_imgs)
         if maps is not None:
-            reduced = masked.dot(maps.T)
-        target[batch] = reduced
+            masked = masked.dot(maps.T)
+        target[batch] = masked
     return target
 
 
