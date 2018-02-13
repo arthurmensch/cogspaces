@@ -1,14 +1,13 @@
 import warnings
 
 import numpy as np
-from sklearn.base import BaseEstimator
-
 import torch
 import torch.cuda
-from torch import nn
-from torch.nn import CrossEntropyLoss
 import torch.nn.init as init
+from sklearn.base import BaseEstimator
+from torch import nn
 from torch.autograd import Variable
+from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader, TensorDataset
 
 CUDA = torch.cuda.is_available()

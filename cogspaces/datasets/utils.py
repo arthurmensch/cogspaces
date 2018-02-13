@@ -142,5 +142,5 @@ def _get_dataset_dir(dataset_name, data_dir=None, default_paths=None,
                 errors.append('\n -{0} ({1})'.format(
                     path, short_error_message))
 
-    raise OSError('Nilearn tried to store the dataset in the following '
+    raise OSError('Cogspaces tried to store the dataset in the following '
                   'directories, but:' + ''.join(errors))

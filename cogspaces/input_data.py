@@ -31,16 +31,3 @@ def make_array_data(imgs, mask=None, n_jobs=1, memory=None, maps=None):
             masked = masked.dot(maps.T)
         target[batch] = masked
     return target
-
-
-
-
-    # else:
-    #     masker = NiftiMapsMasker(maps, smoothing_fwhm=4,
-    #                              mask_img=mask,
-    #                              memory_level=1,
-    #                              memory=memory).fit()
-    #     masked = Parallel(n_jobs=n_jobs)(
-    #         delayed(masker.transform)(
-    #             [this_data]) for img in imgs)
-    #     X = np.concatenate(masked, axis=0)
