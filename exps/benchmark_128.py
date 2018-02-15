@@ -14,7 +14,7 @@ from sklearn.externals.joblib import delayed
 from sklearn.utils import check_random_state
 
 print(path.dirname(path.dirname(path.abspath(__file__))))
-# Add examples to known modules
+# Add examples to known models
 sys.path.append(
     path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
 from exps.single import exp as single_exp

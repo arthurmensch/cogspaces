@@ -4,11 +4,9 @@ import re
 from os.path import join
 
 import pandas as pd
-from sklearn.utils import Bunch
-
-from .utils import get_data_dirs
-
+from cogspaces.datasets.utils import get_data_dir
 from hcp_builder.dataset import fetch_hcp as hcp_builder_fetch_hcp
+from sklearn.utils import Bunch
 
 idx = pd.IndexSlice
 
@@ -34,18 +32,18 @@ def fetch_all(data_dir=None):
     dfs = []
     for dataset in ['archi', 'brainomics', 'camcan', 'hcp',
                     'la5c', 'brainpedia']:
-        df = fetch_contrasts(dataset)
+        df = fetch_contrasts(dataset, data_dir=data_dir)
         dfs.append(df)
     return pd.concat(dfs)
 
 
 def fetch_camcan(data_dir=None):
-    data_dir = get_data_dirs(data_dir)[0]
+    data_dir = get_data_dir(data_dir)
     source_dir = join(data_dir, 'camcan', 'camcan_smt_maps')
     if not os.path.exists(source_dir):
         raise ValueError(
-            'Please ensure that archi can be found under $COGSPACES_DATA'
-            'repository.')
+            'Please ensure that %s contains all required data.'
+            % source_dir)
     z_maps = glob.glob(join(source_dir, '*', '*_z_score.nii.gz'))
     subjects = []
     contrasts = []
@@ -78,12 +76,11 @@ def fetch_camcan(data_dir=None):
 
 
 def fetch_brainomics(data_dir=None):
-    data_dir = get_data_dirs(data_dir)[0]
+    data_dir = get_data_dir(data_dir)
     source_dir = join(data_dir, 'brainomics')
     if not os.path.exists(source_dir):
         raise ValueError(
-            'Please ensure that archi can be found under $MODL_DATA'
-            'repository.')
+            'Please ensure that %s contains all required data.' % source_dir)
     z_maps = glob.glob(join(source_dir, '*', 'c_*.nii.gz'))
     subjects = []
     contrasts = []
@@ -92,7 +89,7 @@ def fetch_brainomics(data_dir=None):
     regex = re.compile('.*vs.*')
     for z_map in z_maps:
         match = re.match(regex, z_map)
-        if match is None:
+        if match is None and z_map != 'effects_of_interest':
             dirname, contrast = os.path.split(z_map)
             contrast = contrast[6:-7]
             subject = int(dirname[-2:])
@@ -132,17 +129,16 @@ def fetch_archi(data_dir=None):
                              "triangle_intention",
                              "triangle_random"]
 
-    data_dir = get_data_dirs(data_dir)[0]
+    data_dir = get_data_dir(data_dir)
     source_dir = join(data_dir, 'archi', 'glm')
     if not os.path.exists(source_dir):
         raise ValueError(
-            'Please ensure that archi can be found under %s' % source_dir)
+            'Please ensure that %s contains all required data.' % source_dir)
     z_maps = glob.glob(join(source_dir, '*/*/*', 'z_*.nii.gz'))
     subjects = []
     contrasts = []
     tasks = []
     filtered_z_maps = []
-    directions = []
     for z_map in z_maps:
         dirname, contrast = os.path.split(z_map)
         contrast = contrast[2:-7]
@@ -168,12 +164,12 @@ def fetch_archi(data_dir=None):
 
 
 def fetch_human_voice(data_dir=None):
-    data_dir = get_data_dirs(data_dir)[0]
-    source_dir = join(data_dir, 'human_voice', 'ds000158_R1.0.1', 'glm')
+    data_dir = get_data_dir(data_dir)
+    source_dir = join(data_dir,
+                      'human_voice', 'ds000158_R1.0.1', 'glm')
     if not os.path.exists(source_dir):
         raise ValueError(
-            'Please ensure that human_voice can be found under $COGSPACES_DATA'
-            'repository.')
+            'Please ensure that %s contains all required data.' % source_dir)
     z_maps = glob.glob(join(source_dir, '*/*/*', 'z_*.nii.gz'))
     subjects = []
     contrasts = []
@@ -204,12 +200,13 @@ def fetch_human_voice(data_dir=None):
 
 
 def fetch_la5c(data_dir=None):
-    data_dir = get_data_dirs(data_dir)[0]
-    source_dir = join(data_dir, 'la5c', 'ds000030', 'glm')
+    data_dir = get_data_dir(data_dir)
+    source_dir = join(data_dir,
+                      'la5c', 'ds000030', 'glm')
     if not os.path.exists(source_dir):
         raise ValueError(
-            'Please ensure that archi can be found under $COGSPACES_DATA'
-            'repository.')
+            'Please ensure that %s contains all required data.'
+            % source_dir)
     z_maps = glob.glob(join(source_dir, '*/*/*', 'z_*.nii.gz'))
     subjects = []
     contrasts = []
@@ -238,9 +235,13 @@ def fetch_la5c(data_dir=None):
     return df
 
 
-def fetch_brainpedia(data_dir=None):
-    data_dir = get_data_dirs(data_dir)[0]
-    source_dir = join(data_dir, 'brainpedia')
+def fetch_brainpedia(data_dir=None, drop_some=True):
+    data_dir = get_data_dir(data_dir)
+    source_dir = join(data_dir,  'brainpedia')
+    if not os.path.exists(source_dir):
+        raise ValueError(
+            'Please ensure that %s contains all required data.'
+            % source_dir)
     datasets = os.listdir(source_dir)
     rec = []
     for dataset in datasets:
@@ -267,11 +268,15 @@ def fetch_brainpedia(data_dir=None):
     df = pd.DataFrame(rec)
     df.set_index(['dataset', 'subject', 'task', 'contrast', 'direction'],
                  inplace=True)
+    if drop_some:
+        df.drop('pinel2007fast', level=0, axis=0, inplace=True)
+        df.drop('ds102', level=0, axis=0, inplace=True)
     return df
 
 
 def fetch_hcp(data_dir=None, n_subjects=None, subjects=None,
               from_file=True):
+    data_dir = get_data_dir(data_dir)
     BASE_CONTRASTS = ['FACES', 'SHAPES', 'PUNISH', 'REWARD',
                       'MATH', 'STORY', 'MATCH', 'REL',
                       'RANDOM', 'TOM',
@@ -282,8 +287,12 @@ def fetch_hcp(data_dir=None, n_subjects=None, subjects=None,
                       '2BK_TOOL',
                       ]
 
-    data_dir = join(get_data_dirs(data_dir)[0], 'HCP900')
-    res = hcp_builder_fetch_hcp(data_dir=data_dir, n_subjects=n_subjects,
+    source_dir = join(data_dir, 'HCP900')
+    if not os.path.exists(source_dir):
+        raise ValueError(
+            'Please ensure that %s contains all required data.'
+            % source_dir)
+    res = hcp_builder_fetch_hcp(data_dir=source_dir, n_subjects=n_subjects,
                                 from_file=from_file,
                                 subjects=subjects, on_disk=True)
     rest = res.rest.assign(confounds=[None] * res.rest.shape[0])

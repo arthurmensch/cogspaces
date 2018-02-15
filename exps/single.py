@@ -9,8 +9,7 @@ from sklearn.linear_model import LogisticRegressionCV, LogisticRegression
 from sklearn.model_selection import GridSearchCV, StratifiedShuffleSplit
 
 from cogspaces.model.non_convex_pytorch import TransferEstimator
-from cogspaces.model.trace import TraceNormEstimator, \
-    TransferTraceNormEstimator
+from cogspaces.models.trace import TransferTraceNormEstimator
 from cogspaces.pipeline import get_output_dir, make_data_frame, split_folds, \
     MultiDatasetTransformer
 

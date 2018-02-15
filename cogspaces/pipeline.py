@@ -18,7 +18,7 @@ def get_output_dir(data_dir=None):
     Parameters
     ----------
     data_dir: string, optional
-        Path of the data directory. Used to force data storage in a specified
+        Path of the utils directory. Used to force utils storage in a specified
         location. Default: None
 
     Returns

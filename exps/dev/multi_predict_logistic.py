@@ -12,7 +12,7 @@ from sklearn.utils import check_random_state
 
 from cogspaces.pipeline import get_output_dir
 
-# Add examples to known modules
+# Add examples to known models
 sys.path.append(path.dirname(path.dirname
                              (path.dirname(path.abspath(__file__)))))
 from exps.old.exp_predict import exp as single_exp

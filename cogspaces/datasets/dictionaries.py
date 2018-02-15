@@ -12,49 +12,8 @@ def fetch_atlas_modl(data_dir=None, url=None,
     data_dir: string, optional
         Path of the data directory. Used to force data storage in a non-
         standard location. Default: None (meaning: default)
-    mirror: string, optional
-        By default, the dataset is downloaded from the original website of the
-        atlas. Specifying "nitrc" will force download from a mirror, with
-        potentially higher bandwith.
     url: string, optional
         Download URL of the dataset. Overwrite the default URL.
-
-    Returns
-    -------
-    data: sklearn.datasets.base.Bunch
-        dictionary-like object, contains:
-
-        - 20-dimensional ICA, Resting-FMRI components:
-
-          - all 20 components (rsn20)
-          - 10 well-matched maps from these, as shown in PNAS paper (rsn10)
-
-        - 20-dimensional ICA, BrainMap components:
-
-          - all 20 components (bm20)
-          - 10 well-matched maps from these, as shown in PNAS paper (bm10)
-
-        - 70-dimensional ICA, Resting-FMRI components (rsn70)
-
-        - 70-dimensional ICA, BrainMap components (bm70)
-
-
-    References
-    ----------
-
-    S.M. Smith, P.T. Fox, K.L. Miller, D.C. Glahn, P.M. Fox, C.E. Mackay, N.
-    Filippini, K.E. Watkins, R. Toro, A.R. Laird, and C.F. Beckmann.
-    Correspondence of the brain's functional architecture during activation and
-    rest. Proc Natl Acad Sci USA (PNAS), 106(31):13040-13045, 2009.
-
-    A.R. Laird, P.M. Fox, S.B. Eickhoff, J.A. Turner, K.L. Ray, D.R. McKay, D.C
-    Glahn, C.F. Beckmann, S.M. Smith, and P.T. Fox. Behavioral interpretations
-    of intrinsic connectivity networks. Journal of Cognitive Neuroscience, 2011
-
-    Notes
-    -----
-    For more information about this dataset's structure:
-    http://www.fmrib.ox.ac.uk/datasets/brainmap+rsns/
     """
     if url is None:
         url = 'http://www.amensch.fr/data/cogspaces/modl/'

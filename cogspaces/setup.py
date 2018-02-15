@@ -3,10 +3,9 @@ def configuration(parent_package='', top_path=None):
 
     config = Configuration('cogspaces', parent_package, top_path)
 
-    config.add_subpackage('input_data')
-    config.add_subpackage('externals')
-    config.add_subpackage('model')
     config.add_subpackage('tests')
+    config.add_subpackage('models')
+    config.add_subpackage('utils')
     config.add_subpackage('datasets')
 
     return config

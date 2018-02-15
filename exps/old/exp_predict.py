@@ -2,7 +2,7 @@ from os.path import join
 
 import numpy as np
 import pandas as pd
-from cogspaces.model.trace import TraceNormEstimator
+from cogspaces.models.trace import TraceNormEstimator
 from cogspaces.pipeline import get_output_dir, make_data_frame, split_folds, \
     MultiDatasetTransformer
 from joblib import load

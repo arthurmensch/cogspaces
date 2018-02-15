@@ -87,7 +87,7 @@ for i, dataset in enumerate(datasets):
     ax.set_yticks([])
     ax.set_title(dataset)
     for ann_dataset, point, offset in zip(ann_datasets, points, offsets):
-        ax.annotate(ann_dataset, xy=point, xycoords='data',
+        ax.annotate(ann_dataset, xy=point, xycoords='utils',
                     textcoords='offset points', xytext=offset)
     ax.set_xlim([-1.5, 1.5])
     ax.set_ylim([-1.5, 1.5])

@@ -4,13 +4,11 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegressionCV
 
-from cogspaces.model.trace import TraceNormEstimator
+from cogspaces.models.trace import TraceNormEstimator
 from cogspaces.pipeline import get_output_dir, make_data_frame, split_folds, \
     MultiDatasetTransformer
-from joblib import load
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
-from scipy.linalg import svd
 from sklearn.externals.joblib import dump
 
 idx = pd.IndexSlice

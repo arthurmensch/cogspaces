@@ -351,18 +351,18 @@ class TransferEstimator(NonConvexEstimator):
     # @property
     # def coef_(self):
     #     if self.architecture == 'factored':
-    #         latent_weight = self.model.latent.weight.data
-    #         classifier_weights = self.model.classifiers[0].weight.data
+    #         latent_weight = self.model.latent.weight.utils
+    #         classifier_weights = self.model.classifiers[0].weight.utils
     #         coef = torch.mm(classifier_weights, latent_weight)
     #     else:
-    #         coef = self.model.classifiers[0].weight.data
+    #         coef = self.model.classifiers[0].weight.utils
     #     if CUDA:
     #         coef = coef.cpu()
     #     return coef.numpy()
     #
     # @property
     # def intercept_(self):
-    #     intercept = self.model.classifiers[0].bias.data
+    #     intercept = self.model.classifiers[0].bias.utils
     #     if CUDA:
     #         intercept = intercept.cpu()
     #     return intercept.numpy()
