@@ -20,15 +20,17 @@ for fold in datasets:
     for dataset in datasets[fold]:
         if fold == 'train':
             loaders[fold][dataset] = infinite_data_loader(
-                DataLoader(shuffle=True, batch_size=32))
+                DataLoader(datasets[fold][dataset],
+                           shuffle=True, batch_size=32, num_workers=4))
         else:
-            loaders[fold][dataset] = DataLoader(shuffle=False,
+            loaders[fold][dataset] = DataLoader(datasets[fold][dataset],
+                                                shuffle=False,
                                                 batch_size=32)
-in_features = next(datasets['train'].values()).in_features
-target_sizes = {name: dataset.target_size()
+n_features = next(iter(datasets['train'].values())).n_features()
+target_sizes = {name: dataset.n_contrasts()
                 for name, dataset in datasets['train'].items()}
-
-model = MultiLayerClassifier(in_features, target_sizes,
+print(target_sizes)
+model = MultiLayerClassifier(n_features, target_sizes,
                              first_hidden_features=512,
                              second_hidden_features=10,
                              dropout=0.5)
