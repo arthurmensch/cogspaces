@@ -305,6 +305,9 @@ def fetch_hcp(data_dir=None, n_subjects=None, subjects=None,
     # Make it compatible with the other studies
     contrasts = res.contrasts.loc[idx[:, :, BASE_CONTRASTS, :], :]
     contrasts = contrasts[['z_map']]
+    # Replace symlink
+    contrasts['z_map'] = contrasts['z_map'].map(lambda x:
+        x.replace('/storage/store/data/HCP900', source_dir))
     contrasts.reset_index(inplace=True)
     contrasts['study'] = 'hcp'
     contrasts.set_index(
