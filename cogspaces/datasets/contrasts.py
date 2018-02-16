@@ -11,30 +11,38 @@ from sklearn.utils import Bunch
 idx = pd.IndexSlice
 
 
-def fetch_contrasts(dataset, data_dir=None):
-    if dataset == 'archi':
+def replace_filename_unmasked(img):
+    return img.replace('.nii.gz', '.npy').replace('cogspaces',
+                                                  'cogspaces/unmasked')
+
+
+def fetch_contrasts(study, data_dir=None):
+    if study == 'archi':
         return fetch_archi(data_dir=data_dir)
-    elif dataset == 'brainomics':
+    elif study == 'brainomics':
         return fetch_brainomics(data_dir=data_dir)
-    elif dataset == 'la5c':
+    elif study == 'la5c':
         return fetch_la5c(data_dir=data_dir)
-    elif dataset == 'camcan':
+    elif study == 'camcan':
         return fetch_camcan(data_dir=data_dir)
-    elif dataset == 'hcp':
+    elif study == 'hcp':
         return fetch_hcp(data_dir=data_dir).contrasts
-    elif dataset == 'brainpedia':
+    elif study == 'brainpedia':
         return fetch_brainpedia(data_dir=data_dir)
     else:
         raise ValueError
 
 
-def fetch_all(data_dir=None):
+def fetch_all(data_dir=None, unmasked=False):
     dfs = []
-    for dataset in ['archi', 'brainomics', 'camcan', 'hcp',
+    for study in ['archi', 'brainomics', 'camcan', 'hcp',
                     'la5c', 'brainpedia']:
-        df = fetch_contrasts(dataset, data_dir=data_dir)
+        df = fetch_contrasts(study, data_dir=data_dir)
         dfs.append(df)
-    return pd.concat(dfs)
+    df = pd.concat(dfs)
+    if unmasked:
+        df['z_map'] = df['z_map'].map(replace_filename_unmasked)
+    return df
 
 
 def fetch_camcan(data_dir=None):
@@ -67,9 +75,9 @@ def fetch_camcan(data_dir=None):
                             'task': tasks,
                             'contrast': contrasts,
                             'direction': 'level1',
-                            'dataset': 'camcan',
+                            'study': 'camcan',
                             'z_map': filtered_z_maps, })
-    df.set_index(['dataset', 'subject', 'task', 'contrast', 'direction'],
+    df.set_index(['study', 'subject', 'task', 'contrast', 'direction'],
                  inplace=True)
     df.sort_index(inplace=True)
     return df
@@ -101,9 +109,9 @@ def fetch_brainomics(data_dir=None):
                             'task': tasks,
                             'contrast': contrasts,
                             'direction': 'level1',
-                            'dataset': 'brainomics',
+                            'study': 'brainomics',
                             'z_map': filtered_z_maps, })
-    df.set_index(['dataset', 'subject', 'task',
+    df.set_index(['study', 'subject', 'task',
                   'contrast', 'direction'], inplace=True)
     df.sort_index(inplace=True)
     return df
@@ -155,9 +163,9 @@ def fetch_archi(data_dir=None):
                             'task': tasks,
                             'contrast': contrasts,
                             'direction': 'level1',
-                            'dataset': 'archi',
+                            'study': 'archi',
                             'z_map': filtered_z_maps, })
-    df.set_index(['dataset', 'subject',
+    df.set_index(['study', 'subject',
                   'task', 'contrast', 'direction'], inplace=True)
     df.sort_index(inplace=True)
     return df
@@ -192,7 +200,7 @@ def fetch_human_voice(data_dir=None):
                             'task': tasks,
                             'contrast': contrasts,
                             'direction': 'level1',
-                            'dataset': 'human_voice',
+                            'study': 'human_voice',
                             'z_map': filtered_z_maps, })
     df.set_index(['subject', 'task', 'contrast', 'direction'], inplace=True)
     df.sort_index(inplace=True)
@@ -223,13 +231,13 @@ def fetch_la5c(data_dir=None):
         contrasts.append(contrast)
         tasks.append(task)
         filtered_z_maps.append(z_map)
-    df = pd.DataFrame(data={'dataset': 'la5c',
+    df = pd.DataFrame(data={'study': 'la5c',
                             'subject': subjects,
                             'task': tasks,
                             'contrast': contrasts,
                             'direction': 'level1',
                             'z_map': filtered_z_maps, })
-    df.set_index(['dataset', 'subject', 'task', 'contrast', 'direction'],
+    df.set_index(['study', 'subject', 'task', 'contrast', 'direction'],
                  inplace=True)
     df.sort_index(inplace=True)
     return df
@@ -242,31 +250,31 @@ def fetch_brainpedia(data_dir=None, drop_some=True):
         raise ValueError(
             'Please ensure that %s contains all required data.'
             % source_dir)
-    datasets = os.listdir(source_dir)
+    studies = os.listdir(source_dir)
     rec = []
-    for dataset in datasets:
-        if 'archi' in dataset:
+    for study in studies:
+        if 'archi' in study:
             continue
-        dataset_dir = join(source_dir, dataset)
-        subjects = os.listdir(dataset_dir)
+        study_dir = join(source_dir, study)
+        subjects = os.listdir(study_dir)
         for subject in subjects:
             if subject == 'models':
                 continue
-            subject_dir = join(dataset_dir, subject, 'model', 'model002',
+            subject_dir = join(study_dir, subject, 'model', 'model002',
                                'z_maps')
             subject = int(subject[3:])
             maps = os.listdir(subject_dir)
             for this_map in maps:
                 task = int(this_map[4:7])
                 contrast = this_map[8:-7]
-                rec.append({'dataset': dataset,
+                rec.append({'study': study,
                             'subject': subject,
                             'task': task,
                             'direction': 'level2',
                             'contrast': contrast,
                             'z_map': join(subject_dir, this_map)})
     df = pd.DataFrame(rec)
-    df.set_index(['dataset', 'subject', 'task', 'contrast', 'direction'],
+    df.set_index(['study', 'subject', 'task', 'contrast', 'direction'],
                  inplace=True)
     if drop_some:
         df.drop('pinel2007fast', level=0, axis=0, inplace=True)
@@ -301,13 +309,13 @@ def fetch_hcp(data_dir=None, n_subjects=None, subjects=None,
     task.sort_index(inplace=True)
     rest.sort_index(inplace=True)
 
-    # Make it compatible with the other datasets
+    # Make it compatible with the other studies
     contrasts = res.contrasts.loc[idx[:, :, BASE_CONTRASTS, :], :]
     contrasts = contrasts[['z_map']]
     contrasts.reset_index(inplace=True)
-    contrasts['dataset'] = 'hcp'
+    contrasts['study'] = 'hcp'
     contrasts.set_index(
-        ['dataset', 'subject', 'task', 'contrast', 'direction'],
+        ['study', 'subject', 'task', 'contrast', 'direction'],
         inplace=True)
     contrasts.sort_index(inplace=True)
     return Bunch(rest=rest,
