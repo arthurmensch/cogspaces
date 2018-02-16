@@ -11,11 +11,6 @@ from sklearn.utils import Bunch
 idx = pd.IndexSlice
 
 
-def replace_filename_unmasked(img):
-    return img.replace('.nii.gz', '.npy').replace('cogspaces',
-                                                  'cogspaces/unmasked')
-
-
 def fetch_contrasts(study, data_dir=None):
     if study == 'archi':
         return fetch_archi(data_dir=data_dir)
@@ -33,15 +28,13 @@ def fetch_contrasts(study, data_dir=None):
         raise ValueError
 
 
-def fetch_all(data_dir=None, unmasked=False):
+def fetch_all(data_dir=None):
     dfs = []
     for study in ['archi', 'brainomics', 'camcan', 'hcp',
-                    'la5c', 'brainpedia']:
+                  'la5c', 'brainpedia']:
         df = fetch_contrasts(study, data_dir=data_dir)
         dfs.append(df)
     df = pd.concat(dfs)
-    if unmasked:
-        df['z_map'] = df['z_map'].map(replace_filename_unmasked)
     return df
 
 
@@ -245,7 +238,7 @@ def fetch_la5c(data_dir=None):
 
 def fetch_brainpedia(data_dir=None, drop_some=True):
     data_dir = get_data_dir(data_dir)
-    source_dir = join(data_dir,  'brainpedia')
+    source_dir = join(data_dir, 'brainpedia')
     if not os.path.exists(source_dir):
         raise ValueError(
             'Please ensure that %s contains all required data.'

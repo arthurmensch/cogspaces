@@ -1,3 +1,4 @@
+import os
 from nilearn.datasets.utils import _fetch_files, _get_dataset_dir
 
 
@@ -30,6 +31,8 @@ def get_data_dir(data_dir=None):
     if data_dir is not None:
         assert (isinstance(data_dir, str))
         return data_dir
+    elif 'COGSPACES_DATA' in os.environ:
+        return os.environ['COGSPACES_DATA']
     else:
         return '/storage/store/data/cogspaces'
 

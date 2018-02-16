@@ -10,14 +10,19 @@ class MultiLayerClassifier(nn.Module):
         if first_hidden_features is not None:
             self.first_linear = nn.Linear(in_features, first_hidden_features,
                                           bias=False)
+            classifier_features = first_hidden_features
         if second_hidden_features is not None:
             self.second_linear = nn.Linear(first_hidden_features,
                                            second_hidden_features,
                                            bias=False)
+            classifier_features = second_hidden_features
+
         self.dropout = nn.Dropout(dropout)
         self.classifiers = {}
-        for dataset, size in target_sizes.items():
-            self.classifiers[dataset] = nn.Linear(second_hidden_features, size)
+        for study, size in target_sizes.items():
+            self.classifiers[study] = nn.Linear(classifier_features, size)
+            self.add_module('classifiers_%s' % study,
+                            self.classifiers[study])
         self.softmax = nn.LogSoftmax(dim=1)
 
     def reset_parameters(self):
@@ -33,12 +38,12 @@ class MultiLayerClassifier(nn.Module):
 
     def forward(self, Xs):
         preds = {}
-        for dataset, X in Xs.items():
-            reduced = X
+        for study, data in Xs.items():
+            reduced = data
             if hasattr(self, 'first_linear'):
                 reduced = self.dropout(self.first_linear(reduced))
             if hasattr(self, 'second_linear'):
                 reduced = self.dropout(self.second_linear(reduced))
-            pred = self.softmax(self.classifiers[dataset](reduced))
-            preds[dataset] = pred
-        return pred
+            pred = self.softmax(self.classifiers[study](reduced))
+            preds[study] = pred
+        return preds

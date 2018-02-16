@@ -6,6 +6,7 @@ from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from torch.utils.data import Dataset
+from torch.utils.data.sampler import BatchSampler, RandomSampler
 
 idx = pd.IndexSlice
 
@@ -13,6 +14,10 @@ idx = pd.IndexSlice
 class tfMRITargetEncoder(BaseEstimator, TransformerMixin):
     def __init__(self):
         pass
+
+    def target_sizes(self):
+        return {study: len(le['contrast'].classes_) for study, le in
+                self.le_.items()}
 
     def fit(self, data):
         studies = data['study']
@@ -22,7 +27,7 @@ class tfMRITargetEncoder(BaseEstimator, TransformerMixin):
             contrasts = sub_data['contrast']
             subjects = sub_data['subject']
             self.le_[study] = {'contrast': LabelEncoder().fit(contrasts),
-                                 'subject': LabelEncoder().fit(subjects)}
+                               'subject': LabelEncoder().fit(subjects)}
         return self
 
     def transform(self, data):
@@ -57,10 +62,39 @@ class tfMRITargetEncoder(BaseEstimator, TransformerMixin):
         return data
 
 
+class StudySampler(object):
+    def __init__(self, dataset, batch_size, drop_last,
+                 num_batches):
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.drop_last = drop_last
+        self.num_batches = num_batches
+        datasets = dataset.study_split()
+        self.samplers = {}
+        for study, sub_dataset in datasets:
+            self.samplers[study] = BatchSampler(RandomSampler(sub_dataset),
+                                                batch_size=self.batch_size,
+                                                drop_last=self.drop_last)
+        self.current_batch = 0
+
+    def __iter__(self):
+        for study, sampler in self.samplers:
+            self.current_batch += 1
+            if self.current_batch > self.num_batches:
+                break
+            try:
+                yield next(sampler)
+            except (StopIteration, TypeError):  # Restart
+                self.samplers[study] = iter(sampler)
+                yield next(sampler)
+
+    def __len__(self):
+        return self.num_samples
+
+
 class tfMRIDataset(Dataset):
     def __init__(self, data, mask=None):
         self.data = data.copy()
-        self.data = self.data.sort_index(inplace=True)
         self.mask = mask
         if self.mask is not None:
             self.masker_ = NiftiMasker(smoothing_fwhm=4, mask_img=mask,
@@ -72,6 +106,7 @@ class tfMRIDataset(Dataset):
             raise ValueError('Call self.set_target_encoder() first.')
         if isinstance(index, int):
             index = [index]
+            squeeze = True
         img = self.data.iloc[index]
         filenames = img['z_map'].values
         if hasattr(self, 'masker'):
@@ -90,16 +125,17 @@ class tfMRIDataset(Dataset):
         studies = torch.from_numpy(studies)
         subjects = torch.from_numpy(subjects)
         contrasts = torch.from_numpy(contrasts)
-
-        return studies, subjects, contrasts, data
+        if squeeze:
+            return studies[0], subjects[0], contrasts[0], data[0]
+        else:
+            return studies, subjects, contrasts, data
 
     def __len__(self):
         return len(self.data)
 
     def set_target_encoder(self, target_encoder=None):
         if target_encoder is None:
-            targets = self.data.reset_index()[['study',
-                                               'subject', 'contrast']]
+            targets = self.data.reset_index()[['study', 'subject', 'contrast']]
             self.target_encoder_ = tfMRITargetEncoder().fit(targets)
         else:
             self.target_encoder_ = target_encoder
@@ -113,6 +149,7 @@ class tfMRIDataset(Dataset):
             fold.loc[idx[:, test_subjects]] = 'test'
             group['fold'] = fold
             return group
+
         self.data = self.data.groupby('study').apply(compute_fold)
 
         res = {}
@@ -130,3 +167,10 @@ class tfMRIDataset(Dataset):
             dataset.set_target_encoder(self.target_encoder_)
             res[name] = dataset
         return res
+
+    def n_features(self):
+        studies, subjects, contrasts, data = self[0]
+        return data.shape[0]
+
+    def target_sizes(self):
+        return self.target_encoder_.target_sizes()
