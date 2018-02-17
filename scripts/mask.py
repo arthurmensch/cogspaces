@@ -1,73 +1,85 @@
 import os
+import re
 from os.path import join
 
 import numpy as np
-from joblib import delayed, Parallel
+import pandas as pd
+from cogspaces.datasets.contrasts import fetch_all
+from cogspaces.datasets.dictionaries import fetch_atlas_modl
+from cogspaces.datasets.utils import get_data_dir, fetch_mask
+from joblib import Parallel, delayed, dump, load
 from nilearn.input_data import NiftiMasker
-from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.utils import gen_batches
 
-from cogspaces.datasets.contrasts import fetch_all, fetch_archi
-from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask, get_data_dir
+idx = pd.IndexSlice
 
 
-class Projection(BaseEstimator, TransformerMixin):
-    def __init__(self, components='components512'):
-        self.components = components
-
-    def fit(self):
-        modl_atlas = fetch_atlas_modl()
-        mask = fetch_mask()
-        dictionary = modl_atlas[self.components]
-        masker = NiftiMasker(mask_img=mask).fit()
-        self.components_ = masker.transform(dictionary)
-        return self
-
-    def transform(self, imgs):
-        if isinstance(imgs, str):
-            imgs = [imgs]
-        X = []
-        for img in imgs:
-            with open(img, 'rb') as f:
-                X.append(np.load(f))
-        X = np.vstack(X)
-        return X.dot(self.components_.T)
+def single_mask(masker, imgs):
+    return masker.transform(imgs)
 
 
-def unmask_single(transformer, imgs, data_dir, dest_dir,
-                  create_structure=False,):
-    if not create_structure:
-        data = transformer.transform(imgs)
-    for i, img in enumerate(imgs):
-        dest = img.replace(data_dir, join(data_dir, dest_dir))
-        if create_structure:
-            dirname = os.path.dirname(dest)
-            if not os.path.exists(dirname):
-                os.makedirs(dirname)
-        else:
-            with open(dest, 'wb+') as f:
-                np.save(f, data[i])
+def single_reduce(components, data):
+    return data.dot(components.T)
 
 
-def mask(transformer, data_dir=None, dest_dir='masked', batch_size=1,
-         n_jobs=30):
-    data_dir = get_data_dir(data_dir)
-    contrasts = fetch_archi(data_dir)
-    imgs = contrasts['z_map'].values
-    n_samples = imgs.shape[0]
-    batches = list(gen_batches(n_samples, batch_size))
-    unmask_single(transformer, imgs, data_dir, dest_dir,
-                  create_structure=True)
-    Parallel(n_jobs=n_jobs, verbose=10)(delayed(unmask_single)(
-        transformer, imgs[batch], data_dir,
-        dest_dir) for batch in batches)
+def mask_all(output_dir, n_jobs=1):
+    batch_size = 10
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    data = fetch_all()
+    mask = fetch_mask()
+    masker = NiftiMasker(smoothing_fwhm=4, mask_img=mask,
+                         verbose=0, memory_level=1, memory=None).fit()
+
+    for study, this_data in data.groupby('study'):
+        imgs = this_data['z_map'].values
+        targets = this_data.reset_index()[['study', 'subject', 'contrast']]
+
+        n_samples = this_data.shape[0]
+        batches = list(gen_batches(n_samples, batch_size))
+        this_data = Parallel(n_jobs=n_jobs, verbose=10,
+                             backend='multiprocessing', mmap_mode='r')(
+            delayed(single_mask)(masker, imgs[batch]) for batch in batches)
+        this_data = np.concatenate(this_data, axis=0)
+
+        dump((this_data, targets), join(output_dir, 'data_%s.pt' % study))
 
 
-# mask = fetch_mask()
-# transformer = NiftiMasker(smoothing_fwhm=4, mask_img=mask,
-#                      verbose=0, memory_level=1, memory=None).fit()
-# mask(transformer, dest_dir='masked', project=None)
-transformer = Projection('components512').fit()
-mask(transformer, data_dir=join(get_data_dir(), 'masked'),
-     batch_size=256, dest_dir='masked_512',)
+def reduce_all(masked_dir, output_dir, n_jobs=1):
+    batch_size = 200
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    modl_atlas = fetch_atlas_modl()
+    mask = fetch_mask()
+
+    dictionary = modl_atlas['components512']
+    masker = NiftiMasker(mask_img=mask).fit()
+    components = masker.transform(dictionary)
+
+    expr = re.compile("data_(.*).pt")
+
+    for file in os.listdir(masked_dir):
+        match = re.match(expr, file)
+        if match:
+            study = match.group(1)
+            this_data, targets = load(join(masked_dir, file))
+            n_samples = this_data.shape[0]
+            batches = list(gen_batches(n_samples, batch_size))
+            this_data = Parallel(n_jobs=n_jobs, verbose=10,
+                                 backend='multiprocessing', mmap_mode='r')(
+                delayed(single_reduce)(components,
+                                       this_data[batch]) for batch in batches)
+            this_data = np.concatenate(this_data, axis=0)
+
+            dump((this_data, targets), join(output_dir, 'data_%s.pt' % study))
+
+
+data_dir = get_data_dir()
+masked_dir = join(data_dir, 'masked')
+reduced_dir = join(data_dir, 'reduced_512')
+mask_all(output_dir=masked_dir, n_jobs=30)
+reduce_all(output_dir=reduced_dir, masked_dir=masked_dir, n_jobs=30)
+# Data can now be loaded using `cogspaces.utils.data.load_masked_data`

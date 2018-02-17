@@ -1,49 +1,46 @@
 from torch import nn
+from torch.nn import Linear, Dropout
 
 
-class MultiLayerClassifier(nn.Module):
-    def __init__(self, in_features, target_sizes,
-                 first_hidden_features=None,
-                 second_hidden_features=None,
-                 dropout=0):
+class MultiClassifierHead(nn.Module):
+    def __init__(self, in_features,
+                 target_sizes):
         super().__init__()
-        if first_hidden_features is not None:
-            self.first_linear = nn.Linear(in_features, first_hidden_features,
-                                          bias=False)
-            classifier_features = first_hidden_features
-        if second_hidden_features is not None:
-            self.second_linear = nn.Linear(first_hidden_features,
-                                           second_hidden_features,
-                                           bias=False)
-            classifier_features = second_hidden_features
-
-        self.dropout = nn.Dropout(dropout)
         self.classifiers = {}
         for study, size in target_sizes.items():
-            self.classifiers[study] = nn.Linear(classifier_features, size)
-            self.add_module('classifiers_%s' % study,
-                            self.classifiers[study])
+            self.classifiers[study] = Linear(in_features, size)
+            self.add_module('classifiers_%s' % study, self.classifiers[study])
         self.softmax = nn.LogSoftmax(dim=1)
 
     def reset_parameters(self):
-        if hasattr(self, 'first_linear'):
-            self.first_linear.reset_parameters()
-        if hasattr(self, 'second_linear'):
-            self.second_linear.reset_parameters()
-        for classifier in self.classifiers:
+        for classifier in self.classifiers.values():
             classifier.reset_parameters()
 
-    def load_first_reduction(self, weight):
-        self.first_linear.weight = weight
-
-    def forward(self, Xs):
+    def forward(self, input):
         preds = {}
-        for study, data in Xs.items():
-            reduced = data
-            if hasattr(self, 'first_linear'):
-                reduced = self.dropout(self.first_linear(reduced))
-            if hasattr(self, 'second_linear'):
-                reduced = self.dropout(self.second_linear(reduced))
-            pred = self.softmax(self.classifiers[study](reduced))
+        for study, sub_input in input.items():
+            pred = self.softmax(self.classifiers[study](sub_input))
             preds[study] = pred
         return preds
+
+
+class MultiClassifier(nn.Module):
+    def __init__(self, in_features, embedding_size,
+                 target_sizes, dropout=0, input_dropout=0):
+        super().__init__()
+        self.input_dropout = Dropout(input_dropout)
+        self.embedder = Linear(in_features, embedding_size)
+        self.dropout = Dropout(dropout)
+        self.classifier_head = MultiClassifierHead(embedding_size,
+                                                   target_sizes)
+
+    def reset_parameters(self):
+        self.embedder.reset_parameters()
+        self.classifier_head.reset_parameters()
+
+    def forward(self, input):
+        embeddings = {}
+        for study, sub_input in input.items():
+            embeddings[study] = self.dropout(
+                self.embedder(self.input_dropout(sub_input)))
+        return self.classifier_head(embeddings)

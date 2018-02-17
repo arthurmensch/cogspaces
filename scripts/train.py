@@ -1,17 +1,14 @@
+# Load data
 from os.path import join
 
 import torch
-from nilearn.input_data import NiftiMasker
+from cogspaces.datasets.utils import get_data_dir
+from cogspaces.models.multi_layer import MultiClassifier
+from cogspaces.utils.data import load_prepared_data
 from torch.autograd import Variable
 from torch.nn import NLLLoss
-from torch.optim import Adam, SGD
+from torch.optim import Adam
 from torch.utils.data import DataLoader
-
-from cogspaces.datasets.contrasts import fetch_archi
-from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask, get_data_dir
-from cogspaces.models.multi_layer import MultiLayerClassifier
-from cogspaces.utils.data import tfMRIDataset
 
 
 def repeat(data_loader):
@@ -20,69 +17,48 @@ def repeat(data_loader):
             yield elem
 
 
-def get_first_layer_weights():
-    modl_atlas = fetch_atlas_modl()
-    mask = fetch_mask()
-    dictionary = modl_atlas.components512
-    masker = NiftiMasker(mask_img=mask).fit()
-    weights = masker.transform(dictionary)
-    return torch.from_numpy(weights).float()
-
-
-data = fetch_archi(data_dir=join(get_data_dir(), 'masked', 'masked_512'))
-dataset = tfMRIDataset(data)
-dataset.set_target_encoder()
-target_sizes = dataset.target_sizes()
-n_features = dataset.n_features()
-
-train_dataset, test_dataset = dataset.train_test_split()
-train_datasets = train_dataset.study_split()
-test_datasets = test_dataset.study_split()
-
-train_data_iters = {study: repeat(DataLoader(dataset, shuffle=True,
-                                             batch_size=len(dataset)))
-                    for study, dataset in train_datasets.items()}
-test_dataloaders = {study: DataLoader(dataset, shuffle=True,
-                                      batch_size=128) for study, dataset in
-                    test_datasets.items()}
-
-model = MultiLayerClassifier(n_features, target_sizes,
-                             first_hidden_features=30,
-                             second_hidden_features=None,
-                             dropout=0.)
-
-
-# model.first_linear.weight.data = get_first_layer_weights()
-# model.first_linear.weight.requires_grad = False
-
-def accuracy(pred, target):
+def accuracy_score(pred, target):
     _, pred = pred.max(dim=1)
     return torch.mean((pred == target).float()).data[0]
 
 
-loss_function = NLLLoss()
-score_function = accuracy
-optimizer = Adam(filter(lambda p: p.requires_grad, model.parameters()),
-                lr=1e-3)
+max_iter = 1000
 
-current_batch = 0
-# Train loop
-while current_batch < 100:
+prepared_data_dir = join(get_data_dir(), 'reduced_512')
+datasets, target_encoder, n_features, target_sizes \
+    = load_prepared_data(data_dir=prepared_data_dir)
+train_data_loaders = {study: repeat(DataLoader(dataset['train'],
+                                               shuffle=True,
+                                               batch_size=64)) for
+                      study, dataset in datasets.items()}
+test_data_loaders = {study: repeat(
+    DataLoader(dataset['test'],
+               shuffle=False, batch_size=len(dataset['test'])))
+                     for study, dataset in datasets.items()}
+
+model = MultiClassifier(in_features=n_features, target_sizes=target_sizes,
+                        embedding_size=50, input_dropout=0.25,
+                        dropout=.5)
+loss_function = NLLLoss()
+
+optimizer = Adam(model.parameters())
+
+n_iter = 0
+while n_iter < max_iter:
     model.zero_grad()
     loss = 0
-    data_dict = {}
-    contrasts_dict = {}
-    for study, data_iter in train_data_iters.items():
-        studies, subjects, contrasts, data = next(data_iter)
-        data_dict[study] = Variable(data)
-        contrasts_dict[study] = Variable(contrasts)
-    preds = model(data_dict)
     accuracies = {}
-    for study in contrasts_dict:
-        loss += loss_function(preds[study], contrasts_dict[study])
-        accuracies[study] = accuracy(preds[study], contrasts_dict[study])
+    for study, loader in train_data_loaders.items():
+        data, (studies, subjects, contrasts) = next(loader)
+        data = Variable(data)
+        contrasts = Variable(contrasts.squeeze())
+        preds = model({study: data})[study]
+        loss += loss_function(preds, contrasts)
+        accuracies[study] = accuracy_score(preds, contrasts)
     loss.backward()
     optimizer.step()
-    current_batch += 1
-    print('Iter %s, loss %f' % (current_batch, loss.data[0]))
-    print('Accuracies %s' % accuracies)
+    n_iter += 1
+    print('Iteration %s, train loss %f' % (n_iter, loss.data[0]))
+    # print('Train accuracy:')
+    # for study, accuracy in accuracies.items():
+    #     print('%s: %.4f' % (study, accuracy))
