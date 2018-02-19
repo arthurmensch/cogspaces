@@ -1,80 +1,51 @@
 # Load data
+import warnings
 from os.path import join
 
-import torch
 from cogspaces.datasets.utils import get_data_dir
 from cogspaces.models.multi_layer import MultiClassifier
-from cogspaces.utils.data import load_prepared_data
-from torch.autograd import Variable
-from torch.nn import NLLLoss
-from torch.optim import Adam
-from torch.utils.data import DataLoader
+from cogspaces.utils.data import load_data, train_test_split, MultiTargetEncoder, \
+    MultiStandardScaler
+from joblib import dump, load
 
-
-def repeat(data_loader):
-    while True:
-        for elem in data_loader:
-            yield elem
-
-
-def accuracy_score(pred, target):
-    _, pred = pred.max(dim=1)
-    return torch.mean((pred == target).float()).data[0]
-
-
-max_iter = 10000
+warnings.filterwarnings('ignore', category=DeprecationWarning,
+                        module=r'.*.label')
 
 prepared_data_dir = join(get_data_dir(), 'reduced_512')
-datasets, target_encoder, n_features, target_sizes \
-    = load_prepared_data(data_dir=prepared_data_dir, torch=True)
-
-datasets = {study: datasets[study] for study in ['hcp', 'archi']}
-
-train_data_loaders = {study: repeat(DataLoader(dataset['train'],
-                                               shuffle=True,
-                                               batch_size=64)) for
-                      study, dataset in datasets.items()}
-test_data_loaders = {study: repeat(
-    DataLoader(dataset['test'], shuffle=False,
-               batch_size=len(dataset['test'])))
-                     for study, dataset in datasets.items()}
-
-model = MultiClassifier(in_features=n_features, target_sizes=target_sizes,
-                        embedding_size=50, input_dropout=0.25,
-                        dropout=.5)
-loss_function = NLLLoss()
-
-optimizer = Adam(model.parameters())
-
-n_iter = 0
-while n_iter < max_iter:
-    model.zero_grad()
-    loss = 0
-    accuracies = {}
-    test_accuracies = {}
-    for study, loader in train_data_loaders.items():
-        data, (studies, subjects, contrasts) = next(loader)
-        data = Variable(data)
-        contrasts = Variable(contrasts.squeeze())
-        preds = model({study: data})[study]
-        loss += loss_function(preds, contrasts)
-        accuracies[study] = accuracy_score(preds, contrasts)
-
-    for study, loader in train_data_loaders.items():
-        data, (studies, subjects, contrasts) = next(loader)
-        data = Variable(data)
-        contrasts = Variable(contrasts.squeeze())
-        preds = model({study: data})[study]
-        test_accuracies[study] = accuracy_score(preds, contrasts)
+data, target = load_data(data_dir=prepared_data_dir)
+data = {study: data[study] for study in ['hcp', 'archi']}
+target = {study: target[study] for study in ['hcp', 'archi']}
 
 
-    loss.backward()
-    optimizer.step()
-    n_iter += 1
-    print('Iteration %s, train loss %f' % (n_iter, loss.data[0]))
-    print('Train accuracy:')
-    for study, accuracy in accuracies.items():
-        print('%s: %.4f' % (study, accuracy))
-    print('Test accuracy:')
-    for study, accuracy in test_accuracies.items():
-        print('%s: %.4f' % (study, accuracy))
+target_encoder = MultiTargetEncoder().fit(target)
+target = target_encoder.transform(target)
+
+train_data, test_data, train_targets, test_targets = train_test_split(data,
+                                                                      target)
+data_transformer = MultiStandardScaler().fit(train_data)
+train_data = data_transformer.transform(train_data)
+test_data = data_transformer.transform(test_data)
+
+train_contrasts = {study: train_target['contrast'] for study, train_target
+                   in train_targets.items()}
+test_contrasts = {study: test_target['contrast'] for study, test_target
+                  in test_targets.items()}
+
+estimator = MultiClassifier(optimizer='adam', embedding_size=100,
+                            batch_size=128,
+                            dropout=0.75, max_iter=100000,
+                            report_every=1000)
+estimator.fit(train_data, train_contrasts, X_val=test_data,
+              y_val=test_contrasts)
+test_pred_contrasts = estimator.predict(test_data)
+test_scores = estimator.score(test_data, test_contrasts)
+
+test_preds = {}
+for study, test_target in test_targets.items():
+    test_preds[study] = test_target.copy()
+    test_preds[study]['contrast'] = test_pred_contrasts[study]
+
+
+test_preds = target_encoder.inverse_transform(test_preds)
+dump(estimator, 'estimator.pkl')
+dump(test_preds, 'preds.pkl')

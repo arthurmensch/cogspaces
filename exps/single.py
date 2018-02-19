@@ -201,7 +201,6 @@ def main(datasets, source, reduced_dir, unmask_dir,
          test_size, train_size,
          _run, _seed):
     artifact_dir = join(_run.observers[0].basedir, str(_run._id))
-    single = False
     if source in ['hcp_rs_positive_single', 'hcp_new_big_single']:
         source = 'hcp_new_big'
         indices = slice(-512, None)
