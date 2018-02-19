@@ -95,7 +95,7 @@ class tfMRIDataset(Dataset):
         return self[0][0].shape[0]
 
 
-def load_prepared_data(data_dir, random_state=0):
+def load_prepared_data(data_dir, random_state=0, torch=True):
     expr = re.compile("data_(.*).pt")
 
     all_data = {}
@@ -113,11 +113,16 @@ def load_prepared_data(data_dir, random_state=0):
         cv = GroupShuffleSplit(n_splits=1, test_size=.5,
                                random_state=random_state)
         train, test = next(cv.split(X=data, groups=target['subject']))
-        dataset = tfMRIDataset(data, target, target_encoder)
-        datasets[study] = {fold: Subset(dataset, indices=indices)
-                           for fold, indices in [('train', train),
-                                                 ('test', test)]}
-    n_features = next(iter(datasets.values()))[
-        'train'].dataset.n_features()
+        if torch:
+            dataset = tfMRIDataset(data, target, target_encoder)
+            datasets[study] = {fold: Subset(dataset, indices=indices)
+                               for fold, indices
+                               in [('train', train), ('test', test)]}
+        else:
+            datasets[study] = {fold: (data[indices], target.iloc[indices])
+                               for fold, indices
+                               in [('train', train), ('test', test)]}
+
+    n_features = data.shape[1]
     target_sizes = target_encoder.target_sizes()
     return datasets, target_encoder, n_features, target_sizes

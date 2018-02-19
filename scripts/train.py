@@ -22,18 +22,21 @@ def accuracy_score(pred, target):
     return torch.mean((pred == target).float()).data[0]
 
 
-max_iter = 1000
+max_iter = 10000
 
 prepared_data_dir = join(get_data_dir(), 'reduced_512')
 datasets, target_encoder, n_features, target_sizes \
-    = load_prepared_data(data_dir=prepared_data_dir)
+    = load_prepared_data(data_dir=prepared_data_dir, torch=True)
+
+datasets = {study: datasets[study] for study in ['hcp', 'archi']}
+
 train_data_loaders = {study: repeat(DataLoader(dataset['train'],
                                                shuffle=True,
                                                batch_size=64)) for
                       study, dataset in datasets.items()}
 test_data_loaders = {study: repeat(
-    DataLoader(dataset['test'],
-               shuffle=False, batch_size=len(dataset['test'])))
+    DataLoader(dataset['test'], shuffle=False,
+               batch_size=len(dataset['test'])))
                      for study, dataset in datasets.items()}
 
 model = MultiClassifier(in_features=n_features, target_sizes=target_sizes,
@@ -48,6 +51,7 @@ while n_iter < max_iter:
     model.zero_grad()
     loss = 0
     accuracies = {}
+    test_accuracies = {}
     for study, loader in train_data_loaders.items():
         data, (studies, subjects, contrasts) = next(loader)
         data = Variable(data)
@@ -55,10 +59,22 @@ while n_iter < max_iter:
         preds = model({study: data})[study]
         loss += loss_function(preds, contrasts)
         accuracies[study] = accuracy_score(preds, contrasts)
+
+    for study, loader in train_data_loaders.items():
+        data, (studies, subjects, contrasts) = next(loader)
+        data = Variable(data)
+        contrasts = Variable(contrasts.squeeze())
+        preds = model({study: data})[study]
+        test_accuracies[study] = accuracy_score(preds, contrasts)
+
+
     loss.backward()
     optimizer.step()
     n_iter += 1
     print('Iteration %s, train loss %f' % (n_iter, loss.data[0]))
-    # print('Train accuracy:')
-    # for study, accuracy in accuracies.items():
-    #     print('%s: %.4f' % (study, accuracy))
+    print('Train accuracy:')
+    for study, accuracy in accuracies.items():
+        print('%s: %.4f' % (study, accuracy))
+    print('Test accuracy:')
+    for study, accuracy in test_accuracies.items():
+        print('%s: %.4f' % (study, accuracy))
