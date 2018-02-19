@@ -144,10 +144,10 @@ class LBFGSScipy(Optimizer):
 
         def callback(flat_params):
             self._n_iter += 1
+            print('Iteration %i, train loss %.5f'
+                  % (self._n_iter, self._last_loss.data[0]))
             if self.report_every is not None and \
                     self._n_iter % self.report_every == 0:
-                print('Iteration %i, train loss %.5f'
-                      % (self._n_iter, self._last_loss.data[0]))
                 self._pinned_params[:] = torch.from_numpy(flat_params)
                 self._distribute_flat_params(self._pinned_params)
                 self.callback()

@@ -19,7 +19,7 @@ def lipschitz_constant(X, dataset_weights, xslices, fit_intercept=False,
     else:
         max_squared_sums = np.max(max_squared_sums)
     L = 0.5 * max_squared_sums
-    return L
+    return float(L)
 
 
 @jit(nopython=True, cache=False)
@@ -200,8 +200,8 @@ def _ista_loop(L, Lmax, X, coef, coef_diff, coef_grad, intercept,
         intercept[:] = prox_intercept
 
 
-class TraceNormEstimator(BaseEstimator):
-    def __init__(self, alpha=1., beta=0., max_iter=1000,
+class TraceClassifier(BaseEstimator):
+    def __init__(self, trace_penalty=1., l2_penalty=0., max_iter=1000,
                  momentum=True,
                  fit_intercept=True,
                  verbose=False,
@@ -209,8 +209,8 @@ class TraceNormEstimator(BaseEstimator):
                  step_size_multiplier=1,
                  backtracking_divider=2.,
                  split_loss=True):
-        self.alpha = float(alpha)
-        self.beta = float(beta)
+        self.alpha = float(trace_penalty)
+        self.beta = float(l2_penalty)
         self.max_iter = max_iter
         self.fit_intercept = fit_intercept
         self.momentum = momentum
@@ -221,7 +221,8 @@ class TraceNormEstimator(BaseEstimator):
         self.init_multiplier = float(step_size_multiplier)
         self.split_loss = split_loss
 
-    def fit(self, Xs, ys, dataset_weights=None):
+    def fit(self, Xs, ys, X_val=None, y_val=None,
+            dataset_weights=None):
         n_datasets = len(Xs)
 
         if dataset_weights is None:
@@ -241,23 +242,21 @@ class TraceNormEstimator(BaseEstimator):
         L = Lmax / self.init_multiplier
         coef = np.ones((n_features, n_targets), dtype=np.float32)
         intercept = np.zeros(n_targets, dtype=np.float32)
-
-        prox_coef = np.empty_like(coef, dtype=np.float32)
-        coef_grad = np.empty_like(coef, dtype=np.float32)
-        prox_intercept = np.empty_like(intercept, dtype=np.float32)
-        intercept_grad = np.empty_like(intercept, dtype=np.float32)
-        coef_diff = np.empty_like(coef, dtype=np.float32)
-        intercept_diff = np.empty_like(intercept, dtype=np.float32)
-        old_prox_coef = np.empty_like(coef)
-
-        pred = np.empty_like(y, dtype=np.float32)
+        prox_coef = np.zeros_like(coef, dtype=np.float32)
+        coef_grad = np.zeros_like(coef, dtype=np.float32)
+        prox_intercept = np.zeros_like(intercept, dtype=np.float32)
+        intercept_grad = np.zeros_like(intercept, dtype=np.float32)
+        coef_diff = np.zeros_like(coef, dtype=np.float32)
+        intercept_diff = np.zeros_like(intercept, dtype=np.float32)
+        old_prox_coef = np.zeros_like(coef, dtype=np.float32)
+        pred = np.zeros_like(y, dtype=np.float32)
 
         _ista_loop(L, Lmax, X, coef, coef_diff, coef_grad, intercept,
                    dataset_weights,
                    intercept_diff, intercept_grad, old_prox_coef,
                    pred, prox_coef, prox_intercept, y,
-                   self.max_iter, self.max_backtracking_iter, xslices,
-                   yslices,
+                   self.max_iter, self.max_backtracking_iter,
+                   xslices, yslices,
                    self.alpha, self.beta,
                    self.backtracking_divider,
                    self.verbose, self.momentum
@@ -268,7 +267,7 @@ class TraceNormEstimator(BaseEstimator):
     def predict(self, Xs):
         yslices = self.yslices_
         n_targets = yslices[-1, 1]
-        X, xslices = check_Xs(Xs)
+        X, xslices = check_Xs_ys(Xs)
         n_samples = X.shape[0]
         pred = np.empty((n_samples, n_targets), dtype=np.float32)
         _predict(X, pred, self.coef_, self.intercept_, xslices, yslices)
@@ -279,70 +278,33 @@ class TraceNormEstimator(BaseEstimator):
         return tuple(preds)
 
 
-class TransferTraceNormEstimator(TraceNormEstimator):
-    def __init__(self, alpha=1., beta=0., max_iter=1000,
-                 momentum=True,
-                 fit_intercept=True,
-                 verbose=False,
-                 max_backtracking_iter=5,
-                 step_size_multiplier=1,
-                 backtracking_divider=2.,
-                 split_loss=True,
-                 Xs_helpers=None,
-                 ys_helpers=None,
-                 dataset_weights_helpers=None):
-        super(TransferTraceNormEstimator,
-              self).__init__(alpha=alpha,
-                             beta=beta,
-                             max_iter=max_iter,
-                             momentum=momentum,
-                             fit_intercept=fit_intercept,
-                             verbose=verbose,
-                             max_backtracking_iter=max_backtracking_iter,
-                             step_size_multiplier=step_size_multiplier,
-                             backtracking_divider=backtracking_divider,
-                             split_loss=split_loss)
-
-        self.Xs_helpers = Xs_helpers
-        self.ys_helpers = ys_helpers
-        self.dataset_weights_helpers = dataset_weights_helpers
-
-    def fit(self, X, y):
-        Xs = [X] + list(self.Xs_helpers)
-        ys = [y] + list(self.ys_helpers)
-        dataset_weights = [1.] + self.dataset_weights_helpers
-        super(TransferTraceNormEstimator, self).fit(Xs, ys,
-                                                    dataset_weights=dataset_weights)
-
-    def predict_all(self, Xs):
-        return super(TransferTraceNormEstimator, self).predict(Xs)
+def check_Xs_ys(Xs, ys=None):
+    len_X = [0] + [len(X) for X in Xs.values()]
+    cut_X = np.cumsum(np.array(len_X))
+    xslices = np.array([[start, stop] for
+                       start, stop in zip(cut_X[:-1], cut_X[1:])],
+                       dtype=np.int64)
+    Xs = np.concatenate([check_array(X, dtype=np.float32)
+                         for X in Xs.values()])
+    if ys is not None:
+        len_y = [0] + [y.max() + 1 for y in ys.values()]
+        cut_y = np.cumsum(np.array(len_y))
+        yslices = np.array([[start, stop] for
+                            start, stop in zip(cut_y[:-1], cut_y[1:])],
+                           dtype=np.int64)
+        n_samples = len(Xs)
+        n_targets = yslices[-1, 1]
+        ys_new = np.zeros((n_samples, n_targets), dtype=np.uint8)
+        for y, xslice, yslice in zip(ys.values(), xslices, yslices):
+            ys_new[xslice[0]:xslice[1], yslice[0]:yslice[1]] = one_hot(y)
+        return Xs, ys_new, xslices, yslices
+    else:
+        return Xs, xslices
 
 
-def check_Xs(Xs):
-    Xs = tuple(check_array(X, dtype=np.float32) for X in Xs)
-    len_X = [X.shape[0] for X in Xs]
-    cum_len_X = np.array([0] + np.cumsum(np.array(len_X)).tolist())[:,
-                np.newaxis]
-    xslices = np.hstack([cum_len_X[:-1], cum_len_X[1:]])
-    X = np.concatenate(Xs)
-    return X, xslices
-
-
-def check_Xs_ys(Xs, ys):
-    Xs = tuple(check_array(X, dtype=np.float32) for X in Xs)
-    ys = tuple(check_array(y, dtype=np.int64) for y in ys)
-    len_X = [X.shape[0] for X in Xs]
-    len_y = [y.shape[1] for y in ys]
-    cum_len_X = np.array([0] + np.cumsum(np.array(len_X)).tolist())[:,
-                np.newaxis]
-    cum_len_y = np.array([0] + np.cumsum(np.array(len_y)).tolist())[:,
-                np.newaxis]
-    xslices = np.hstack([cum_len_X[:-1], cum_len_X[1:]])
-    yslices = np.hstack([cum_len_y[:-1], cum_len_y[1:]])
-    X = np.concatenate(Xs)
-    n_samples = xslices[-1, 1]
-    n_targets = yslices[-1, 1]
-    y_new = np.zeros((n_samples, n_targets), dtype=np.int64)
-    for y, xslice, yslice in zip(ys, xslices, yslices):
-        y_new[xslice[0]:xslice[1], yslice[0]:yslice[1]] = y
-    return X, y_new, xslices, yslices
+def one_hot(y):
+    n_samples = y.shape[0]
+    n_targets = y.max() + 1
+    y_oh = np.zeros((n_samples, n_targets), dtype=np.uint8)
+    y_oh[np.arange(n_samples), y] = 1
+    return y_oh

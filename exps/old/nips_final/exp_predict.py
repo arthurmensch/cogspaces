@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegressionCV
 
-from cogspaces.models.trace import TraceNormEstimator
+from cogspaces.models.trace import TraceClassifier
 from cogspaces.pipeline import get_output_dir, make_data_frame, split_folds, \
     MultiDatasetTransformer
 from sacred import Experiment
@@ -79,15 +79,15 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha,
     dataset_weights = dataset_weights_list
     Xs_test, ys_test = transformer.transform(df_test)
     if model == 'trace':
-        estimator = TraceNormEstimator(alpha=alpha,
-                                       step_size_multiplier=1000,
-                                       fit_intercept=True,
-                                       max_backtracking_iter=10,
-                                       momentum=True,
-                                       split_loss=split_loss,
-                                       beta=0,
-                                       max_iter=max_iter,
-                                       verbose=verbose)
+        estimator = TraceClassifier(trace_penalty=alpha,
+                                    step_size_multiplier=1000,
+                                    fit_intercept=True,
+                                    max_backtracking_iter=10,
+                                    momentum=True,
+                                    split_loss=split_loss,
+                                    l2_penalty=0,
+                                    max_iter=max_iter,
+                                    verbose=verbose)
     elif model == 'logistic':
         from cogspaces.model.non_convex_pytorch import NonConvexEstimator
         estimator = NonConvexEstimator(

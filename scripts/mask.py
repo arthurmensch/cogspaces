@@ -18,8 +18,12 @@ def single_mask(masker, imgs):
     return masker.transform(imgs)
 
 
-def single_reduce(components, data):
-    return data.dot(components.T)
+def single_reduce(components, data, lstsq=False):
+    if lstsq:
+        return data.dot(components.T)
+    else:
+        X, _, _, _ = np.linalg.lstsq(components, data.T)
+        return X.T
 
 
 def mask_all(output_dir, n_jobs=1):
@@ -46,7 +50,7 @@ def mask_all(output_dir, n_jobs=1):
         dump((this_data, targets), join(output_dir, 'data_%s.pt' % study))
 
 
-def reduce_all(masked_dir, output_dir, n_jobs=1):
+def reduce_all(masked_dir, output_dir, n_jobs=1, lstsq=False):
     batch_size = 200
 
     if not os.path.exists(output_dir):
@@ -71,7 +75,7 @@ def reduce_all(masked_dir, output_dir, n_jobs=1):
             this_data = Parallel(n_jobs=n_jobs, verbose=10,
                                  backend='multiprocessing', mmap_mode='r')(
                 delayed(single_reduce)(components,
-                                       this_data[batch]) for batch in batches)
+                                       this_data[batch], lstsq=lstsq) for batch in batches)
             this_data = np.concatenate(this_data, axis=0)
 
             dump((this_data, targets), join(output_dir, 'data_%s.pt' % study))
@@ -79,7 +83,8 @@ def reduce_all(masked_dir, output_dir, n_jobs=1):
 
 data_dir = get_data_dir()
 masked_dir = join(data_dir, 'masked')
-reduced_dir = join(data_dir, 'reduced_512')
-mask_all(output_dir=masked_dir, n_jobs=30)
-reduce_all(output_dir=reduced_dir, masked_dir=masked_dir, n_jobs=30)
+# mask_all(output_dir=masked_dir, n_jobs=30)
+reduced_dir = join(data_dir, 'reduced_512_lstsq')
+reduce_all(output_dir=reduced_dir, masked_dir=masked_dir, n_jobs=30,
+           lstsq=True)
 # Data can now be loaded using `cogspaces.utils.data.load_masked_data`

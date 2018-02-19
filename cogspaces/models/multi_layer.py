@@ -2,7 +2,7 @@ import tempfile
 import warnings
 
 import torch
-from cogspaces.modules.lbfgs import LBFGSScipy
+from cogspaces.optim.lbfgs import LBFGSScipy
 from cogspaces.utils.data import ImgContrastDataset, RepeatedDataLoader
 from sklearn.base import BaseEstimator
 from torch import nn
@@ -61,11 +61,12 @@ class MultiClassifierModule(nn.Module):
         return self.classifier_head(embeddings)
 
 
-class MultiClassifier(BaseEstimator):
+class FactoredClassifier(BaseEstimator):
     def __init__(self, embedding_size=50,
                  batch_size=128, optimizer='adam',
                  dropout=0.5,
                  input_dropout=0.25,
+                 l2_penalty=0.,
                  max_iter=10000, report_every=None, device=-1):
         self.embedding_size = embedding_size
         self.input_dropout = input_dropout
@@ -75,6 +76,7 @@ class MultiClassifier(BaseEstimator):
         self.max_iter = max_iter
         self.report_every = report_every
         self.device = device
+        self.l2_penalty = l2_penalty
 
     def fit(self, X, y, X_val=None, y_val=None):
         cuda, device = self._check_cuda()
@@ -124,6 +126,11 @@ class MultiClassifier(BaseEstimator):
                     accuracies = self._score(eval_data_loaders)
                     print('Test accuracies:')
                     print(accuracies)
+                    W = self.classification_matrix()
+                    if cuda:
+                        W = W.cpu()
+                    rank = np.linalg.matrix_rank(W.numpy())
+                    print('Rank :', rank)
 
             def closure():
                 self.module_.train()
@@ -143,9 +150,15 @@ class MultiClassifier(BaseEstimator):
                                                     contrasts) * len(preds)
                         n_samples += len(preds)
                     loss += study_loss / n_samples
+                    loss += .5 * self.l2_penalty * torch.sum(
+                        self.module_.classifier_head.
+                        classifiers[study].weight ** 2)
+                loss += .5 * self.l2_penalty * torch.sum(
+                    self.module_.embedder.weight ** 2)
                 return loss
 
             self.optimizer_ = LBFGSScipy(self.module_.parameters(),
+                                         callback=callback,
                                          max_iter=self.max_iter,
                                          tolerance_grad=0,
                                          tolerance_change=0,
@@ -156,7 +169,8 @@ class MultiClassifier(BaseEstimator):
                                                     loader in
                             data_loaders.items()}
 
-            self.optimizer_ = Adam(self.module_.parameters())
+            self.optimizer_ = Adam(self.module_.parameters(),
+                                   weight_decay=self.l2_penalty)
             self.n_iter_ = 0
             mean_loss = 0
             n_samples = 0
@@ -191,6 +205,21 @@ class MultiClassifier(BaseEstimator):
                             accuracies = self._score(eval_data_loaders)
                             print('Test accuracies:')
                             print(accuracies)
+                            W = self.classification_matrix()
+                            if cuda:
+                                W = W.cpu()
+                            rank = np.linalg.matrix_rank(W.numpy())
+                            print('Rank :', rank)
+
+    def classification_matrix(self):
+        classification_weights = []
+        for study, classifier in self.module_.\
+                classifier_head.classifiers.items():
+            classification_weights.append(
+                self.module_.classifier_head.classifiers[study].weight.data)
+        classification_weights = torch.cat(classification_weights)
+        return torch.matmul(self.module_.embedder.weight.data.transpose(0, 1),
+                            classification_weights)
 
     def _check_cuda(self):
         if self.device > -1 and not torch.cuda.is_available():
