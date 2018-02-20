@@ -15,7 +15,7 @@ from cogspaces.pipeline import get_output_dir
 print(path.dirname(path.dirname(path.abspath(__file__))))
 # Add examples to known models
 sys.path.append(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
-from exps.old.exp_predict import exp as single_exp
+from exps_old.old.exp_predict import exp as single_exp
 
 exp = Experiment('nips_multinomial')
 basedir = join(get_output_dir(), 'nips_multinomial')

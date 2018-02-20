@@ -16,7 +16,7 @@ print(path.dirname(path.dirname(path.abspath(__file__))))
 # Add examples to known models
 sys.path.append(
     path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
-from exps.single import exp as single_exp
+from exps_old.single import exp as single_exp
 
 exp = Experiment('benchmark_trainsize')
 basedir = join(get_output_dir(), 'benchmark_trainsize')

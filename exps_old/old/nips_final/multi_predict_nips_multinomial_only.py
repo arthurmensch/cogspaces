@@ -16,7 +16,7 @@ print(path.dirname(path.dirname(path.abspath(__file__))))
 # Add examples to known models
 sys.path.append(
     path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
-from exps.old.exp_predict import exp as single_exp
+from exps_old.old.exp_predict import exp as single_exp
 
 exp = Experiment('nips')
 basedir = join(get_output_dir(), 'nips')
@@ -27,7 +27,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 10
+    n_jobs = 12
     n_seeds = 10
     seed = 100
 
@@ -78,7 +78,7 @@ def run(n_seeds, n_jobs, _run, _seed):
     seed_list = check_random_state(_seed).randint(np.iinfo(np.uint32).max,
                                                   size=n_seeds)
     exps = []
-    for source in ['hcp_rs_positive', 'hcp_rs_positive_single']:
+    for source in ['hcp_rs_concat', 'hcp_rs']:
         for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
             # Multinomial model
             multinomial = [{'datasets': [dataset],
@@ -102,25 +102,17 @@ def run(n_seeds, n_jobs, _run, _seed):
             no_transfer = [{'datasets': [dataset],
                             'source': source,
                             'model': 'factored',
-                            'with_std': True,
-                            'with_mean': True,
-                            'per_dataset': True,
                             'seed': seed} for seed in seed_list
                            ]
             transfer = [{'datasets': [dataset, 'hcp'],
                          'source': source,
-                         'model': 'factored',
-                         'with_std': True,
-                         'with_mean': True,
-                         'per_dataset': True,
                          'seed': seed} for seed in seed_list
                         ]
             # exps += no_transfer
-            exps += transfer
-            # exps += multinomial_dropout
-            # exps += multinomial
+            # exps += transfer
+            exps += multinomial_dropout
+            exps += multinomial
 
-    # Slow (uncomment if needed)
     source = 'unmasked'
 
     multinomial = [{'datasets': [dataset],
@@ -140,6 +132,7 @@ def run(n_seeds, n_jobs, _run, _seed):
                             'input_dropout_rate': 0.25,
                             'seed': seed} for seed in seed_list
                            ]
+    # Slow (uncomment if needed)
     # exps += multinomial_dropout
     # exps += multinomial
 

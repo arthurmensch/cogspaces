@@ -17,7 +17,7 @@ print(path.dirname(path.dirname(path.abspath(__file__))))
 # Add examples to known models
 sys.path.append(
     path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
-from exps.single import exp as single_exp
+from exps_old.single import exp as single_exp
 
 exp = Experiment('benchmark')
 basedir = join(get_output_dir(), 'benchmark')
@@ -28,7 +28,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 20
+    n_jobs = 10
     n_seeds = 20
     train_size = dict(hcp=None, archi=None, la5c=None, brainomics=None,
                       camcan=100)
@@ -91,7 +91,7 @@ def run(n_seeds, n_jobs, train_size, _run, _seed):
                                human_voice=None)
 
     for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
-        for source in ['hcp_new', 'hcp_new_single']:
+        for source in ['hcp_new_big', 'hcp_new_big_single']:
             this_train_size = copy(transfer_train_size)
             this_train_size[dataset] = train_size[dataset]
             # Large transfer model
@@ -135,10 +135,9 @@ def run(n_seeds, n_jobs, train_size, _run, _seed):
                                'model': 'factored',
                                'seed': seed} for seed in seed_list
                               ]
+            exps += no_transfer
             exps += transfer
-            if dataset == 'la5c':
-                exps += no_transfer
-                exps += large_transfer
+            exps += large_transfer
             exps += multinomial_dropout
             exps += multinomial_l2
 

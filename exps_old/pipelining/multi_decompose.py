@@ -17,7 +17,7 @@ print(path.dirname(path.dirname(path.abspath(__file__))))
 # Add examples to known models
 sys.path.append(
     path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
-from exps.pipelining.decompose import exp as single_exp
+from exps_old.pipelining.decompose import exp as single_exp
 
 exp = Experiment('multi_decompose')
 basedir = join(get_output_dir(), 'multi_decompose')

@@ -15,10 +15,10 @@ from cogspaces.pipeline import get_output_dir
 print(path.dirname(path.dirname(path.abspath(__file__))))
 # Add examples to known models
 sys.path.append(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
-from exps.old.exp_predict import exp as single_exp
+from exps_old.old.exp_predict import exp as single_exp
 
-exp = Experiment('nips')
-basedir = join(get_output_dir(), 'nips')
+exp = Experiment('nips_336')
+basedir = join(get_output_dir(), 'nips_336')
 if not os.path.exists(basedir):
     os.makedirs(basedir)
 exp.observers.append(FileStorageObserver.create(basedir=basedir))
@@ -27,13 +27,13 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 @exp.config
 def config():
     n_jobs = 24
-    n_seeds = 1
+    n_seeds = 10
     seed = 2
 
 
 @single_exp.config
 def config():
-    datasets = ['archi', 'hcp']
+    datasets = ['camcan', 'hcp']
     reduced_dir = join(get_output_dir(), 'reduced')
     unmask_dir = join(get_output_dir(), 'unmasked')
     source = 'hcp_rs_concat'
@@ -45,7 +45,7 @@ def config():
                       human_voice=None)
     alpha = 0
     beta = 0
-    model = 'non_convex'
+    model = 'logistic'
     max_iter = 400
     n_components = 50
     latent_dropout_rate = 0.
@@ -57,7 +57,7 @@ def config():
     verbose = 10
     with_std = True
     with_mean = True
-    row_standardize = False
+    per_dataset = True
 
 
 def single_run(config_updates, rundir, _id):
@@ -77,33 +77,14 @@ def run(n_seeds, n_jobs, _run, _seed):
                                                   size=n_seeds)
     exps = []
     for source in ['hcp_rs_concat']:
-        for dataset in ['archi', 'la5c']:
+        for dataset in ['camcan', 'la5c', 'brainomics', 'archi']:
             no_transfer = [{'datasets': [dataset],
                             'source': source,
-                            # 'alpha': alpha,
+                            'beta': beta,
                             'seed': seed} for seed in seed_list
-                           # for alpha in np.logspace(-6, -1, 6)
+                           for beta in np.logspace(-6, -1, 6)
                            ]
-            transfer = [{'datasets': [dataset, 'hcp'],
-                         'source': source,
-                         'alpha': alpha,
-                         'seed': seed} for seed in seed_list
-                        # for alpha in np.logspace(-6, -1, 6)
-                        ]
             exps += no_transfer
-            exps += transfer
-    # for source in ['hcp_rs_concat', 'hcp_rs', 'unmasked']:
-    #     for dataset in ['archi', 'brainomics', 'camcan', 'la5c']:
-    #         multinomial_dropout = [{'datasets': [dataset],
-    #                                 'source': source,
-    #                                 'alpha': 0,
-    #                                 'n_components': None,
-    #                                 'input_dropout_rate': input_dropout_rate,
-    #                                 'seed': seed} for seed in seed_list
-    #                                for input_dropout_rate in
-    #                                np.linspace(0, 0.5, 6)
-    #                                ]
-    #         exps += multinomial_dropout
 
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):
