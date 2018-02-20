@@ -8,11 +8,12 @@ from sacred import Experiment
 
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.models.baseline import MultiLogisticClassifier
-from cogspaces.models.metrics import accuracy
-from cogspaces.models.multi_layer import FactoredClassifier
+from cogspaces.metrics import accuracy
+from cogspaces.models.factored import FactoredClassifier
 from cogspaces.models.trace import TraceClassifier
-from cogspaces.utils.data import load_data, train_test_split, \
-    MultiTargetEncoder, MultiStandardScaler
+from cogspaces.data import load_data
+from cogspaces.model_selection import train_test_split
+from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 
 warnings.filterwarnings('ignore', category=DeprecationWarning,
                         module=r'.*.label')

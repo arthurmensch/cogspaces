@@ -3,7 +3,7 @@ import warnings
 
 import torch
 from cogspaces.optim.lbfgs import LBFGSScipy
-from cogspaces.utils.data import ImgContrastDataset, RepeatedDataLoader
+from cogspaces.data import ImgContrastDataset, RepeatedDataLoader
 from sklearn.base import BaseEstimator
 from torch import nn
 from torch.autograd import Variable
