@@ -4,7 +4,7 @@ from os.path import join
 
 import numpy as np
 import pandas as pd
-from cogspaces.datasets.contrasts import fetch_all
+from cogspaces.datasets.contrasts import fetch_all, fetch_brainomics
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import get_data_dir, fetch_mask
 from joblib import Parallel, delayed, dump, load
@@ -19,10 +19,10 @@ def single_mask(masker, imgs):
 
 
 def single_reduce(components, data, lstsq=False):
-    if lstsq:
+    if not lstsq:
         return data.dot(components.T)
     else:
-        X, _, _, _ = np.linalg.lstsq(components, data.T)
+        X, _, _, _ = np.linalg.lstsq(components.T, data.T)
         return X.T
 
 
@@ -31,8 +31,8 @@ def mask_all(output_dir, n_jobs=1):
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    data = fetch_all()
-    data = data['brainomics']
+    # data = fetch_all()
+    data = fetch_brainomics()
     mask = fetch_mask()
     masker = NiftiMasker(smoothing_fwhm=4, mask_img=mask,
                          verbose=0, memory_level=1, memory=None).fit()
@@ -70,25 +70,26 @@ def reduce_all(masked_dir, output_dir, n_jobs=1, lstsq=False):
         match = re.match(expr, file)
         if match:
             study = match.group(1)
-            if study == 'brainomics':
-                this_data, targets = load(join(masked_dir, file))
-                n_samples = this_data.shape[0]
-                batches = list(gen_batches(n_samples, batch_size))
-                this_data = Parallel(n_jobs=n_jobs, verbose=10,
-                                     backend='multiprocessing', mmap_mode='r')(
-                    delayed(single_reduce)(components,
-                                           this_data[batch], lstsq=lstsq) for batch in batches)
-                this_data = np.concatenate(this_data, axis=0)
+            this_data, targets = load(join(masked_dir, file))
+            n_samples = this_data.shape[0]
+            batches = list(gen_batches(n_samples, batch_size))
+            this_data = Parallel(n_jobs=n_jobs, verbose=10,
+                                 backend='multiprocessing', mmap_mode='r')(
+                delayed(single_reduce)(components,
+                                       this_data[batch], lstsq=lstsq)
+                for batch in batches)
+            this_data = np.concatenate(this_data, axis=0)
 
-                dump((this_data, targets), join(output_dir, 'data_%s.pt' % study))
+            dump((this_data, targets), join(output_dir,
+                                            'data_%s.pt' % study))
 
 
 data_dir = get_data_dir()
 masked_dir = join(data_dir, 'masked')
-mask_all(output_dir=masked_dir, n_jobs=30)
-reduced_dir = join(data_dir, 'reduced_512')
-reduce_all(output_dir=reduced_dir, masked_dir=masked_dir, n_jobs=30,)
-# reduced_dir = join(data_dir, 'reduced_512_lstsq')
-# reduce_all(output_dir=reduced_dir, masked_dir=masked_dir, n_jobs=30,
-#            lstsq=True)
+# mask_all(output_dir=masked_dir, n_jobs=30)
+# reduced_dir = join(data_dir, 'reduced_512')
+# reduce_all(output_dir=reduced_dir, masked_dir=masked_dir, n_jobs=30,)
+reduced_dir = join(data_dir, 'reduced_512_lstsq')
+reduce_all(output_dir=reduced_dir, masked_dir=masked_dir, n_jobs=30,
+           lstsq=True)
 # Data can now be loaded using `cogspaces.utils.data.load_masked_data`

@@ -16,9 +16,6 @@ from cogspaces.utils.callbacks import ScoreCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
 
 exp = Experiment('multi_studies')
-output_dir = join(get_output_dir(), 'multi_studies')
-exp.observers.append(OurFileStorageObserver.create(basedir=output_dir))
-
 
 @exp.config
 def default():
@@ -33,11 +30,11 @@ def default():
     )
     model = dict(
         normalize=True,
-        estimator='trace',
-        max_iter=1000,
+        estimator='factored',
+        max_iter=100,
     )
     factored = dict(
-        optimizer='adam',
+        optimizer='lbfgs',
         embedding_size=20,
         batch_size=128,
         dropout=0.,
@@ -57,7 +54,8 @@ def save_output(target_encoder, standard_scaler, estimator,
                 test_preds, _run):
     if not _run.unobserved:
         try:
-            observer = next(filter(lambda x: isinstance(x, OurFileStorageObserver),
+            observer = next(filter(lambda x:
+                                   isinstance(x, OurFileStorageObserver),
                                    _run.observers))
         except StopIteration:
             return
@@ -82,7 +80,7 @@ def load_data(source_dir, studies):
     return data, target
 
 
-@exp.automain
+@exp.main
 def train(system, model, factored, trace, logistic,
           _run, _seed):
     data, target = load_data()
@@ -120,7 +118,8 @@ def train(system, model, factored, trace, logistic,
                                             max_iter=model['max_iter'],
                                             **logistic)
     else:
-        return ValueError("Wrong value for parameter `model.estimator`: got '%s'."
+        return ValueError("Wrong value for parameter "
+                          "`model.estimator`: got '%s'."
                           % model['estimator'])
 
     callback = ScoreCallback(estimator, X=test_data, y=test_contrasts,
@@ -146,3 +145,9 @@ def train(system, model, factored, trace, logistic,
 
     save_output(target_encoder, standard_scaler, estimator, test_preds)
     return test_scores
+
+
+if __name__ == '__main__':
+    output_dir = join(get_output_dir(), 'multi_studies')
+    exp.observers.append(OurFileStorageObserver.create(basedir=output_dir))
+    exp.run()

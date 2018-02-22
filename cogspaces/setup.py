@@ -7,6 +7,8 @@ def configuration(parent_package='', top_path=None):
     config.add_subpackage('models')
     config.add_subpackage('optim')
     config.add_subpackage('datasets')
+    config.add_subpackage('introspect')
+    config.add_subpackage('utils')
 
     return config
 
