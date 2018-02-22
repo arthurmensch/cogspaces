@@ -29,19 +29,19 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'hcp']
+        studies=['archi', 'hcp', 'brainomics']
     )
     model = dict(
         normalize=True,
-        estimator='factored',
-        max_iter=100,
+        estimator='trace',
+        max_iter=1000,
     )
     factored = dict(
         optimizer='adam',
-        embedding_size=200,
+        embedding_size=20,
         batch_size=128,
-        dropout=0.9,
-        input_dropout=0.25,
+        dropout=0.,
+        input_dropout=0.0,
         l2_penalty=0,
     )
     trace = dict(
@@ -113,7 +113,7 @@ def train(system, model, factored, trace, logistic,
     elif model['estimator'] == 'trace':
         estimator = TraceClassifier(verbose=system['verbose'],
                                     max_iter=model['max_iter'],
-                                    step_size_multiplier=1000,
+                                    step_size_multiplier=10000,
                                     **trace)
     elif model['estimator'] == 'logistic':
         estimator = MultiLogisticClassifier(verbose=system['verbose'],

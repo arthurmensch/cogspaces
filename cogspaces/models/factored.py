@@ -277,22 +277,10 @@ class FactoredClassifier(BaseEstimator):
 
     @property
     def coef_(self):
-        coefs = []
-        for study, classifier in \
-                self.module_.classifier_head.classifiers.items():
-            coefs.append(
-                self.module_.classifier_head.classifiers[study].weight.data)
-        coefs = torch.cat(coefs)
-        coefs = torch.matmul(coefs, self.module_.embedder.weight.data)
-        coefs = coefs.transpose(0, 1)
-        return coefs.cpu().numpy()
-
-    @property
-    def coefs_(self):
         coefs = {}
         for study, classifier in \
                 self.module_.classifier_head.classifiers.items():
-            coef = self.module_.classifier_head.classifiers[study].weight.data
+            coef = classifier.weight.data
             coef = torch.matmul(coef, self.module_.embedder.weight.data)
             coef = coef.transpose(0, 1)
             coefs[study] = coef.cpu().numpy()
@@ -300,14 +288,17 @@ class FactoredClassifier(BaseEstimator):
 
     @property
     def intercept_(self):
-        biases = []
-        for study, classifier in \
-                self.module_.classifier_head.classifiers.items():
-            biases.append(
-                self.module_.classifier_head.classifiers[study].bias.data)
-        biases = torch.cat(biases)
-        return biases.cpu().numpy()
+        return {study: classifier[study].intercept.data.cpu().numpy()
+                for study, classifier in
+                self.module_.classifier_head.classifiers.items()}
 
+    @property
+    def coef_cat_(self):
+        return np.concatenate(list(self.coef_.values()), axis=1)
+
+    @property
+    def intercept_cat_(self):
+        return np.concatenate(self.intercept_)
 
     def __getstate__(self):
         state = self.__dict__.copy()

@@ -36,10 +36,13 @@ class MultiStandardScaler(BaseEstimator, TransformerMixin):
             transformed[study] = self.sc_[study].inverse_transform(this_data)
         return transformed
 
-
     @property
     def scale_(self):
         return {study: sc.scale_ for study, sc in self.sc_.items()}
+
+    @property
+    def mean_(self):
+        return {study: sc.mean_ for study, sc in self.sc_.items()}
 
 
 class MultiTargetEncoder(BaseEstimator, TransformerMixin):
@@ -67,4 +70,4 @@ class MultiTargetEncoder(BaseEstimator, TransformerMixin):
 
     @property
     def classes_(self):
-        return {study: le.classes_ for study, le in self.le_.items()}
+        return {study: le['contrast'].classes_ for study, le in self.le_.items()}

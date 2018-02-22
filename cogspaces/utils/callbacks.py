@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class ScoreCallback:
     def __init__(self, estimator, X, y, score_function):
         self.estimator = estimator
@@ -13,7 +14,7 @@ class ScoreCallback:
     def __call__(self, n_iter):
         preds = self.estimator.predict(self.X)
         scores = {}
-        coef = self.estimator.coef_
+        coef = self.estimator.coef_cat_
         rank = np.linalg.matrix_rank(coef)
         for study in self.y:
             scores[study] = self.score_function(preds[study], self.y[study])

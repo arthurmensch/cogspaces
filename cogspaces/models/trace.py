@@ -241,19 +241,19 @@ class TraceClassifier(BaseEstimator):
         Lmax = lipschitz_constant(X, dataset_weights, xslices,
                                   self.fit_intercept, self.split_loss)
         L = Lmax / self.init_multiplier
-        self.coef_ = np.ones((n_features, n_targets), dtype=np.float32)
-        self.intercept_ = np.zeros(n_targets, dtype=np.float32)
-        prox_coef = np.zeros_like(self.coef_, dtype=np.float32)
-        coef_grad = np.zeros_like(self.coef_, dtype=np.float32)
-        prox_intercept = np.zeros_like(self.intercept_, dtype=np.float32)
-        intercept_grad = np.zeros_like(self.intercept_, dtype=np.float32)
-        coef_diff = np.zeros_like(self.coef_, dtype=np.float32)
-        intercept_diff = np.zeros_like(self.intercept_, dtype=np.float32)
-        old_prox_coef = np.zeros_like(self.coef_, dtype=np.float32)
+        self.coef_cat_ = np.ones((n_features, n_targets), dtype=np.float32)
+        self.intercept_cat_ = np.zeros(n_targets, dtype=np.float32)
+        prox_coef = np.zeros_like(self.coef_cat_, dtype=np.float32)
+        coef_grad = np.zeros_like(self.coef_cat_, dtype=np.float32)
+        prox_intercept = np.zeros_like(self.intercept_cat_, dtype=np.float32)
+        intercept_grad = np.zeros_like(self.intercept_cat_, dtype=np.float32)
+        coef_diff = np.zeros_like(self.coef_cat_, dtype=np.float32)
+        intercept_diff = np.zeros_like(self.intercept_cat_, dtype=np.float32)
+        old_prox_coef = np.zeros_like(self.coef_cat_, dtype=np.float32)
         pred = np.zeros_like(y, dtype=np.float32)
 
-        _ista_loop(L, Lmax, X, self.coef_, coef_diff, coef_grad,
-                   self.intercept_,
+        _ista_loop(L, Lmax, X, self.coef_cat_, coef_diff, coef_grad,
+                   self.intercept_cat_,
                    dataset_weights,
                    intercept_diff, intercept_grad, old_prox_coef,
                    pred, prox_coef, prox_intercept, y,
@@ -266,19 +266,27 @@ class TraceClassifier(BaseEstimator):
                    )
 
     @property
-    def coefs_(self):
+    def coef_(self):
         coefs = {}
         for study, yslice in zip(self.studies_, self.yslices_):
-            coefs[study] = self.coef_[:, yslice[0]:yslice[1]]
+            coefs[study] = self.coef_cat_[:, yslice[0]:yslice[1]]
         return coefs
+
+    @property
+    def intercept_(self):
+        intercept = {}
+        for study, yslice in zip(self.studies_, self.yslices_):
+            intercept[study] = self.intercept_cat_[yslice[0]:yslice[1]]
+        return intercept
 
     def predict_proba(self, Xs):
         yslices = self.yslices_
         n_targets = yslices[-1, 1]
         X, xslices, studies = check_Xs_ys(Xs)
+        assert(studies == self.studies_)
         n_samples = X.shape[0]
         pred = np.empty((n_samples, n_targets), dtype=np.float32)
-        _predict(X, pred, self.coef_, self.intercept_, xslices, yslices)
+        _predict(X, pred, self.coef_cat_, self.intercept_cat_, xslices, yslices)
         preds = {}
         for study, xslice, yslice in zip(studies, xslices, yslices):
             preds[study] = np.exp(pred[xslice[0]:xslice[1],
@@ -287,7 +295,8 @@ class TraceClassifier(BaseEstimator):
 
     def predict(self, X):
         preds = self.predict_proba(X)
-        return {study: np.argmax(pred, axis=1) for study, pred in preds.items()}
+        return {study: np.argmax(pred, axis=1)
+                for study, pred in preds.items()}
 
 
 def check_Xs_ys(Xs, ys=None):

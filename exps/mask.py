@@ -32,6 +32,7 @@ def mask_all(output_dir, n_jobs=1):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     data = fetch_all()
+    data = data['brainomics']
     mask = fetch_mask()
     masker = NiftiMasker(smoothing_fwhm=4, mask_img=mask,
                          verbose=0, memory_level=1, memory=None).fit()
@@ -69,22 +70,25 @@ def reduce_all(masked_dir, output_dir, n_jobs=1, lstsq=False):
         match = re.match(expr, file)
         if match:
             study = match.group(1)
-            this_data, targets = load(join(masked_dir, file))
-            n_samples = this_data.shape[0]
-            batches = list(gen_batches(n_samples, batch_size))
-            this_data = Parallel(n_jobs=n_jobs, verbose=10,
-                                 backend='multiprocessing', mmap_mode='r')(
-                delayed(single_reduce)(components,
-                                       this_data[batch], lstsq=lstsq) for batch in batches)
-            this_data = np.concatenate(this_data, axis=0)
+            if study == 'brainomics':
+                this_data, targets = load(join(masked_dir, file))
+                n_samples = this_data.shape[0]
+                batches = list(gen_batches(n_samples, batch_size))
+                this_data = Parallel(n_jobs=n_jobs, verbose=10,
+                                     backend='multiprocessing', mmap_mode='r')(
+                    delayed(single_reduce)(components,
+                                           this_data[batch], lstsq=lstsq) for batch in batches)
+                this_data = np.concatenate(this_data, axis=0)
 
-            dump((this_data, targets), join(output_dir, 'data_%s.pt' % study))
+                dump((this_data, targets), join(output_dir, 'data_%s.pt' % study))
 
 
 data_dir = get_data_dir()
 masked_dir = join(data_dir, 'masked')
-# mask_all(output_dir=masked_dir, n_jobs=30)
-reduced_dir = join(data_dir, 'reduced_512_lstsq')
-reduce_all(output_dir=reduced_dir, masked_dir=masked_dir, n_jobs=30,
-           lstsq=True)
+mask_all(output_dir=masked_dir, n_jobs=30)
+reduced_dir = join(data_dir, 'reduced_512')
+reduce_all(output_dir=reduced_dir, masked_dir=masked_dir, n_jobs=30,)
+# reduced_dir = join(data_dir, 'reduced_512_lstsq')
+# reduce_all(output_dir=reduced_dir, masked_dir=masked_dir, n_jobs=30,
+#            lstsq=True)
 # Data can now be loaded using `cogspaces.utils.data.load_masked_data`

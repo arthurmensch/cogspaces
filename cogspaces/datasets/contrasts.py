@@ -90,14 +90,15 @@ def fetch_brainomics(data_dir=None):
     regex = re.compile('.*vs.*')
     for z_map in z_maps:
         match = re.match(regex, z_map)
-        if match is None and z_map != 'effects_of_interest':
+        if match is None:
             dirname, contrast = os.path.split(z_map)
-            contrast = contrast[6:-7]
-            subject = int(dirname[-2:])
-            subjects.append(subject)
-            contrasts.append(contrast)
-            tasks.append('localizer')
-            filtered_z_maps.append(z_map)
+            if contrast != 'effects_of_interest':
+                contrast = contrast[6:-7]
+                subject = int(dirname[-2:])
+                subjects.append(subject)
+                contrasts.append(contrast)
+                tasks.append('localizer')
+                filtered_z_maps.append(z_map)
     df = pd.DataFrame(data={'subject': subjects,
                             'task': tasks,
                             'contrast': contrasts,

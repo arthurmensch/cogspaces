@@ -1,7 +1,7 @@
-from blaze import join
-from nilearn.image import index_img
+import warnings
+
+warnings.filterwarnings('ignore', module='h5py', category=FutureWarning)
 from nilearn.input_data import NiftiMasker
-from nilearn.plotting import plot_stat_map
 
 from cogspaces.datasets.utils import fetch_mask
 
@@ -13,34 +13,21 @@ def maps_from_model(estimator,
     mask = fetch_mask()
     masker = NiftiMasker(mask_img=mask).fit()
     # components.shape = (n_components, n_voxels)
-    components = masker.transform(dictionary)
+    dictionary = masker.transform(dictionary)
     # coef.shape = (n_components, n_classes)
-    coefs = estimator.coefs_
+    coef = estimator.coef_
     scale = standard_scaler.scale_
     classes = target_encoder.classes_
 
-    components_dict = {}
+    transformed_coef = {}
     names = {}
-    for study in coefs:
+    for study in coef:
         this_scale = scale[study]
-        coef = coefs[study]
+        this_coef = coef[study]
         these_names = classes[study]
-        coef = coef / this_scale[:, None]
-        components = coef.T.dot(components)
-        components = masker.inverse_transform(components)
-        components_dict[study] = components
+        this_coef = this_coef / this_scale[:, None]
+        this_coef = this_coef.T.dot(dictionary)
+        this_coef = masker.inverse_transform(this_coef)
+        transformed_coef[study] = this_coef
         names[study] = these_names
-    return components, names
-
-
-def plot_components(imgs, names, output_dir):
-    for study in imgs:
-        this_img = imgs[study]
-        these_names = names[study]
-
-        for i, name in enumerate(these_names):
-            full_name = study + ' ' + name
-            display = plot_stat_map(index_img(this_img, i),
-                                    title=full_name)
-            display.save(join(output_dir, '%s.png'
-                              % full_name))
+    return transformed_coef, names
