@@ -46,7 +46,7 @@ class RepeatedDataLoader(DataLoader):
                 yield data
 
 
-def load_data(data_dir):
+def load_data_from_dir(data_dir):
     expr = re.compile("data_(.*).pt")
 
     data = {}

@@ -54,7 +54,7 @@ class LBFGSScipy(Optimizer):
         self._params = self.param_groups[0]['params']
         self._numel_cache = None
 
-        self._n_iter = 0
+        self.n_iter_ = 0
         self._last_loss = None
         self._pinned_grad = None
         self._pinned_params = None
@@ -143,14 +143,14 @@ class LBFGSScipy(Optimizer):
             return loss, self._pinned_grad.numpy().astype(np.float64)
 
         def callback(flat_params):
-            self._n_iter += 1
+            self.n_iter_ += 1
             print('Iteration %i, train loss %.5f'
-                  % (self._n_iter, self._last_loss.data[0]))
+                  % (self.n_iter_, self._last_loss.data[0]))
             if self.report_every is not None and \
-                    self._n_iter % self.report_every == 0:
+                    self.n_iter_ % self.report_every == 0:
                 self._pinned_params[:] = torch.from_numpy(flat_params)
                 self._distribute_flat_params(self._pinned_params)
-                self.callback()
+                self.callback(self.n_iter_)
 
         fmin_l_bfgs_b(wrapped_closure,
                       self._pinned_params.numpy().astype(np.float64),

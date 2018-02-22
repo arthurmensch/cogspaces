@@ -1,7 +1,12 @@
+import warnings
 from collections import defaultdict
 
+import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import StandardScaler, LabelEncoder
+
+warnings.filterwarnings('ignore', category=DeprecationWarning,
+                        module=r'sklearn.preprocessing.label.*')
 
 
 class MultiStandardScaler(BaseEstimator, TransformerMixin):
@@ -32,6 +37,11 @@ class MultiStandardScaler(BaseEstimator, TransformerMixin):
         return transformed
 
 
+    @property
+    def scale_(self):
+        return {study: sc.scale_ for study, sc in self.sc_.items()}
+
+
 class MultiTargetEncoder(BaseEstimator, TransformerMixin):
     def fit(self, targets):
         self.le_ = {}
@@ -54,3 +64,7 @@ class MultiTargetEncoder(BaseEstimator, TransformerMixin):
             d = self.le_[study]
             res[study] = target.apply(lambda x: d[x.name].inverse_transform(x))
         return res
+
+    @property
+    def classes_(self):
+        return {study: le.classes_ for study, le in self.le_.items()}

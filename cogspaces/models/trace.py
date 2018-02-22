@@ -150,7 +150,7 @@ def cross_entropy(y_true, y_pred):
     return loss / n_samples
 
 
-@jit(nopython=True, cache=True)
+@jit(cache=True)
 def _ista_loop(L, Lmax, X, coef, coef_diff, coef_grad, intercept,
                dataset_weights,
                intercept_diff, intercept_grad, old_prox_coef, preds,
@@ -158,7 +158,7 @@ def _ista_loop(L, Lmax, X, coef, coef_diff, coef_grad, intercept,
                max_iter, max_backtracking_iter, xslices, yslices,
                alpha, beta,
                backtracking_divider,
-               verbose, momentum):
+               verbose, momentum, callback):
     old_prox_coef[:] = 0
     t = 1
     _predict(X, preds, coef, intercept, xslices, yslices)
@@ -171,6 +171,7 @@ def _ista_loop(L, Lmax, X, coef, coef_diff, coef_grad, intercept,
                 loss += alpha * trace_norm(coef)
             print('Iteration', iter, 'rank', rank, 'loss', loss,
                   'step size', 1 / L)
+            callback(iter)
 
         loss, rank, L, max_backtracking_iter = _prox_grad(X, y, preds, coef,
                                                           intercept,
@@ -221,8 +222,7 @@ class TraceClassifier(BaseEstimator):
         self.init_multiplier = float(step_size_multiplier)
         self.split_loss = split_loss
 
-    def fit(self, Xs, ys, X_val=None, y_val=None,
-            dataset_weights=None):
+    def fit(self, Xs, ys, dataset_weights=None, callback=None):
         n_datasets = len(Xs)
 
         if dataset_weights is None:
@@ -231,27 +231,29 @@ class TraceClassifier(BaseEstimator):
             dataset_weights = np.array(dataset_weights, dtype=np.float32)
             dataset_weights /= np.mean(dataset_weights)
 
-        X, y, xslices, yslices = check_Xs_ys(Xs, ys)
+        X, y, xslices, yslices, studies = check_Xs_ys(Xs, ys)
         n_samples, n_features = X.shape
         n_targets = y.shape[1]
 
+        self.studies_ = studies
         self.yslices_ = yslices
 
         Lmax = lipschitz_constant(X, dataset_weights, xslices,
                                   self.fit_intercept, self.split_loss)
         L = Lmax / self.init_multiplier
-        coef = np.ones((n_features, n_targets), dtype=np.float32)
-        intercept = np.zeros(n_targets, dtype=np.float32)
-        prox_coef = np.zeros_like(coef, dtype=np.float32)
-        coef_grad = np.zeros_like(coef, dtype=np.float32)
-        prox_intercept = np.zeros_like(intercept, dtype=np.float32)
-        intercept_grad = np.zeros_like(intercept, dtype=np.float32)
-        coef_diff = np.zeros_like(coef, dtype=np.float32)
-        intercept_diff = np.zeros_like(intercept, dtype=np.float32)
-        old_prox_coef = np.zeros_like(coef, dtype=np.float32)
+        self.coef_ = np.ones((n_features, n_targets), dtype=np.float32)
+        self.intercept_ = np.zeros(n_targets, dtype=np.float32)
+        prox_coef = np.zeros_like(self.coef_, dtype=np.float32)
+        coef_grad = np.zeros_like(self.coef_, dtype=np.float32)
+        prox_intercept = np.zeros_like(self.intercept_, dtype=np.float32)
+        intercept_grad = np.zeros_like(self.intercept_, dtype=np.float32)
+        coef_diff = np.zeros_like(self.coef_, dtype=np.float32)
+        intercept_diff = np.zeros_like(self.intercept_, dtype=np.float32)
+        old_prox_coef = np.zeros_like(self.coef_, dtype=np.float32)
         pred = np.zeros_like(y, dtype=np.float32)
 
-        _ista_loop(L, Lmax, X, coef, coef_diff, coef_grad, intercept,
+        _ista_loop(L, Lmax, X, self.coef_, coef_diff, coef_grad,
+                   self.intercept_,
                    dataset_weights,
                    intercept_diff, intercept_grad, old_prox_coef,
                    pred, prox_coef, prox_intercept, y,
@@ -259,30 +261,41 @@ class TraceClassifier(BaseEstimator):
                    xslices, yslices,
                    self.alpha, self.beta,
                    self.backtracking_divider,
-                   self.verbose, self.momentum
+                   self.verbose, self.momentum,
+                   callback,
                    )
-        self.coef_ = coef
-        self.intercept_ = intercept
 
-    def predict(self, Xs):
+    @property
+    def coefs_(self):
+        coefs = {}
+        for study, yslice in zip(self.studies_, self.yslices_):
+            coefs[study] = self.coef_[:, yslice[0]:yslice[1]]
+        return coefs
+
+    def predict_proba(self, Xs):
         yslices = self.yslices_
         n_targets = yslices[-1, 1]
-        X, xslices = check_Xs_ys(Xs)
+        X, xslices, studies = check_Xs_ys(Xs)
         n_samples = X.shape[0]
         pred = np.empty((n_samples, n_targets), dtype=np.float32)
         _predict(X, pred, self.coef_, self.intercept_, xslices, yslices)
-        preds = []
-        for xslice, yslice in zip(xslices, yslices):
-            preds.append(np.exp(pred[xslice[0]:xslice[1],
-                                yslice[0]:yslice[1]]))
-        return tuple(preds)
+        preds = {}
+        for study, xslice, yslice in zip(studies, xslices, yslices):
+            preds[study] = np.exp(pred[xslice[0]:xslice[1],
+                                  yslice[0]:yslice[1]])
+        return preds
+
+    def predict(self, X):
+        preds = self.predict_proba(X)
+        return {study: np.argmax(pred, axis=1) for study, pred in preds.items()}
 
 
 def check_Xs_ys(Xs, ys=None):
     len_X = [0] + [len(X) for X in Xs.values()]
+    studies = list(Xs.keys())
     cut_X = np.cumsum(np.array(len_X))
     xslices = np.array([[start, stop] for
-                       start, stop in zip(cut_X[:-1], cut_X[1:])],
+                        start, stop in zip(cut_X[:-1], cut_X[1:])],
                        dtype=np.int64)
     Xs = np.concatenate([check_array(X, dtype=np.float32)
                          for X in Xs.values()])
@@ -297,9 +310,9 @@ def check_Xs_ys(Xs, ys=None):
         ys_new = np.zeros((n_samples, n_targets), dtype=np.uint8)
         for y, xslice, yslice in zip(ys.values(), xslices, yslices):
             ys_new[xslice[0]:xslice[1], yslice[0]:yslice[1]] = one_hot(y)
-        return Xs, ys_new, xslices, yslices
+        return Xs, ys_new, xslices, yslices, studies
     else:
-        return Xs, xslices
+        return Xs, xslices, studies
 
 
 def one_hot(y):

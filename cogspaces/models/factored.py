@@ -1,3 +1,5 @@
+from math import ceil, floor
+
 import tempfile
 import warnings
 
@@ -67,18 +69,19 @@ class FactoredClassifier(BaseEstimator):
                  dropout=0.5,
                  input_dropout=0.25,
                  l2_penalty=0.,
-                 max_iter=10000, report_every=None, device=-1):
+                 max_iter=10000, verbose=0,
+                 device=-1):
         self.embedding_size = embedding_size
         self.input_dropout = input_dropout
         self.dropout = dropout
         self.batch_size = batch_size
         self.optimizer = optimizer
         self.max_iter = max_iter
-        self.report_every = report_every
+        self.verbose = verbose
         self.device = device
         self.l2_penalty = l2_penalty
 
-    def fit(self, X, y, X_val=None, y_val=None):
+    def fit(self, X, y, callback=None):
         cuda, device = self._check_cuda()
 
         data = next(iter(X.values()))
@@ -87,6 +90,8 @@ class FactoredClassifier(BaseEstimator):
         data_loaders = {}
         target_sizes = {}
 
+        n_samples = sum(len(this_X) for this_X in X.values())
+
         for study in X:
             target_sizes[study] = int(y[study].max()) + 1
             if self.optimizer == 'adam':
@@ -94,7 +99,7 @@ class FactoredClassifier(BaseEstimator):
                     ImgContrastDataset(X[study], y[study]),
                     batch_size=self.batch_size, pin_memory=cuda)
             elif self.optimizer == 'lbfgs':
-                if self.dropout > .5:
+                if self.dropout > 0.:
                     raise ValueError('Dropout should not be used'
                                      'with LBFGS solver.')
                 data_loaders[study] = DataLoader(
@@ -103,35 +108,15 @@ class FactoredClassifier(BaseEstimator):
             else:
                 raise ValueError
 
-        if X_val is not None and y_val is not None:
-            eval_data_loaders = {}
-            for study in X_val:
-                eval_data_loaders[study] = DataLoader(
-                    ImgContrastDataset(X_val[study], y_val[study]),
-                    shuffle=False, batch_size=128,
-                    pin_memory=cuda)
-        else:
-            eval_data_loaders = None
-
         loss_function = NLLLoss()
         self.module_ = MultiClassifierModule(in_features=in_features,
                                              dropout=self.dropout,
                                              input_dropout=self.input_dropout,
                                              embedding_size=self.embedding_size,
                                              target_sizes=target_sizes)
+        report_every = ceil(self.max_iter / self.verbose)
 
         if self.optimizer == 'lbfgs':
-            def callback():
-                if eval_data_loaders is not None:
-                    accuracies = self._score(eval_data_loaders)
-                    print('Test accuracies:')
-                    print(accuracies)
-                    W = self.classification_matrix()
-                    if cuda:
-                        W = W.cpu()
-                    rank = np.linalg.matrix_rank(W.numpy())
-                    print('Rank :', rank)
-
             def closure():
                 self.module_.train()
                 loss = 0
@@ -162,18 +147,21 @@ class FactoredClassifier(BaseEstimator):
                                          max_iter=self.max_iter,
                                          tolerance_grad=0,
                                          tolerance_change=0,
-                                         report_every=self.report_every)
+                                         report_every=report_every)
             self.optimizer_.step(closure)
-        else:
-            data_loaders = {study: iter(loader) for study,
-                                                    loader in
+            self.n_iter_ = self.optimizer_.n_iter_
+        elif self.optimizer == 'adam':
+            data_loaders = {study: iter(loader) for study, loader in
                             data_loaders.items()}
 
             self.optimizer_ = Adam(self.module_.parameters(),
                                    weight_decay=self.l2_penalty)
-            self.n_iter_ = 0
+
+            total_seen_samples = 0
             mean_loss = 0
-            n_samples = 0
+            seen_samples = 0
+            old_epoch = -1
+            self.n_iter_ = 0
             while self.n_iter_ < self.max_iter:
                 for study, loader in data_loaders.items():
                     self.module_.train()
@@ -191,25 +179,23 @@ class FactoredClassifier(BaseEstimator):
                     self.optimizer_.step()
 
                     mean_loss += loss.data[0]
-                    n_samples += len(data)
-                    self.n_iter_ += 1
-                    if self.report_every is not None and \
-                        self.n_iter_ % self.report_every == 0:
-                        mean_loss = mean_loss / n_samples
-                        print('Iteration %i,'
-                              ' train loss: % .4f' % (self.n_iter_, mean_loss))
+                    seen_samples += len(data)
+                    total_seen_samples += len(data)
+                    self.n_iter_ = total_seen_samples / n_samples
+                    epoch = floor(self.n_iter_)
+                    if report_every is not None and epoch > old_epoch\
+                            and epoch % report_every == 0:
+                        mean_loss = mean_loss / seen_samples
+                        print('Epoch %.2f, train loss: % .4f' %
+                              (self.n_iter_, mean_loss))
                         mean_loss = 0
-                        n_samples = 0
+                        seen_samples = 0
 
-                        if eval_data_loaders is not None:
-                            accuracies = self._score(eval_data_loaders)
-                            print('Test accuracies:')
-                            print(accuracies)
-                            W = self.classification_matrix()
-                            if cuda:
-                                W = W.cpu()
-                            rank = np.linalg.matrix_rank(W.numpy())
-                            print('Rank :', rank)
+                        if callback is not None:
+                            callback(self.n_iter_)
+                    old_epoch = epoch
+        else:
+            raise NotImplementedError('Optimizer not supported.')
 
     def classification_matrix(self):
         classification_weights = []
@@ -225,7 +211,7 @@ class FactoredClassifier(BaseEstimator):
         if self.device > -1 and not torch.cuda.is_available():
             warnings.warn('Cuda is not available on this system: computation'
                           'will be made on CPU.')
-            device = 0
+            device = -1
             cuda = False
         else:
             device = self.device
@@ -288,6 +274,40 @@ class FactoredClassifier(BaseEstimator):
         for study, this_y in y.items():
             accuracies[study] = np.mean(preds[study] == this_y)
         return accuracies
+
+    @property
+    def coef_(self):
+        coefs = []
+        for study, classifier in \
+                self.module_.classifier_head.classifiers.items():
+            coefs.append(
+                self.module_.classifier_head.classifiers[study].weight.data)
+        coefs = torch.cat(coefs)
+        coefs = torch.matmul(coefs, self.module_.embedder.weight.data)
+        coefs = coefs.transpose(0, 1)
+        return coefs.cpu().numpy()
+
+    @property
+    def coefs_(self):
+        coefs = {}
+        for study, classifier in \
+                self.module_.classifier_head.classifiers.items():
+            coef = self.module_.classifier_head.classifiers[study].weight.data
+            coef = torch.matmul(coef, self.module_.embedder.weight.data)
+            coef = coef.transpose(0, 1)
+            coefs[study] = coef.cpu().numpy()
+        return coefs
+
+    @property
+    def intercept_(self):
+        biases = []
+        for study, classifier in \
+                self.module_.classifier_head.classifiers.items():
+            biases.append(
+                self.module_.classifier_head.classifiers[study].bias.data)
+        biases = torch.cat(biases)
+        return biases.cpu().numpy()
+
 
     def __getstate__(self):
         state = self.__dict__.copy()

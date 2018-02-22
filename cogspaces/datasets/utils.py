@@ -1,5 +1,9 @@
+import warnings
 import os
+
+warnings.filterwarnings('ignore', category=FutureWarning, module='h5py')
 from nilearn.datasets.utils import _fetch_files, _get_dataset_dir
+
 
 
 def get_data_dir(data_dir=None):
@@ -37,7 +41,7 @@ def get_data_dir(data_dir=None):
         return '/storage/store/data/cogspaces'
 
 
-def get_output_dir(data_dir=None):
+def get_output_dir(output_dir=None) -> str:
     """ Returns the directories in which cogspaces store results.
 
     Parameters
@@ -61,13 +65,13 @@ def get_output_dir(data_dir=None):
     """
 
     # Check data_dir which force storage in a specific location
-    if data_dir is not None:
-        return data_dir
+    if output_dir is not None:
+        return str(output_dir)
     else:
         # If data_dir has not been specified, then we crawl default locations
-        output_dir = os.getenv('OUTPUT_COGSPACES_DIR')
+        output_dir = os.getenv('COGSPACES_OUTPUT')
         if output_dir is not None:
-            return output_dir
+            return str(output_dir)
     return os.path.expanduser('~/output/cogspaces')
 
 
