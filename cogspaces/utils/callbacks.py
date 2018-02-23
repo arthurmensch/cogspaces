@@ -23,9 +23,16 @@ class ScoreCallback:
         self.ranks_.append(rank)
         scores_str = ' '.join('%s: %.3f' % (study, score)
                               for study, score in scores.items())
-        scores_str = 'Test score: ' + scores_str
+        scores_str = 'Score: ' + scores_str
         print(scores_str)
         print('Rank :', rank)
 
 
+class MultiCallback:
+    def __init__(self, callbacks):
+        self.callbacks = callbacks
 
+    def __call__(self, *args, **kwargs):
+        for name, callback in self.callbacks.items():
+            print('[callback %s]' % name)
+            callback(*args, **kwargs)

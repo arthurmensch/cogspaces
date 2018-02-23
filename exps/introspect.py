@@ -24,7 +24,7 @@ def plot_components(components, names, output_dir):
             plt.close(fig)
 
 
-def compute_components(output_dir):
+def compute_components(output_dir, lstsq):
     estimator = load(join(output_dir, 'estimator.pkl'))
     target_encoder = load(join(output_dir, 'target_encoder.pkl'))
     standard_scaler = load(join(output_dir, 'standard_scaler.pkl'))
@@ -33,7 +33,8 @@ def compute_components(output_dir):
     dictionary = modl_atlas['components512']
     components, names = maps_from_model(estimator, dictionary,
                                         target_encoder,
-                                        standard_scaler)
+                                        standard_scaler,
+                                        lstsq=lstsq)
     plot_dir = join(output_dir, 'plot')
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
@@ -44,5 +45,7 @@ def compute_components(output_dir):
         plot_components(components, names, plot_dir)
 
 
-# compute_components(join(get_output_dir(), 'multi_studies', '57'))
-compute_components(join(get_output_dir(), 'multi_studies', '62'))
+if __name__ == '__main__':
+    # compute_components(join(get_output_dir(), 'multi_studies', '57'))
+    compute_components(join(get_output_dir(), 'multi_studies', '107'),
+                       lstsq=True)

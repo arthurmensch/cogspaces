@@ -12,10 +12,11 @@ from cogspaces.models.baseline import MultiLogisticClassifier
 from cogspaces.models.factored import FactoredClassifier
 from cogspaces.models.trace import TraceClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
-from cogspaces.utils.callbacks import ScoreCallback
+from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
 
 exp = Experiment('multi_studies')
+
 
 @exp.config
 def default():
@@ -25,21 +26,22 @@ def default():
         verbose=100,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'hcp', 'brainomics']
+        source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
+        studies= 'all'
     )
     model = dict(
         normalize=True,
         estimator='factored',
-        max_iter=100,
+        max_iter=120,
     )
     factored = dict(
-        optimizer='lbfgs',
-        embedding_size=20,
+        optimizer='adam',
+        embedding_size=100,
         batch_size=128,
-        dropout=0.,
-        input_dropout=0.0,
+        dropout=0.75,
+        input_dropout=0.25,
         l2_penalty=0,
+        l1_penalty=0
     )
     trace = dict(
         trace_penalty=5e-2,
@@ -111,7 +113,7 @@ def train(system, model, factored, trace, logistic,
     elif model['estimator'] == 'trace':
         estimator = TraceClassifier(verbose=system['verbose'],
                                     max_iter=model['max_iter'],
-                                    step_size_multiplier=10000,
+                                    step_size_multiplier=100000,
                                     **trace)
     elif model['estimator'] == 'logistic':
         estimator = MultiLogisticClassifier(verbose=system['verbose'],
@@ -122,10 +124,15 @@ def train(system, model, factored, trace, logistic,
                           "`model.estimator`: got '%s'."
                           % model['estimator'])
 
-    callback = ScoreCallback(estimator, X=test_data, y=test_contrasts,
-                             score_function=accuracy_score)
-    _run.info['n_iter'] = callback.n_iter_
-    _run.info['scores'] = callback.scores_
+    test_callback = ScoreCallback(estimator, X=test_data, y=test_contrasts,
+                                  score_function=accuracy_score)
+    train_callback = ScoreCallback(estimator, X=train_data, y=train_contrasts,
+                                   score_function=accuracy_score)
+    callback = MultiCallback({'train': train_callback,
+                              'test': test_callback})
+    _run.info['n_iter'] = train_callback.n_iter_
+    _run.info['train_scores'] = train_callback.scores_
+    _run.info['test_scores'] = test_callback.scores_
 
     estimator.fit(train_data, train_contrasts, callback=callback)
 

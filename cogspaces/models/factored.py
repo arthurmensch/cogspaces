@@ -18,8 +18,10 @@ import numpy as np
 
 class MultiClassifierHead(nn.Module):
     def __init__(self, in_features,
-                 target_sizes):
+                 target_sizes, l1_penalty=0., l2_penalty=0.):
         super().__init__()
+        self.l1_penalty = l1_penalty
+        self.l2_penalty = l2_penalty
         self.classifiers = {}
         for study, size in target_sizes.items():
             self.classifiers[study] = Linear(in_features, size)
@@ -39,17 +41,32 @@ class MultiClassifierHead(nn.Module):
             preds[study] = pred
         return preds
 
+    def penalty(self):
+        penalty = 0
+        for study, classifier in self.classifiers.items():
+            penalty += self.l2_penalty * .5 * torch.sum(classifier.weight ** 2)
+            penalty += self.l1_penalty * torch.sum(torch.abs(classifier.weight))
+        return penalty
+
 
 class MultiClassifierModule(nn.Module):
     def __init__(self, in_features, embedding_size,
-                 target_sizes, dropout=0., input_dropout=0.):
+                 target_sizes, dropout=0., input_dropout=0.,
+                 l1_penalty=0., l2_penalty=0.):
         super().__init__()
+        if embedding_size == 'auto':
+            embedding_size = sum(target_sizes.values())
         self.embedder = Linear(in_features, embedding_size, bias=False)
         self.dropout = Dropout(dropout)
         self.input_dropout = Dropout(input_dropout)
         self.classifier_head = MultiClassifierHead(embedding_size,
-                                                   target_sizes)
+                                                   target_sizes,
+                                                   l1_penalty=l1_penalty,
+                                                   l2_penalty=l2_penalty)
         self.reset_parameters()
+
+        self.l2_penalty = l2_penalty
+        self.l1_penalty = l1_penalty
 
     def reset_parameters(self):
         init.xavier_uniform(self.embedder.weight)
@@ -62,6 +79,12 @@ class MultiClassifierModule(nn.Module):
                 self.embedder(self.input_dropout(sub_input)))
         return self.classifier_head(embeddings)
 
+    def penalty(self):
+        penalty = self.classifier_head.penalty()
+        penalty += self.l2_penalty * torch.sum(self.embedder.weight ** 2)
+        penalty += self.l1_penalty * torch.sum(torch.abs(self.embedder.weight))
+        return penalty
+
 
 class FactoredClassifier(BaseEstimator):
     def __init__(self, embedding_size=50,
@@ -69,6 +92,7 @@ class FactoredClassifier(BaseEstimator):
                  dropout=0.5,
                  input_dropout=0.25,
                  l2_penalty=0.,
+                 l1_penalty=0.,
                  max_iter=10000, verbose=0,
                  device=-1):
         self.embedding_size = embedding_size
@@ -79,6 +103,7 @@ class FactoredClassifier(BaseEstimator):
         self.max_iter = max_iter
         self.verbose = verbose
         self.device = device
+        self.l1_penalty = l1_penalty
         self.l2_penalty = l2_penalty
 
     def fit(self, X, y, callback=None):
@@ -109,11 +134,14 @@ class FactoredClassifier(BaseEstimator):
                 raise ValueError
 
         loss_function = NLLLoss()
-        self.module_ = MultiClassifierModule(in_features=in_features,
-                                             dropout=self.dropout,
-                                             input_dropout=self.input_dropout,
-                                             embedding_size=self.embedding_size,
-                                             target_sizes=target_sizes)
+        self.module_ = MultiClassifierModule(
+            in_features=in_features,
+            dropout=self.dropout,
+            input_dropout=self.input_dropout,
+            embedding_size=self.embedding_size,
+            l1_penalty=self.l1_penalty,
+            l2_penalty=self.l2_penalty,
+            target_sizes=target_sizes)
         report_every = ceil(self.max_iter / self.verbose)
 
         if self.optimizer == 'lbfgs':
@@ -135,11 +163,7 @@ class FactoredClassifier(BaseEstimator):
                                                     contrasts) * len(preds)
                         n_samples += len(preds)
                     loss += study_loss / n_samples
-                    loss += .5 * self.l2_penalty * torch.sum(
-                        self.module_.classifier_head.
-                        classifiers[study].weight ** 2)
-                loss += .5 * self.l2_penalty * torch.sum(
-                    self.module_.embedder.weight ** 2)
+                loss += self.module_.penalty()
                 return loss
 
             self.optimizer_ = LBFGSScipy(self.module_.parameters(),
@@ -154,8 +178,7 @@ class FactoredClassifier(BaseEstimator):
             data_loaders = {study: iter(loader) for study, loader in
                             data_loaders.items()}
 
-            self.optimizer_ = Adam(self.module_.parameters(),
-                                   weight_decay=self.l2_penalty)
+            self.optimizer_ = Adam(self.module_.parameters())
 
             total_seen_samples = 0
             mean_loss = 0
@@ -175,6 +198,7 @@ class FactoredClassifier(BaseEstimator):
                     contrasts = Variable(contrasts)
                     preds = self.module_({study: data})[study]
                     loss = loss_function(preds, contrasts)
+                    loss += self.module_.penalty()
                     loss.backward()
                     self.optimizer_.step()
 
@@ -196,16 +220,6 @@ class FactoredClassifier(BaseEstimator):
                     old_epoch = epoch
         else:
             raise NotImplementedError('Optimizer not supported.')
-
-    def classification_matrix(self):
-        classification_weights = []
-        for study, classifier in self.module_.\
-                classifier_head.classifiers.items():
-            classification_weights.append(
-                self.module_.classifier_head.classifiers[study].weight.data)
-        classification_weights = torch.cat(classification_weights)
-        return torch.matmul(self.module_.embedder.weight.data.transpose(0, 1),
-                            classification_weights)
 
     def _check_cuda(self):
         if self.device > -1 and not torch.cuda.is_available():
@@ -233,21 +247,6 @@ class FactoredClassifier(BaseEstimator):
             preds[study] = pred
         return preds
 
-    def _score(self, data_loaders):
-        preds = self._predict_proba(data_loaders)
-        accuracies = {}
-        for study in preds:
-            accuracy = 0
-            n_samples = 0
-            for (data, truth), pred in zip(data_loaders[study], preds[study]):
-                truth = truth.squeeze()
-                _, pred = torch.max(pred, dim=1)
-                truth = Variable(truth, volatile=True)
-                accuracy += torch.sum((pred == truth).long())
-                n_samples += len(truth)
-            accuracies[study] = accuracy.data[0] / n_samples
-        return accuracies
-
     def predict_proba(self, X):
         cuda, device = self._check_cuda()
 
@@ -267,13 +266,6 @@ class FactoredClassifier(BaseEstimator):
     def predict(self, X):
         preds = self.predict_proba(X)
         return {study: np.argmax(pred, axis=1) for study, pred in preds.items()}
-
-    def score(self, X, y):
-        preds = self.predict(X)
-        accuracies = {}
-        for study, this_y in y.items():
-            accuracies[study] = np.mean(preds[study] == this_y)
-        return accuracies
 
     @property
     def coef_(self):
