@@ -134,7 +134,7 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha,
         ys_pred_train = [estimator.predict(Xs_train[0])]
         ys_pred_test = [estimator.predict(Xs_test[0])]
     else:
-        estimator.fit(Xs_train, ys_train, dataset_weights=dataset_weights)
+        estimator.fit(Xs_train, ys_train, study_weights=dataset_weights)
         ys_pred_train = estimator.predict(Xs_train)
         ys_pred_test = estimator.predict(Xs_test)
     pred_df_train = transformer.inverse_transform(df_train, ys_pred_train)

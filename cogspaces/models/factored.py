@@ -45,7 +45,8 @@ class MultiClassifierHead(nn.Module):
         penalty = 0
         for study, classifier in self.classifiers.items():
             penalty += self.l2_penalty * .5 * torch.sum(classifier.weight ** 2)
-            penalty += self.l1_penalty * torch.sum(torch.abs(classifier.weight))
+            penalty += self.l1_penalty * torch.sum(
+                torch.abs(classifier.weight))
         return penalty
 
 
@@ -106,7 +107,8 @@ class FactoredClassifier(BaseEstimator):
         self.l1_penalty = l1_penalty
         self.l2_penalty = l2_penalty
 
-    def fit(self, X, y, callback=None):
+    def fit(self, X, y, study_weights=None,
+            callback=None):
         cuda, device = self._check_cuda()
 
         data = next(iter(X.values()))
@@ -116,6 +118,9 @@ class FactoredClassifier(BaseEstimator):
         target_sizes = {}
 
         n_samples = sum(len(this_X) for this_X in X.values())
+
+        if study_weights is None:
+            study_weights = {study: 1. for study in X}
 
         for study in X:
             target_sizes[study] = int(y[study].max()) + 1
@@ -160,7 +165,8 @@ class FactoredClassifier(BaseEstimator):
                         contrasts = Variable(contrasts)
                         preds = self.module_({study: data})[study]
                         study_loss += loss_function(preds,
-                                                    contrasts) * len(preds)
+                                                    contrasts) * len(preds) \
+                                      * study_weights[study]
                         n_samples += len(preds)
                     loss += study_loss / n_samples
                 loss += self.module_.penalty()
@@ -198,6 +204,7 @@ class FactoredClassifier(BaseEstimator):
                     contrasts = Variable(contrasts)
                     preds = self.module_({study: data})[study]
                     loss = loss_function(preds, contrasts)
+                    loss *= study_weights[study]
                     loss += self.module_.penalty()
                     loss.backward()
                     self.optimizer_.step()
@@ -207,7 +214,7 @@ class FactoredClassifier(BaseEstimator):
                     total_seen_samples += len(data)
                     self.n_iter_ = total_seen_samples / n_samples
                     epoch = floor(self.n_iter_)
-                    if report_every is not None and epoch > old_epoch\
+                    if report_every is not None and epoch > old_epoch \
                             and epoch % report_every == 0:
                         mean_loss = mean_loss / seen_samples
                         print('Epoch %.2f, train loss: % .4f' %
@@ -265,7 +272,8 @@ class FactoredClassifier(BaseEstimator):
 
     def predict(self, X):
         preds = self.predict_proba(X)
-        return {study: np.argmax(pred, axis=1) for study, pred in preds.items()}
+        return {study: np.argmax(pred, axis=1) for study, pred in
+                preds.items()}
 
     @property
     def coef_(self):

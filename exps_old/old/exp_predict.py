@@ -119,7 +119,7 @@ def fit_model(df_train, df_test, dataset_weights, model, alpha,
             step_size=step_size)
     else:
         raise ValueError('Wrong model argument')
-    estimator.fit(Xs_train, ys_train, dataset_weights=dataset_weights)
+    estimator.fit(Xs_train, ys_train, study_weights=dataset_weights)
     ys_pred_train = estimator.predict(Xs_train)
     pred_df_train = transformer.inverse_transform(df_train, ys_pred_train)
     ys_pred_test = estimator.predict(Xs_test)

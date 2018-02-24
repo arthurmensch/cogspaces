@@ -1,4 +1,5 @@
 # Load data
+from math import sqrt
 from os.path import join
 
 from joblib import dump
@@ -27,7 +28,7 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies= 'all'
+        studies='all'
     )
     model = dict(
         normalize=True,
@@ -36,10 +37,10 @@ def default():
     )
     factored = dict(
         optimizer='adam',
-        embedding_size=300,
+        embedding_size='auto',
         batch_size=128,
-        dropout=0.85,
-        input_dropout=0.4,
+        dropout=0.,
+        input_dropout=0.,
         l2_penalty=0,
         l1_penalty=0
     )
@@ -105,6 +106,9 @@ def train(system, model, factored, trace, logistic,
     test_contrasts = {study: test_target['contrast'] for study, test_target
                       in test_targets.items()}
 
+    study_weights = {study: sqrt(len(train_data[study]))
+                     for study in train_data}
+
     if model['estimator'] == 'factored':
         estimator = FactoredClassifier(verbose=system['verbose'],
                                        device=system['device'],
@@ -134,7 +138,9 @@ def train(system, model, factored, trace, logistic,
     _run.info['train_scores'] = train_callback.scores_
     _run.info['test_scores'] = test_callback.scores_
 
-    estimator.fit(train_data, train_contrasts, callback=callback)
+    estimator.fit(train_data, train_contrasts,
+                  study_weights=study_weights,
+                  callback=callback)
 
     test_pred_contrasts = estimator.predict(test_data)
     test_scores = {}

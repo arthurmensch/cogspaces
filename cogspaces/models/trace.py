@@ -222,14 +222,10 @@ class TraceClassifier(BaseEstimator):
         self.init_multiplier = float(step_size_multiplier)
         self.split_loss = split_loss
 
-    def fit(self, Xs, ys, dataset_weights=None, callback=None):
-        n_datasets = len(Xs)
-
-        if dataset_weights is None:
-            dataset_weights = np.ones(n_datasets, dtype=np.float32)
-        else:
-            dataset_weights = np.array(dataset_weights, dtype=np.float32)
-            dataset_weights /= np.mean(dataset_weights)
+    def fit(self, Xs, ys, study_weights=None, callback=None):
+        if study_weights is None:
+            study_weights = {study: 1. for study in Xs}
+        study_weights = np.array(list(study_weights.values()))
 
         X, y, xslices, yslices, studies = check_Xs_ys(Xs, ys)
         n_samples, n_features = X.shape
@@ -238,7 +234,7 @@ class TraceClassifier(BaseEstimator):
         self.studies_ = studies
         self.yslices_ = yslices
 
-        Lmax = lipschitz_constant(X, dataset_weights, xslices,
+        Lmax = lipschitz_constant(X, study_weights, xslices,
                                   self.fit_intercept, self.split_loss)
         L = Lmax / self.init_multiplier
         self.coef_cat_ = np.ones((n_features, n_targets), dtype=np.float32)
@@ -254,7 +250,7 @@ class TraceClassifier(BaseEstimator):
 
         _ista_loop(L, Lmax, X, self.coef_cat_, coef_diff, coef_grad,
                    self.intercept_cat_,
-                   dataset_weights,
+                   study_weights,
                    intercept_diff, intercept_grad, old_prox_coef,
                    pred, prox_coef, prox_intercept, y,
                    self.max_iter, self.max_backtracking_iter,

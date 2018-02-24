@@ -10,10 +10,13 @@ class OurFileStorageObserver(FileStorageObserver):
 
 
 def get_id(output_dir):
-    dir_nrs = [int(d) for d in os.listdir(output_dir)
-               if os.path.isdir(os.path.join(output_dir, d)) and
-               d.isdigit()]
-    return max(dir_nrs + [0]) + 1
+    if os.path.exists(output_dir):
+        dir_nrs = [int(d) for d in os.listdir(output_dir)
+                   if os.path.isdir(os.path.join(output_dir, d)) and
+                   d.isdigit()]
+        return max(dir_nrs + [0]) + 1
+    else:
+        return 0
 
 
 def unroll_grid(grid):
