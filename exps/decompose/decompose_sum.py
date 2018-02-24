@@ -24,7 +24,6 @@ for exp_dir in os.listdir(basedir):
     except:
         continue
     exp_dir = join(basedir, exp_dir)
-    # Loosy decompose.py
     artifact_dir = join(get_output_dir(), 'decompose', str(id_exp), 'artifacts')
     try:
         config = json.load(open(join(exp_dir, 'config.json'), 'r'))

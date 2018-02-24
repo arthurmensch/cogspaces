@@ -1,4 +1,5 @@
-import os
+import cloudpickle
+
 from os.path import join
 
 import numpy as np
@@ -7,10 +8,12 @@ from sklearn.model_selection import ParameterGrid
 
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
-from cogspaces.utils.sacred import OurFileStorageObserver
+from cogspaces.utils.sacred import get_id, ObservedRun, OurFileStorageObserver
+
 from exps.train import exp
 
 
+@exp.config
 def baseline():
     system = dict(
         device=-1,
@@ -32,10 +35,10 @@ def baseline():
 
 
 def run_exp(output_dir, config_updates, _id):
-    exp.run_command('print_config', config_updates=config_updates,
-                    named_configs=['baseline'])
-    run = exp._create_run(config_updates=config_updates,
-                          named_configs=['baseline'])
+    """Boiler plate function that has to be put in every multiple
+        experiment script, as exp does not pickle."""
+    exp.run_command('print_config', config_updates=config_updates,)
+    run = exp._create_run(config_updates=config_updates,)
     run._id = _id
     observer = OurFileStorageObserver.create(basedir=output_dir)
     run.observers.append(observer)
@@ -43,7 +46,6 @@ def run_exp(output_dir, config_updates, _id):
 
 
 if __name__ == '__main__':
-    exp.named_config(baseline)
     source_dir = join(get_data_dir(), 'reduced_512')
     data, target = load_data_from_dir(data_dir=source_dir)
     studies = list(data.keys())
@@ -53,12 +55,9 @@ if __name__ == '__main__':
                                     'data.studies': studies})
     output_dir = join(get_output_dir(), 'baseline_logistic')
 
-    dir_nrs = [int(d) for d in os.listdir(output_dir)
-               if os.path.isdir(os.path.join(output_dir, d)) and
-               d.isdigit()]
-    _id = max(dir_nrs + [0]) + 1
+    _id = get_id(output_dir)
 
-    Parallel(n_jobs=30, verbose=100)(delayed(run_exp)(output_dir,
+    Parallel(n_jobs=2, verbose=100)(delayed(run_exp)(exp, output_dir,
                                                      config_update,
                                                      _id=_id + i)
                                     for i, config_update

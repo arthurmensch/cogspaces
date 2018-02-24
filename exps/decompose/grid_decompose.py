@@ -33,7 +33,7 @@ def config():
 
 @single_exp.config
 def config():
-    n_components = 128
+    n_components = 512
     batch_size = 200
     learning_rate = 0.92
     method = 'masked'
@@ -58,10 +58,9 @@ def single_run(config_updates, rundir, _id):
 def run(n_jobs, _run, _seed):
     random_state = check_random_state(_seed)
     exps = []
-    for n_components in [512]:
-        for alpha in np.logspace(-6, -4, 5):
-            seed = random_state.randint(np.iinfo(np.uint32).max)
-            exps.append(dict(n_components=n_components, alpha=alpha, seed=seed))
+    for alpha in np.logspace(-6, -4, 5):
+        seed = random_state.randint(np.iinfo(np.uint32).max)
+        exps.append(dict(alpha=alpha, seed=seed))
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):
         os.makedirs(rundir)
