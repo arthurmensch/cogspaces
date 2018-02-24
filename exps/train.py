@@ -36,10 +36,10 @@ def default():
     )
     factored = dict(
         optimizer='adam',
-        embedding_size=100,
+        embedding_size=300,
         batch_size=128,
-        dropout=0.75,
-        input_dropout=0.25,
+        dropout=0.85,
+        input_dropout=0.4,
         l2_penalty=0,
         l1_penalty=0
     )

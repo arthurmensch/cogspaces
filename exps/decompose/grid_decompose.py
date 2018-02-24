@@ -5,7 +5,7 @@ from os import path
 from os.path import join
 
 import numpy as np
-from cogspaces.pipeline import get_output_dir
+from cogspaces.datasets.utils import get_output_dir
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from sklearn.externals.joblib import Parallel
@@ -18,8 +18,8 @@ sys.path.append(
     path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
 from exps.decompose.decompose import exp as single_exp
 
-exp = Experiment('multi_decompose')
-basedir = join(get_output_dir(), 'multi_decompose')
+exp = Experiment('grid_decompose')
+basedir = join(get_output_dir(), 'grid_decompose')
 if not os.path.exists(basedir):
     os.makedirs(basedir)
 exp.observers.append(FileStorageObserver.create(basedir=basedir))
@@ -27,7 +27,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 9
+    n_jobs = 5
     seed = 1000
 
 
@@ -40,7 +40,7 @@ def config():
     reduction = 12
     alpha = 1e-4
     n_epochs = 1
-    verbose = 15
+    verbose = 40
     n_jobs = 1
     smoothing_fwhm = 4
     positive = True
@@ -59,7 +59,7 @@ def run(n_jobs, _run, _seed):
     random_state = check_random_state(_seed)
     exps = []
     for n_components in [512]:
-        for alpha in np.logspace(-7, -3, 9):
+        for alpha in np.logspace(-6, -4, 5):
             seed = random_state.randint(np.iinfo(np.uint32).max)
             exps.append(dict(n_components=n_components, alpha=alpha, seed=seed))
     rundir = join(basedir, str(_run._id), 'run')
