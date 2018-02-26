@@ -9,11 +9,39 @@ from cogspaces.data import ImgContrastDataset, RepeatedDataLoader
 from sklearn.base import BaseEstimator
 from torch import nn
 from torch.autograd import Variable
-from torch.nn import Linear, Dropout, NLLLoss, init
+from torch.nn import Linear, Dropout, init
+from torch.nn.functional import mse_loss, nll_loss
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 
 import numpy as np
+
+
+class LinearAutoEncoder(nn.Module):
+    def __init__(self, in_features, out_features,
+                 l1_penalty=0., l2_penalty=0.):
+        super().__init__()
+        self.linear = Linear(in_features, out_features, bias=False)
+        self.l1_penalty = l1_penalty
+        self.l2_penalty = l2_penalty
+
+    def reset_parameters(self):
+        self.linear.reset_parameters()
+
+    def forward(self, input):
+        return self.linear(input)
+
+    def reconstruct(self, projection):
+        weight = self.linear.weight
+        # gram = torch.matmul(weight.transpose(0, 1), weight)
+        rec = torch.matmul(projection, weight)
+        # rec, LU = torch.gesv(rec, gram)
+        return rec
+
+    def penalty(self):
+        penalty = self.l2_penalty * .5 * torch.sum(self.linear.weight ** 2)
+        penalty += self.l1_penalty * torch.sum(torch.abs(self.linear.weight))
+        return penalty
 
 
 class MultiClassifierHead(nn.Module):
@@ -57,7 +85,10 @@ class MultiClassifierModule(nn.Module):
         super().__init__()
         if embedding_size == 'auto':
             embedding_size = sum(target_sizes.values())
-        self.embedder = Linear(in_features, embedding_size, bias=False)
+        self.embedder = LinearAutoEncoder(in_features,
+                                          embedding_size,
+                                          l1_penalty=l1_penalty,
+                                          l2_penalty=l2_penalty)
         self.dropout = Dropout(dropout)
         self.input_dropout = Dropout(input_dropout)
         self.classifier_head = MultiClassifierHead(embedding_size,
@@ -66,11 +97,8 @@ class MultiClassifierModule(nn.Module):
                                                    l2_penalty=l2_penalty)
         self.reset_parameters()
 
-        self.l2_penalty = l2_penalty
-        self.l1_penalty = l1_penalty
-
     def reset_parameters(self):
-        init.xavier_uniform(self.embedder.weight)
+        self.embedder.reset_parameters()
         self.classifier_head.reset_parameters()
 
     def forward(self, input):
@@ -80,10 +108,14 @@ class MultiClassifierModule(nn.Module):
                 self.embedder(self.input_dropout(sub_input)))
         return self.classifier_head(embeddings)
 
+    def reconstruct(self, input):
+        recs = {}
+        for study, sub_input in input.items():
+            recs[study] = self.embedder.reconstruct(self.embedder(sub_input))
+        return recs
+
     def penalty(self):
-        penalty = self.classifier_head.penalty()
-        penalty += self.l2_penalty * torch.sum(self.embedder.weight ** 2)
-        penalty += self.l1_penalty * torch.sum(torch.abs(self.embedder.weight))
+        penalty = self.classifier_head.penalty() + self.embedder.penalty()
         return penalty
 
 
@@ -94,6 +126,7 @@ class FactoredClassifier(BaseEstimator):
                  input_dropout=0.25,
                  l2_penalty=0.,
                  l1_penalty=0.,
+                 autoencoder_loss=0.,
                  max_iter=10000, verbose=0,
                  device=-1):
         self.embedding_size = embedding_size
@@ -106,6 +139,7 @@ class FactoredClassifier(BaseEstimator):
         self.device = device
         self.l1_penalty = l1_penalty
         self.l2_penalty = l2_penalty
+        self.autoencoder_loss = autoencoder_loss
 
     def fit(self, X, y, study_weights=None,
             callback=None):
@@ -138,7 +172,6 @@ class FactoredClassifier(BaseEstimator):
             else:
                 raise ValueError
 
-        loss_function = NLLLoss()
         self.module_ = MultiClassifierModule(
             in_features=in_features,
             dropout=self.dropout,
@@ -164,11 +197,16 @@ class FactoredClassifier(BaseEstimator):
                         data = Variable(data)
                         contrasts = Variable(contrasts)
                         preds = self.module_({study: data})[study]
-                        study_loss += loss_function(preds,
-                                                    contrasts) * len(preds) \
-                                      * study_weights[study]
+                        study_loss += nll_loss(preds, contrasts,
+                                               size_average=False)
+                        if self.autoencoder_loss > 0:
+                            recs = self.module_.reconstruct({study: data})[
+                                study]
+                            study_loss += mse_loss(data, recs,
+                                                   size_average=False) \
+                                * self.autoencoder_loss
                         n_samples += len(preds)
-                    loss += study_loss / n_samples
+                    loss += study_loss * study_weights[study] / n_samples
                 loss += self.module_.penalty()
                 return loss
 
@@ -203,7 +241,11 @@ class FactoredClassifier(BaseEstimator):
                     data = Variable(data)
                     contrasts = Variable(contrasts)
                     preds = self.module_({study: data})[study]
-                    loss = loss_function(preds, contrasts)
+                    loss = nll_loss(preds, contrasts)
+                    if self.autoencoder_loss > 0:
+                        recs = self.module_.reconstruct({study: data})[study]
+                        loss += mse_loss(data, recs) * self.autoencoder_loss
+
                     loss *= study_weights[study]
                     loss += self.module_.penalty()
                     loss.backward()
@@ -281,7 +323,7 @@ class FactoredClassifier(BaseEstimator):
         for study, classifier in \
                 self.module_.classifier_head.classifiers.items():
             coef = classifier.weight.data
-            coef = torch.matmul(coef, self.module_.embedder.weight.data)
+            coef = torch.matmul(coef, self.module_.embedder.linear.weight.data)
             coef = coef.transpose(0, 1)
             coefs[study] = coef.cpu().numpy()
         return coefs

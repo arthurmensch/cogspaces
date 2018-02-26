@@ -33,16 +33,18 @@ def default():
     model = dict(
         normalize=True,
         estimator='factored',
-        max_iter=120,
+        study_weight='sample',
+        max_iter=1000,
     )
     factored = dict(
         optimizer='adam',
         embedding_size='auto',
         batch_size=128,
-        dropout=0.,
-        input_dropout=0.,
-        l2_penalty=0,
-        l1_penalty=0
+        dropout=0.85,
+        input_dropout=0.25,
+        autoencoder_loss=0.,
+        l2_penalty=0.,
+        l1_penalty=0.
     )
     trace = dict(
         trace_penalty=5e-2,
@@ -106,8 +108,16 @@ def train(system, model, factored, trace, logistic,
     test_contrasts = {study: test_target['contrast'] for study, test_target
                       in test_targets.items()}
 
-    study_weights = {study: sqrt(len(train_data[study]))
-                     for study in train_data}
+    if model['study_weight'] == 'sqrt_sample':
+        study_weights = {study: sqrt(len(train_data[study]))
+                         for study in train_data}
+    elif model['study_weight'] == 'sample':
+        study_weights = {study: len(train_data[study])
+                         for study in train_data}
+    elif model['study_weight'] == 'study':
+        study_weights = {study: 1. for study in train_data}
+    else:
+        raise ValueError
 
     if model['estimator'] == 'factored':
         estimator = FactoredClassifier(verbose=system['verbose'],

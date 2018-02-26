@@ -22,6 +22,7 @@ def trace():
     model = dict(
         normalize=True,
         estimator='trace',
+        study_weight='sqrt',
         max_iter=300,
     )
     trace = dict(
@@ -76,13 +77,13 @@ def run_exp(output_dir, config_updates, _id):
 
 
 if __name__ == '__main__':
-    output_dir = join(get_output_dir(), 'multi_studies')
     grid = sys.argv[1]
     if grid == 'trace':
+        output_dir = join(get_output_dir(), 'trace')
         exp.config(trace)
         trace_penalties = np.logspace(-4, -1, 15)
         config_updates = ParameterGrid({'trace.trace_penalty':
-                                        trace_penalties})
+                                            trace_penalties})
         _id = get_id(output_dir)
         Parallel(n_jobs=15, verbose=100)(delayed(run_exp)(output_dir,
                                                           config_update,
@@ -90,21 +91,29 @@ if __name__ == '__main__':
                                          for i, config_update
                                          in enumerate(config_updates))
     elif grid == 'factored_dropout':
+        output_dir = join(get_output_dir(), 'factored_dropout')
+
         exp.config(factored_dropout)
-        dropouts = [0.70, 0.75, 0.80, 0.85, 0.90]
+        dropouts = [0.70, 0.80, 0.90]
+        embedding_sizes = [100, 200, 300, 400, 'auto']
+        study_weights = ['sqrt_sample', 'study']
         config_updates = ParameterGrid({'factored.dropout':
-                                        dropouts})
+                                            dropouts,
+                                        'factored.embedding_size':
+                                            embedding_sizes,
+                                        'model.study_weight': study_weights})
         _id = get_id(output_dir)
-        Parallel(n_jobs=5, verbose=100)(delayed(run_exp)(output_dir,
-                                                         config_update,
-                                                         _id=_id + i)
-                                        for i, config_update
-                                        in enumerate(config_updates))
+        Parallel(n_jobs=30, verbose=100)(delayed(run_exp)(output_dir,
+                                                          config_update,
+                                                          _id=_id + i)
+                                         for i, config_update
+                                         in enumerate(config_updates))
     elif grid == 'factored_l2':
+        output_dir = join(get_output_dir(), 'factored_l2')
         exp.config(factored_l2)
         l2_penalties = np.logspace(-4, -1, 15)
         config_updates = ParameterGrid({'factored.l2_penalty':
-                                        l2_penalties})
+                                            l2_penalties})
         _id = get_id(output_dir)
         Parallel(n_jobs=15, verbose=100)(delayed(run_exp)(output_dir,
                                                           config_update,
