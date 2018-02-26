@@ -12,28 +12,26 @@ from cogspaces.utils import unzip_data
 idx = pd.IndexSlice
 
 
-class ImgContrastDataset(Dataset):
-    def __init__(self, data, contrasts=None):
-        if contrasts is not None:
-            assert data.shape[0] == contrasts.shape[0]
+class NiftiTargetDataset(Dataset):
+    def __init__(self, data, targets=None):
+        if targets is not None:
+            assert data.shape[0] == targets.shape[0]
         self.data = data
-        self.contrasts = contrasts
+        self.targets = targets
 
     def __getitem__(self, index):
         data = self.data[index]
         data = torch.from_numpy(data).float()
-        if self.contrasts is None:
+        if self.targets is None:
             if data.ndimension() == 2:
-                contrasts = torch.LongTensor((data.shape[0], 1)).fill_(-1)
+                targets = torch.LongTensor((data.shape[0], 3)).fill_(-100)
             else:
-                contrasts = - torch.LongTensor([-1])
+                targets = - torch.LongTensor((3,)).fill_(-100)
         else:
-            contrasts = self.contrasts.iloc[index]
-            if hasattr(contrasts, 'values'):
-                contrasts = torch.from_numpy(contrasts.values).long()
-            else:
-                contrasts = torch.LongTensor([int(contrasts)])
-        return data, contrasts
+            targets = self.targets.iloc[index][['study', 'subject',
+                                                'contrast']]
+            targets = torch.from_numpy(targets.values).long()
+        return data, targets
 
     def __len__(self):
         return self.data.shape[0]
@@ -56,5 +54,3 @@ def load_data_from_dir(data_dir):
             study = match.group(1)
             data[study] = load(join(data_dir, file), mmap_mode='r')
     return unzip_data(data)
-
-

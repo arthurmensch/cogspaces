@@ -1,5 +1,6 @@
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import LogisticRegression
+import pandas as pd
 
 
 class MultiLogisticClassifier(BaseEstimator):
@@ -18,7 +19,7 @@ class MultiLogisticClassifier(BaseEstimator):
                 multi_class='multinomial',
                 C=C, max_iter=self.max_iter,
                 tol=0,
-                verbose=self.verbose).fit(X[study], y[study])
+                verbose=self.verbose).fit(X[study], y[study]['contrast'])
 
     def predict_proba(self, X):
         res = {}
@@ -29,5 +30,7 @@ class MultiLogisticClassifier(BaseEstimator):
     def predict(self, X):
         res = {}
         for study, this_X in X.items():
-            res[study] = self.estimators_[study].predict(this_X)
+            res[study] = pd.DataFrame(dict(
+                contrast=self.estimators_[study].predict(this_X),
+                subject=-100, study=-100))
         return res

@@ -17,7 +17,8 @@ class ScoreCallback:
         coef = self.estimator.coef_cat_
         rank = np.linalg.matrix_rank(coef)
         for study in self.y:
-            scores[study] = self.score_function(preds[study], self.y[study])
+            scores[study] = self.score_function(preds[study]['contrast'],
+                                                self.y[study]['contrast'])
         self.n_iter_.append(n_iter)
         self.scores_.append(scores)
         self.ranks_.append(rank)

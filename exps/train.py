@@ -16,6 +16,8 @@ from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
 
+import pandas as pd
+
 exp = Experiment('multi_studies')
 
 
@@ -104,11 +106,6 @@ def train(system, model, factored, trace, logistic,
     else:
         standard_scaler = None
 
-    train_contrasts = {study: train_target['contrast'] for study, train_target
-                       in train_targets.items()}
-    test_contrasts = {study: test_target['contrast'] for study, test_target
-                      in test_targets.items()}
-
     if model['study_weight'] == 'sqrt_sample':
         study_weights = {study: sqrt(len(train_data[study]))
                          for study in train_data}
@@ -139,9 +136,9 @@ def train(system, model, factored, trace, logistic,
                           "`model.estimator`: got '%s'."
                           % model['estimator'])
 
-    test_callback = ScoreCallback(estimator, X=test_data, y=test_contrasts,
+    test_callback = ScoreCallback(estimator, X=test_data, y=test_targets,
                                   score_function=accuracy_score)
-    train_callback = ScoreCallback(estimator, X=train_data, y=train_contrasts,
+    train_callback = ScoreCallback(estimator, X=train_data, y=train_targets,
                                    score_function=accuracy_score)
     callback = MultiCallback({'train': train_callback,
                               'test': test_callback})
@@ -149,24 +146,21 @@ def train(system, model, factored, trace, logistic,
     _run.info['train_scores'] = train_callback.scores_
     _run.info['test_scores'] = test_callback.scores_
 
-    estimator.fit(train_data, train_contrasts,
+    estimator.fit(train_data, train_targets,
                   study_weights=study_weights,
                   callback=callback)
 
-    test_pred_contrasts = estimator.predict(test_data)
+    test_preds = estimator.predict(test_data)
     test_scores = {}
-    for study in test_contrasts:
-        test_scores[study] = accuracy_score(test_pred_contrasts[study],
-                                            test_contrasts[study])
+    for study in train_targets:
+        test_scores[study] = accuracy_score(test_preds[study]['contrast'],
+                                            test_targets[study]['contrast'])
 
-    test_preds = {}
-    for study, test_target in test_targets.items():
-        test_preds[study] = test_target.copy()
-        test_preds[study]['contrast'] = test_pred_contrasts[study]
     test_preds = target_encoder.inverse_transform(test_preds)
-    for study in test_preds:
-        test_preds[study]['true_contrast'] = test_targets[study]['contrast']
+    test_targets = target_encoder.inverse_transform(test_targets)
 
+    test_preds = pd.concat([test_preds, test_targets], axis=1,
+                           keys=['pred', 'true'], names=['target'])
     save_output(target_encoder, standard_scaler, estimator, test_preds)
     return test_scores
 

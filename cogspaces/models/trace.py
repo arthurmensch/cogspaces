@@ -5,6 +5,7 @@ from numba import jit
 from numpy.linalg import svd
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_array
+import pandas as pd
 
 
 def lipschitz_constant(X, dataset_weights, xslices, fit_intercept=False,
@@ -226,7 +227,7 @@ class TraceClassifier(BaseEstimator):
         if study_weights is None:
             study_weights = {study: 1. for study in Xs}
         study_weights = np.array(list(study_weights.values()))
-
+        ys = {study: y['contrast'] for study, y in ys.items()}
         X, y, xslices, yslices, studies = check_Xs_ys(Xs, ys)
         n_samples, n_features = X.shape
         n_targets = y.shape[1]
@@ -279,10 +280,11 @@ class TraceClassifier(BaseEstimator):
         yslices = self.yslices_
         n_targets = yslices[-1, 1]
         X, xslices, studies = check_Xs_ys(Xs)
-        assert(studies == self.studies_)
+        assert (studies == self.studies_)
         n_samples = X.shape[0]
         pred = np.empty((n_samples, n_targets), dtype=np.float32)
-        _predict(X, pred, self.coef_cat_, self.intercept_cat_, xslices, yslices)
+        _predict(X, pred, self.coef_cat_, self.intercept_cat_, xslices,
+                 yslices)
         preds = {}
         for study, xslice, yslice in zip(studies, xslices, yslices):
             preds[study] = np.exp(pred[xslice[0]:xslice[1],
@@ -290,9 +292,14 @@ class TraceClassifier(BaseEstimator):
         return preds
 
     def predict(self, X):
-        preds = self.predict_proba(X)
-        return {study: np.argmax(pred, axis=1)
-                for study, pred in preds.items()}
+        contrasts = self.predict_proba(X)
+        contrasts = {study: np.argmax(contrast, axis=1)
+                     for study, contrast in contrasts.items()}
+        preds = {}
+        for study, contrast in contrasts.items():
+            preds[study] = pd.DataFrame(dict(contrast=contrast, study=-100,
+                                             subject=-100))
+        return preds
 
 
 def check_Xs_ys(Xs, ys=None):
