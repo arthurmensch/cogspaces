@@ -40,6 +40,7 @@ def default():
     )
     factored = dict(
         optimizer='sgd',
+        module='gradient_reversal',
         embedding_size=100,
         batch_size=128,
         dropout=0.75,
@@ -158,9 +159,10 @@ def train(system, model, factored, trace, logistic,
 
     test_preds = target_encoder.inverse_transform(test_preds)
     test_targets = target_encoder.inverse_transform(test_targets)
-
-    test_preds = pd.concat([test_preds, test_targets], axis=1,
-                           keys=['pred', 'true'], names=['target'])
+    for study in test_preds:
+        test_preds[study] = pd.concat([test_preds[study], test_targets[study]],
+                                      axis=1,
+                                      keys=['pred', 'true'], names=['target'])
     save_output(target_encoder, standard_scaler, estimator, test_preds)
     return test_scores
 

@@ -4,6 +4,7 @@ from collections import defaultdict
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import StandardScaler, LabelEncoder
+import pandas as pd
 
 warnings.filterwarnings('ignore', category=DeprecationWarning,
                         module=r'sklearn.preprocessing.label.*')
@@ -18,6 +19,7 @@ class MultiStandardScaler(BaseEstimator, TransformerMixin):
             for each study
 
     """
+
     def fit(self, data):
         self.sc_ = {}
         for study, this_data in data.items():
@@ -48,10 +50,14 @@ class MultiStandardScaler(BaseEstimator, TransformerMixin):
 class MultiTargetEncoder(BaseEstimator, TransformerMixin):
     def fit(self, targets):
         self.le_ = {}
+
+        studies = pd.concat([target['study'] for target in targets.values()])
+        le_study = LabelEncoder().fit(studies)
         for study, target in targets.items():
-            d = defaultdict(LabelEncoder)
-            target.apply(lambda x: d[x.name].fit(x))
-            self.le_[study] = d
+            self.le_[study] = dict(
+                contrast=LabelEncoder().fit(target['contrast']),
+                subject=LabelEncoder().fit(target['subject']),
+                study=le_study)
         return self
 
     def transform(self, targets):
@@ -70,4 +76,5 @@ class MultiTargetEncoder(BaseEstimator, TransformerMixin):
 
     @property
     def classes_(self):
-        return {study: le['contrast'].classes_ for study, le in self.le_.items()}
+        return {study: le['contrast'].classes_ for study, le in
+                self.le_.items()}

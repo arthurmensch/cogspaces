@@ -14,7 +14,8 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 
 from cogspaces.data import NiftiTargetDataset, RepeatedDataLoader
-from cogspaces.models.gradient_reversal import GradientReversalClassifier
+from cogspaces.models.gradient_reversal import GradientReversalClassifier, \
+    GradientReversalLoss
 from cogspaces.optim.lbfgs import LBFGSScipy
 
 import pandas as pd
@@ -150,7 +151,7 @@ class MultiClassifierLoss(nn.Module):
 
 
 class FactoredClassifier(BaseEstimator):
-    def __init__(self, module='hard_latent',
+    def __init__(self, module='gradient_reversal',
                  embedding_size=50,
                  batch_size=128, optimizer='adam',
                  lr=0.001,
@@ -198,10 +199,12 @@ class FactoredClassifier(BaseEstimator):
                                      'with LBFGS solver.')
                 data_loaders[study] = DataLoader(
                     NiftiTargetDataset(X[study], y[study]),
+                    shuffle=False,
                     batch_size=len(X[study]), pin_memory=cuda)
             elif self.optimizer in ['adam', 'sgd']:
                 data_loaders[study] = RepeatedDataLoader(
                     NiftiTargetDataset(X[study], y[study]),
+                    shuffle=True,
                     batch_size=self.batch_size, pin_memory=cuda)
             else:
                 raise ValueError
@@ -218,9 +221,14 @@ class FactoredClassifier(BaseEstimator):
             self.loss_ = MultiClassifierLoss(study_weights=study_weights,
                                              size_average=False)
         elif self.module == 'gradient_reversal':
-            self.module_ = GradientReversalClassifier(in_features=in_features,
-                                                      embedding_size=self.embedding_size,
-                                                      target_sizes=target_sizes)
+            self.module_ = GradientReversalClassifier(
+                in_features=in_features,
+                input_dropout=self.input_dropout,
+                dropout=self.dropout,
+                embedding_size=self.embedding_size,
+                target_sizes=target_sizes)
+            self.loss_ = GradientReversalLoss(study_weights=study_weights,
+                                              size_average=False)
         else:
             raise ValueError
 
@@ -299,16 +307,17 @@ class FactoredClassifier(BaseEstimator):
                     input = Variable(input)
                     target = Variable(target)
 
+                    batch_size = len(input)
                     input = {study: input}
                     target = {study: target}
                     pred = self.module_(input)
-                    loss = self.loss_(pred, target) / len(pred)
+                    loss = self.loss_(pred, target) / batch_size
                     loss.backward()
                     self.optimizer_.step()
 
                     mean_loss += loss
-                    seen_samples += len(data)
-                    total_seen_samples += len(data)
+                    seen_samples += batch_size
+                    total_seen_samples += batch_size
                     self.n_iter_ = total_seen_samples / n_samples
 
                     epoch = floor(self.n_iter_)
@@ -345,12 +354,16 @@ class FactoredClassifier(BaseEstimator):
         preds = {}
         for study, loader in data_loaders.items():
             pred = []
-            for (data, _) in loader:
+            for (input, _) in loader:
                 if cuda:
-                    data = data.cuda(device=device)
-                data = Variable(data, volatile=True)
+                    input = input.cuda(device=device)
+                input = Variable(input, volatile=True)
+                input = {study: input}
                 self.module_.eval()
-                pred.append(self.module_({study: data})[study])
+                this_pred = self.module_(input)[study]
+                if self.module == 'gradient_reversal':
+                    this_pred = this_pred[1]
+                pred.append(this_pred)
             preds[study] = pred
         return preds
 
@@ -376,8 +389,8 @@ class FactoredClassifier(BaseEstimator):
                      for study, contrast in contrasts.items()}
         preds = {}
         for study, contrast in contrasts.items():
-            preds[study] = pd.DataFrame(dict(contrast=contrast, study=-100,
-                                             subject=-100))
+            preds[study] = pd.DataFrame(dict(contrast=contrast, study=0,
+                                             subject=0))
         return preds
 
     @property
