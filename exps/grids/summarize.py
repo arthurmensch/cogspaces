@@ -33,14 +33,13 @@ def summarize_baseline():
     res = pd.DataFrame(res)
 
     max_res = res.groupby(by='study').aggregate('max')['test_score']
-
+    print(max_res)
     pd.to_pickle(max_res, join(expanduser('~/output/cogspaces/'
                                           'baseline_logistic.pkl')))
 
 
 def summarize_mtl():
-    output_dir = [expanduser('~/output/cogspaces/multi_studies_paradox'),
-                  expanduser('~/output/cogspaces/multi_studies_paradigm')]
+    output_dir = [expanduser('~/output/cogspaces/factored_dropout'),]
 
     regex = re.compile(r'[0-9]+$')
     res = []
@@ -61,6 +60,7 @@ def summarize_mtl():
             test_scores = run['result']
             this_res = dict(estimator=estimator,
                             run=this_dir)
+            this_res['study_weight'] = config['data']['study_weight']
             if estimator == 'factored':
                 this_res['optimizer'] = config['factored']['optimizer']
                 this_res['embedding_dim'] = config['factored']['embedding_size']
@@ -75,12 +75,11 @@ def summarize_mtl():
                 this_res = dict(**this_res, **test_scores)
                 res.append(this_res)
     res = pd.DataFrame(res)
-
-    res = res.query("optimizer == 'adam' and dropout == 0.80")
-    print(res)
+    res.set_index([''])
     pd.to_pickle(res, join(expanduser('~/output/cogspaces/'
-                                      'mtl.pkl')))
+                                      'factored_dropout.pkl')))
 
 
 if __name__ == '__main__':
-    summarize_mtl()
+    # summarize_mtl
+    summarize_baseline()

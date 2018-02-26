@@ -1,20 +1,20 @@
-from math import ceil, floor
-
 import tempfile
 import warnings
+from math import ceil, floor
 
+import numpy as np
 import torch
-from cogspaces.optim.lbfgs import LBFGSScipy
 from cogspaces.data import ImgContrastDataset, RepeatedDataLoader
+from cogspaces.optim.lbfgs import LBFGSScipy
 from sklearn.base import BaseEstimator
 from torch import nn
 from torch.autograd import Variable
 from torch.nn import Linear, Dropout, init
 from torch.nn.functional import mse_loss, nll_loss
-from torch.optim import Adam
+from torch.optim import Adam, SGD
 from torch.utils.data import DataLoader
 
-import numpy as np
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 
 class LinearAutoEncoder(nn.Module):
@@ -104,8 +104,11 @@ class MultiClassifierModule(nn.Module):
     def forward(self, input):
         embeddings = {}
         for study, sub_input in input.items():
-            embeddings[study] = self.dropout(
-                self.embedder(self.input_dropout(sub_input)))
+            sub_input = self.input_dropout(sub_input)
+            embeddings[study] = self.dropout(torch.cat((sub_input,
+                                                        self.embedder(
+                                                            sub_input)),
+                                                       dim=1))
         return self.classifier_head(embeddings)
 
     def reconstruct(self, input):
@@ -122,6 +125,7 @@ class MultiClassifierModule(nn.Module):
 class FactoredClassifier(BaseEstimator):
     def __init__(self, embedding_size=50,
                  batch_size=128, optimizer='adam',
+                 lr=0.001,
                  dropout=0.5,
                  input_dropout=0.25,
                  l2_penalty=0.,
@@ -137,6 +141,7 @@ class FactoredClassifier(BaseEstimator):
         self.max_iter = max_iter
         self.verbose = verbose
         self.device = device
+        self.lr = lr
         self.l1_penalty = l1_penalty
         self.l2_penalty = l2_penalty
         self.autoencoder_loss = autoencoder_loss
@@ -158,17 +163,17 @@ class FactoredClassifier(BaseEstimator):
 
         for study in X:
             target_sizes[study] = int(y[study].max()) + 1
-            if self.optimizer == 'adam':
-                data_loaders[study] = RepeatedDataLoader(
-                    ImgContrastDataset(X[study], y[study]),
-                    batch_size=self.batch_size, pin_memory=cuda)
-            elif self.optimizer == 'lbfgs':
+            if self.optimizer == 'lbfgs':
                 if self.dropout > 0.:
                     raise ValueError('Dropout should not be used'
                                      'with LBFGS solver.')
                 data_loaders[study] = DataLoader(
                     ImgContrastDataset(X[study], y[study]),
                     batch_size=len(X[study]), pin_memory=cuda)
+            elif self.optimizer in ['adam', 'sgd']:
+                data_loaders[study] = RepeatedDataLoader(
+                    ImgContrastDataset(X[study], y[study]),
+                    batch_size=self.batch_size, pin_memory=cuda)
             else:
                 raise ValueError
 
@@ -204,7 +209,7 @@ class FactoredClassifier(BaseEstimator):
                                 study]
                             study_loss += mse_loss(data, recs,
                                                    size_average=False) \
-                                * self.autoencoder_loss
+                                          * self.autoencoder_loss
                         n_samples += len(preds)
                     loss += study_loss * study_weights[study] / n_samples
                 loss += self.module_.penalty()
@@ -218,12 +223,16 @@ class FactoredClassifier(BaseEstimator):
                                          report_every=report_every)
             self.optimizer_.step(closure)
             self.n_iter_ = self.optimizer_.n_iter_
-        elif self.optimizer == 'adam':
+        elif self.optimizer in ['adam', 'sgd']:
             data_loaders = {study: iter(loader) for study, loader in
                             data_loaders.items()}
 
-            self.optimizer_ = Adam(self.module_.parameters())
+            if self.optimizer == 'adam':
+                self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr)
+            else:
+                self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr)
 
+            self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=30)
             total_seen_samples = 0
             mean_loss = 0
             seen_samples = 0
@@ -260,12 +269,14 @@ class FactoredClassifier(BaseEstimator):
                             and epoch % report_every == 0:
                         mean_loss = mean_loss / seen_samples
                         print('Epoch %.2f, train loss: % .4f' %
-                              (self.n_iter_, mean_loss))
+                              (epoch, mean_loss))
                         mean_loss = 0
                         seen_samples = 0
+                        # self.scheduler_.step(epoch)
 
                         if callback is not None:
                             callback(self.n_iter_)
+
                     old_epoch = epoch
         else:
             raise NotImplementedError('Optimizer not supported.')

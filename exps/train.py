@@ -33,14 +33,15 @@ def default():
     model = dict(
         normalize=True,
         estimator='factored',
-        study_weight='sample',
+        study_weight='study',
         max_iter=1000,
     )
     factored = dict(
-        optimizer='adam',
-        embedding_size='auto',
+        optimizer='sgd',
+        embedding_size=100,
         batch_size=128,
-        dropout=0.85,
+        dropout=0.75,
+        lr=1e-2,
         input_dropout=0.25,
         autoencoder_loss=0.,
         l2_penalty=0.,
