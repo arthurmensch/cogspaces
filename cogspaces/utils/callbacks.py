@@ -14,11 +14,14 @@ class ScoreCallback:
     def __call__(self, n_iter):
         preds = self.estimator.predict(self.X)
         scores = {}
-        # coef = self.estimator.coef_cat_
-        # rank = np.linalg.matrix_rank(coef)
+        study_scores = {}
+        coef = self.estimator.coef_cat_
+        rank = np.linalg.matrix_rank(coef)
         for study in self.y:
             scores[study] = self.score_function(preds[study]['contrast'],
                                                 self.y[study]['contrast'])
+            study_scores[study] = self.score_function(preds[study]['study'],
+                                                      self.y[study]['study'])
         self.n_iter_.append(n_iter)
         self.scores_.append(scores)
         # self.ranks_.append(rank)
@@ -26,7 +29,13 @@ class ScoreCallback:
                               for study, score in scores.items())
         scores_str = 'Score: ' + scores_str
         print(scores_str)
-        # print('Rank :', rank)
+        #
+        # scores_str = ' '.join('%s: %.3f' % (study, score)
+        #                       for study, score in study_scores.items())
+        # scores_str = 'Study score: ' + scores_str
+        # print(scores_str)
+
+        print('Rank :', rank)
 
 
 class MultiCallback:

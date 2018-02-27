@@ -5,6 +5,8 @@ from math import ceil, floor
 import numpy as np
 import pandas as pd
 import torch
+from cogspaces.data import NiftiTargetDataset, RepeatedDataLoader
+from cogspaces.optim.lbfgs import LBFGSScipy
 from sklearn.base import BaseEstimator
 from torch import nn
 from torch.autograd import Variable
@@ -13,9 +15,6 @@ from torch.nn.functional import log_softmax, nll_loss
 from torch.optim import Adam, SGD
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
-
-from cogspaces.data import NiftiTargetDataset, RepeatedDataLoader
-from cogspaces.optim.lbfgs import LBFGSScipy
 
 
 class GradientReversal(nn.Module):
@@ -27,6 +26,9 @@ class GradientReversal(nn.Module):
 
     def backward(self, grad):
         return - grad
+
+    def reset_parameters(self):
+        pass
 
 
 class MultiTaskModule(nn.Module):
@@ -85,6 +87,7 @@ class MultiTaskModule(nn.Module):
             self.study_classifier = Linear(shared_embedding_size,
                                            len(target_sizes))
             self.gradient_reversal = GradientReversal()
+        self.reset_parameters()
 
     def reset_parameters(self):
         for param in self.parameters():
@@ -97,17 +100,18 @@ class MultiTaskModule(nn.Module):
         preds = {}
         for study, sub_input in input.items():
             embedding = []
-            if self.skip_connection:
-                embedding.append(sub_input)
 
             sub_input = self.input_dropout(sub_input)
+
+            if self.skip_connection:
+                embedding.append(sub_input)
 
             if self.shared_embedding_size > 0:
                 if 'hard' in self.shared_embedding:
                     shared_embedding = self.shared_embedder(sub_input)
                 else:
                     shared_embedding = self.shared_embedders[study](sub_input)
-
+                shared_embedding = self.dropout(shared_embedding)
                 if 'adversarial' in self.shared_embedding:
                     # adversarial
                     study_pred = log_softmax(self.study_classifier(
@@ -116,7 +120,6 @@ class MultiTaskModule(nn.Module):
                     study_pred = Variable(
                         sub_input.data.new(sub_input.shape[0], 1),
                         requires_grad=False)
-
                 embedding.append(shared_embedding)
             else:
                 # Return dummy variable
@@ -125,13 +128,22 @@ class MultiTaskModule(nn.Module):
                     requires_grad=False)
 
             if self.private_embedding_size > 0:
-                embedding.append(self.private_embedders[study](sub_input))
+                private_embedding = self.dropout(
+                    self.private_embedders[study](sub_input))
+                embedding.append(
+                    self.dropout(self.private_embedders[study](sub_input)))
+
+            if self.private_embedding_size > 0 and \
+                    self.shared_embedding_size > 0:
+                corr = torch.sum(torch.bmm(private_embedding[:, :, None],
+                                           shared_embedding[:, None, :]) ** 2)
+                corr /= self.private_embedding_size \
+                        * self.shared_embedding_size
 
             embedding = torch.cat(embedding, dim=1)
-            embedding = self.dropout(embedding)
             pred = log_softmax(self.classifiers[study](embedding), dim=1)
 
-            preds[study] = study_pred, pred
+            preds[study] = study_pred, pred, corr
         return preds
 
     def coefs(self):
@@ -139,26 +151,29 @@ class MultiTaskModule(nn.Module):
         for study in self.classifiers:
             coef = self.classifiers[study].weight.data
             if self.skip_connection:
-                skip_coef, coef = coef[:self.in_features], \
-                                  coef[self.in_features:]
+                skip_coef = coef[:, :self.in_features]
+                if self.in_features < coef.shape[1]:
+                    coef = coef[:, self.in_features:]
             else:
                 skip_coef = 0
             if self.shared_embedding_size > 0:
-                shared_coef = coef[:self.shared_embedding_size]
+                shared_coef = coef[:, :self.shared_embedding_size]
                 if 'hard' in self.shared_embedding:
                     shared_embed = self.shared_embedder.weight.data
                 else:
                     shared_embed = self.shared_embedders[study].weight.data
-                shared_coef = torch.matmul(shared_embed, shared_coef)
+                shared_coef = torch.matmul(shared_coef, shared_embed)
             else:
                 shared_coef = 0
             if self.private_embedding_size > 0:
-                private_coef = coef[-self.private_embedding_size:]
+                private_coef = coef[:, -self.private_embedding_size:]
                 private_embed = self.private_embedders[study].weight.data
-                private_coef = torch.matmul(private_embed, private_coef)
+                private_coef = torch.matmul(private_coef, private_embed)
             else:
                 private_coef = 0
-            coefs[study] = skip_coef + shared_coef + private_coef
+
+            coef = skip_coef + shared_coef + private_coef
+            coefs[study] = coef.transpose(0, 1)
         return coefs
 
     def intercepts(self):
@@ -175,8 +190,9 @@ class MultiTaskLoss(nn.Module):
     def forward(self, inputs, targets):
         loss = 0
         for study in inputs:
-            study_pred, pred = inputs[study]
+            study_pred, pred, corr = inputs[study]
             study_target, target = targets[study][:, 0], targets[study][:, 1]
+            loss += corr
             if self.adversarial:
                 loss += nll_loss(study_pred, study_target,
                                  size_average=False)
@@ -191,7 +207,7 @@ class FactoredClassifier(BaseEstimator):
                  private_embedding_size=5,
                  shared_embedding='hard+adversarial',
                  batch_size=128, optimizer='sgd',
-                 lr=0.001, lr_schedule=None,
+                 lr=0.001,
                  dropout=0.5, input_dropout=0.25,
                  max_iter=10000, verbose=0,
                  device=-1):
@@ -209,7 +225,6 @@ class FactoredClassifier(BaseEstimator):
         self.verbose = verbose
         self.device = device
         self.lr = lr
-        self.lr_schedule = lr_schedule
 
     def fit(self, X, y, study_weights=None, callback=None):
         assert (self.shared_embedding in ['hard', 'adversarial',
@@ -301,9 +316,8 @@ class FactoredClassifier(BaseEstimator):
                 self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr)
             else:
                 self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr)
-
-            if self.lr_schedule == 'cosine_annealing':
-                self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=30)
+                self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=30,
+                                                    eta_min=self.lr * 1e-3)
 
             total_seen_samples = 0
             mean_loss = 0
@@ -339,13 +353,12 @@ class FactoredClassifier(BaseEstimator):
                     epoch = floor(self.n_iter_)
                     if report_every is not None and epoch > old_epoch \
                             and epoch % report_every == 0:
-                        mean_loss = mean_loss / seen_samples
+                        mean_loss = mean_loss.data[0] / seen_samples
                         print('Epoch %.2f, train loss: % .4f' %
-                              (epoch, mean_loss.data[0]))
+                              (epoch, mean_loss))
                         mean_loss = 0
                         seen_samples = 0
-
-                        if self.lr_schedule:
+                        if hasattr(self, 'scheduler_'):
                             self.scheduler_.step(epoch)
 
                         if callback is not None:
@@ -386,7 +399,7 @@ class FactoredClassifier(BaseEstimator):
                 input = Variable(input, volatile=True)
                 input = {study: input}
                 self.module_.eval()
-                this_study_pred, this_pred = self.module_(input)[study]
+                this_study_pred, this_pred, _ = self.module_(input)[study]
                 pred.append(this_pred)
                 study_pred.append(this_study_pred)
             preds[study] = torch.cat(pred)

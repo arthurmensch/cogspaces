@@ -30,7 +30,7 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies=['archi', 'hcp']
+        studies='all'
     )
     model = dict(
         normalize=True,
@@ -39,15 +39,15 @@ def default():
         max_iter=100,
     )
     factored = dict(
-        optimizer='sgd',
-        shared_embedding_size=30,
-        private_embedding_size=0,
+        optimizer='adam',
+        shared_embedding_size=10,
+        private_embedding_size=100,
         shared_embedding='hard',
         skip_connection=False,
         batch_size=128,
-        dropout=0.75,
-        lr=1e-2,
-        input_dropout=0.25,
+        dropout=0.,
+        lr=1e-3,
+        input_dropout=0.,
     )
     trace = dict(
         trace_penalty=5e-2,
