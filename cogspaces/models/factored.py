@@ -3,168 +3,204 @@ import warnings
 from math import ceil, floor
 
 import numpy as np
+import pandas as pd
 import torch
 from sklearn.base import BaseEstimator
 from torch import nn
 from torch.autograd import Variable
-from torch.nn import Linear, Dropout, init
-from torch.nn.functional import nll_loss
+from torch.nn import Linear
+from torch.nn.functional import log_softmax, nll_loss
 from torch.optim import Adam, SGD
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 
 from cogspaces.data import NiftiTargetDataset, RepeatedDataLoader
-from cogspaces.models.gradient_reversal import GradientReversalClassifier, \
-    GradientReversalLoss
 from cogspaces.optim.lbfgs import LBFGSScipy
 
-import pandas as pd
 
-
-class LinearAutoEncoder(nn.Module):
-    def __init__(self, in_features, out_features,
-                 l1_penalty=0., l2_penalty=0.):
+class GradientReversal(nn.Module):
+    def __init__(self):
         super().__init__()
-        self.linear = Linear(in_features, out_features, bias=False)
-        self.l1_penalty = l1_penalty
-        self.l2_penalty = l2_penalty
-
-    def reset_parameters(self):
-        self.linear.reset_parameters()
 
     def forward(self, input):
-        return self.linear(input)
+        return input
 
-    def reconstruct(self, projection):
-        weight = self.linear.weight
-        # gram = torch.matmul(weight.transpose(0, 1), weight)
-        rec = torch.matmul(projection, weight)
-        # rec, LU = torch.gesv(rec, gram)
-        return rec
-
-    def penalty(self):
-        penalty = self.l2_penalty * .5 * torch.sum(self.linear.weight ** 2)
-        penalty += self.l1_penalty * torch.sum(torch.abs(self.linear.weight))
-        return penalty
+    def backward(self, grad):
+        return - grad
 
 
-class MultiClassifierHead(nn.Module):
+class MultiTaskModule(nn.Module):
     def __init__(self, in_features,
-                 target_sizes, l1_penalty=0., l2_penalty=0.):
+                 shared_embedding_size,
+                 private_embedding_size,
+                 target_sizes,
+                 input_dropout=0.,
+                 dropout=0.,
+                 shared_embedding='hard+adversarial',
+                 skip_connection=False):
         super().__init__()
-        self.l1_penalty = l1_penalty
-        self.l2_penalty = l2_penalty
+
+        self.in_features = in_features
+        self.shared_embedding_size = shared_embedding_size
+        self.private_embedding_size = private_embedding_size
+
+        self.dropout = nn.Dropout(p=dropout)
+        self.input_dropout = nn.Dropout(p=input_dropout)
+
+        self.skip_connection = skip_connection
+        self.shared_embedding = shared_embedding
+
+        if private_embedding_size > 0:
+            self.private_embedders = {}
+        if shared_embedding_size > 0:
+            if 'hard' in shared_embedding:
+                self.shared_embedder = Linear(in_features,
+                                              shared_embedding_size,
+                                              bias=False)
+            else:
+                self.shared_embedders = {}
+
         self.classifiers = {}
+
         for study, size in target_sizes.items():
-            self.classifiers[study] = Linear(in_features, size)
+            if shared_embedding_size and not 'hard' in shared_embedding:
+                self.shared_embedders[study] = Linear(
+                    in_features, shared_embedding_size, bias=False)
+                self.add_module('shared_embedder_%s' % study,
+                                self.shared_embedders[study])
+
+            if private_embedding_size > 0:
+                self.private_embedders[study] = Linear(
+                    in_features, private_embedding_size)
+                self.add_module('private_embedder_%s' % study,
+                                self.private_embedders[study])
+
+            self.classifiers[study] = Linear(shared_embedding_size +
+                                             private_embedding_size
+                                             + in_features * skip_connection,
+                                             size)
             self.add_module('classifier_%s' % study, self.classifiers[study])
-        self.softmax = nn.LogSoftmax(dim=1)
-        self.reset_parameters()
+
+        if 'adversarial' in shared_embedding:
+            self.study_classifier = Linear(shared_embedding_size,
+                                           len(target_sizes))
+            self.gradient_reversal = GradientReversal()
 
     def reset_parameters(self):
-        for classifier in self.classifiers.values():
-            init.xavier_uniform(classifier.weight)
-            classifier.bias.data.fill_(0.)
+        for param in self.parameters():
+            if param.ndimension() == 2:
+                nn.init.xavier_uniform(param)
+            elif param.ndimension() == 1:
+                param.data.fill_(0.)
 
     def forward(self, input):
         preds = {}
         for study, sub_input in input.items():
-            pred = self.softmax(self.classifiers[study](sub_input))
-            preds[study] = pred
+            embedding = []
+            if self.skip_connection:
+                embedding.append(sub_input)
+
+            sub_input = self.input_dropout(sub_input)
+
+            if self.shared_embedding_size > 0:
+                if 'hard' in self.shared_embedding:
+                    shared_embedding = self.shared_embedder(sub_input)
+                else:
+                    shared_embedding = self.shared_embedders[study](sub_input)
+
+                if 'adversarial' in self.shared_embedding:
+                    # adversarial
+                    study_pred = log_softmax(self.study_classifier(
+                        self.gradient_reversal(shared_embedding)), dim=1)
+                else:
+                    study_pred = Variable(
+                        sub_input.data.new(sub_input.shape[0], 1),
+                        requires_grad=False)
+
+                embedding.append(shared_embedding)
+            else:
+                # Return dummy variable
+                study_pred = Variable(
+                    sub_input.data.new(sub_input.shape[0], 1),
+                    requires_grad=False)
+
+            if self.private_embedding_size > 0:
+                embedding.append(self.private_embedders[study](sub_input))
+
+            embedding = torch.cat(embedding, dim=1)
+            embedding = self.dropout(embedding)
+            pred = log_softmax(self.classifiers[study](embedding), dim=1)
+
+            preds[study] = study_pred, pred
         return preds
 
-    def penalty(self):
-        penalty = 0
-        for study, classifier in self.classifiers.items():
-            penalty += self.l2_penalty * .5 * torch.sum(classifier.weight ** 2)
-            penalty += self.l1_penalty * torch.sum(
-                torch.abs(classifier.weight))
-        return penalty
+    def coefs(self):
+        coefs = {}
+        for study in self.classifiers:
+            coef = self.classifiers[study].weight.data
+            if self.skip_connection:
+                skip_coef, coef = coef[:self.in_features], \
+                                  coef[self.in_features:]
+            else:
+                skip_coef = 0
+            if self.shared_embedding_size > 0:
+                shared_coef = coef[:self.shared_embedding_size]
+                if 'hard' in self.shared_embedding:
+                    shared_embed = self.shared_embedder.weight.data
+                else:
+                    shared_embed = self.shared_embedders[study].weight.data
+                shared_coef = torch.matmul(shared_embed, shared_coef)
+            else:
+                shared_coef = 0
+            if self.private_embedding_size > 0:
+                private_coef = coef[-self.private_embedding_size:]
+                private_embed = self.private_embedders[study].weight.data
+                private_coef = torch.matmul(private_embed, private_coef)
+            else:
+                private_coef = 0
+            coefs[study] = skip_coef + shared_coef + private_coef
+        return coefs
+
+    def intercepts(self):
+        return {study: classifier.bias.data for study, classifier
+                in self.classifiers.items()}
 
 
-class MultiClassifierModule(nn.Module):
-    def __init__(self, in_features, embedding_size,
-                 target_sizes,
-                 private_embedding_size=5,
-                 dropout=0., input_dropout=0.,
-                 l1_penalty=0., l2_penalty=0.):
+class MultiTaskLoss(nn.Module):
+    def __init__(self, study_weights=None, adversarial=True):
         super().__init__()
-        if embedding_size == 'auto':
-            embedding_size = sum(target_sizes.values())
-        self.embedder = LinearAutoEncoder(in_features,
-                                          embedding_size,
-                                          l1_penalty=l1_penalty,
-                                          l2_penalty=l2_penalty)
-        self.dropout = Dropout(dropout)
-        self.input_dropout = Dropout(input_dropout)
-        self.classifier_head = MultiClassifierHead(embedding_size +
-                                                   private_embedding_size,
-                                                   target_sizes,
-                                                   l1_penalty=l1_penalty,
-                                                   l2_penalty=l2_penalty)
-        self.privates = {}
-        for study in target_sizes:
-            self.privates[study] = Linear(in_features, private_embedding_size)
-            self.add_module('private_%s' % study, self.privates[study])
-
-    def reset_parameters(self):
-        self.embedder.reset_parameters()
-        self.classifier_head.reset_parameters()
-        for private in self.privates.values():
-            private.reset_parameters()
-
-    def forward(self, input):
-        embeddings = {}
-        for study, sub_input in input.items():
-            sub_input = self.input_dropout(sub_input)
-            private_embedding = self.privates[study](sub_input)
-            embeddings[study] = self.dropout(torch.cat(
-                (private_embedding, self.embedder(sub_input)), dim=1))
-        return self.classifier_head(embeddings)
-
-    def reconstruct(self, input):
-        recs = {}
-        for study, sub_input in input.items():
-            recs[study] = self.embedder.reconstruct(self.embedder(sub_input))
-        return recs
-
-    def penalty(self):
-        penalty = self.classifier_head.penalty() + self.embedder.penalty()
-        return penalty
-
-
-class MultiClassifierLoss(nn.Module):
-    def __init__(self, size_average=False, study_weights=None):
-        super().__init__()
-        self.size_average = size_average
         self.study_weights = study_weights
+        self.adversarial = adversarial
 
-    def forward(self, input, target):
+    def forward(self, inputs, targets):
         loss = 0
-        for study in input:
-            this_pred = input[study]
-            this_target = target[study]
-            weight = self.study_weights[study]
-            loss += nll_loss(this_pred, this_target,
-                             size_average=self.size_average) * weight
+        for study in inputs:
+            study_pred, pred = inputs[study]
+            study_target, target = targets[study][:, 0], targets[study][:, 1]
+            if self.adversarial:
+                loss += nll_loss(study_pred, study_target,
+                                 size_average=False)
+            loss += nll_loss(pred, target,
+                             size_average=False)
+            loss *= self.study_weights[study]
         return loss
 
 
 class FactoredClassifier(BaseEstimator):
-    def __init__(self, module='gradient_reversal',
-                 embedding_size=50,
-                 batch_size=128, optimizer='adam',
-                 lr=0.001,
-                 dropout=0.5,
-                 input_dropout=0.25,
-                 l2_penalty=0.,
-                 l1_penalty=0.,
-                 autoencoder_loss=0.,
+    def __init__(self, skip_connection=False, shared_embedding_size=30,
+                 private_embedding_size=5,
+                 shared_embedding='hard+adversarial',
+                 batch_size=128, optimizer='sgd',
+                 lr=0.001, lr_schedule=None,
+                 dropout=0.5, input_dropout=0.25,
                  max_iter=10000, verbose=0,
                  device=-1):
-        self.module = module
 
-        self.embedding_size = embedding_size
+        self.skip_connection = skip_connection
+        self.shared_embedding = shared_embedding
+        self.shared_embedding_size = shared_embedding_size
+        self.private_embedding_size = private_embedding_size
+
         self.input_dropout = input_dropout
         self.dropout = dropout
         self.batch_size = batch_size
@@ -173,69 +209,58 @@ class FactoredClassifier(BaseEstimator):
         self.verbose = verbose
         self.device = device
         self.lr = lr
-        self.l1_penalty = l1_penalty
-        self.l2_penalty = l2_penalty
-        self.autoencoder_loss = autoencoder_loss
+        self.lr_schedule = lr_schedule
 
     def fit(self, X, y, study_weights=None, callback=None):
+        assert (self.shared_embedding in ['hard', 'adversarial',
+                                          'hard+adversarial'])
+
+        if self.optimizer == 'lbfgs':
+            try:
+                assert (self.dropout == 0)
+                assert (self.input_dropout == 0)
+                assert ('adversarial' not in self.shared_embedding)
+            except AssertionError:
+                raise ValueError('Dropout and adversarial training'
+                                 'should not be used with LBFGS solver.')
+
         cuda, device = self._check_cuda()
-
-        data = next(iter(X.values()))
-        in_features = data.shape[1]
-
-        data_loaders = {}
-        target_sizes = {}
-
+        in_features = next(iter(X.values())).shape[1]
         n_samples = sum(len(this_X) for this_X in X.values())
 
         if study_weights is None:
             study_weights = {study: 1. for study in X}
 
+        data_loaders = {}
+        target_sizes = {}
+
+        data_loader = DataLoader if self.optimizer == 'lbfgs' else \
+            RepeatedDataLoader
+        shuffle = self.optimizer != 'lbfgs'
+
         for study in X:
             target_sizes[study] = int(y[study]['contrast'].max()) + 1
-            if self.optimizer == 'lbfgs':
-                if self.dropout > 0.:
-                    raise ValueError('Dropout should not be used'
-                                     'with LBFGS solver.')
-                data_loaders[study] = DataLoader(
-                    NiftiTargetDataset(X[study], y[study]),
-                    shuffle=False,
-                    batch_size=len(X[study]), pin_memory=cuda)
-            elif self.optimizer in ['adam', 'sgd']:
-                data_loaders[study] = RepeatedDataLoader(
-                    NiftiTargetDataset(X[study], y[study]),
-                    shuffle=True,
-                    batch_size=self.batch_size, pin_memory=cuda)
-            else:
-                raise ValueError
+            data_loaders[study] = data_loader(
+                NiftiTargetDataset(X[study], y[study]),
+                shuffle=shuffle,
+                batch_size=self.batch_size, pin_memory=cuda)
 
-        if self.module == 'hard_latent':
-            self.module_ = MultiClassifierModule(
-                in_features=in_features,
-                dropout=self.dropout,
-                input_dropout=self.input_dropout,
-                embedding_size=self.embedding_size,
-                l1_penalty=self.l1_penalty,
-                l2_penalty=self.l2_penalty,
-                target_sizes=target_sizes)
-            self.loss_ = MultiClassifierLoss(study_weights=study_weights,
-                                             size_average=False)
-        elif self.module == 'gradient_reversal':
-            self.module_ = GradientReversalClassifier(
-                in_features=in_features,
-                input_dropout=self.input_dropout,
-                dropout=self.dropout,
-                embedding_size=self.embedding_size,
-                target_sizes=target_sizes)
-            self.loss_ = GradientReversalLoss(study_weights=study_weights,
-                                              size_average=False)
-        else:
-            raise ValueError
+        self.module_ = MultiTaskModule(
+            in_features=in_features,
+            shared_embedding=self.shared_embedding,
+            shared_embedding_size=self.shared_embedding_size,
+            private_embedding_size=self.private_embedding_size,
+            skip_connection=self.skip_connection,
+            input_dropout=self.input_dropout,
+            dropout=self.dropout,
+            target_sizes=target_sizes)
+        self.loss_ = MultiTaskLoss(study_weights=study_weights,
+                                   adversarial='adversarial'
+                                               in self.shared_embedding)
 
         report_every = ceil(self.max_iter / self.verbose)
 
         if self.optimizer == 'lbfgs':
-
             def closure():
                 self.module_.train()
                 loss = 0
@@ -243,12 +268,7 @@ class FactoredClassifier(BaseEstimator):
                     n_samples = 0
                     study_loss = 0
                     for input, target in loader:
-                        if self.module == 'hard_latent':
-                            # Contrasts only
-                            target = target[:, 2]
-                        else:
-                            # Subject, contrast
-                            target = target[:, [0, 2]]
+                        target = target[:, [0, 2]]
 
                         if cuda:
                             input = input.cuda(device=device)
@@ -282,7 +302,9 @@ class FactoredClassifier(BaseEstimator):
             else:
                 self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr)
 
-            self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=30)
+            if self.lr_schedule == 'cosine_annealing':
+                self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=30)
+
             total_seen_samples = 0
             mean_loss = 0
             seen_samples = 0
@@ -293,13 +315,7 @@ class FactoredClassifier(BaseEstimator):
                     self.module_.train()
                     self.optimizer_.zero_grad()
                     input, target = next(loader)
-
-                    if self.module == 'hard_latent':
-                        # Contrasts only
-                        target = target[:, 2]
-                    else:
-                        # Subject, contrast
-                        target = target[:, [0, 2]]
+                    target = target[:, [0, 2]]
 
                     if cuda:
                         input = input.cuda(device=device)
@@ -328,7 +344,9 @@ class FactoredClassifier(BaseEstimator):
                               (epoch, mean_loss.data[0]))
                         mean_loss = 0
                         seen_samples = 0
-                        # self.scheduler_.step(epoch)
+
+                        if self.lr_schedule:
+                            self.scheduler_.step(epoch)
 
                         if callback is not None:
                             callback(self.n_iter_)
@@ -348,25 +366,6 @@ class FactoredClassifier(BaseEstimator):
             cuda = device > -1
         return cuda, device
 
-    def _predict_proba(self, data_loaders):
-        cuda, device = self._check_cuda()
-
-        preds = {}
-        for study, loader in data_loaders.items():
-            pred = []
-            for (input, _) in loader:
-                if cuda:
-                    input = input.cuda(device=device)
-                input = Variable(input, volatile=True)
-                input = {study: input}
-                self.module_.eval()
-                this_pred = self.module_(input)[study]
-                if self.module == 'gradient_reversal':
-                    this_pred = this_pred[1]
-                pred.append(this_pred)
-            preds[study] = pred
-        return preds
-
     def predict_proba(self, X):
         cuda, device = self._check_cuda()
 
@@ -376,39 +375,52 @@ class FactoredClassifier(BaseEstimator):
                                              batch_size=len(this_X),
                                              shuffle=False,
                                              pin_memory=cuda)
-        preds = self._predict_proba(data_loaders)
-        preds = {study: torch.cat(pred) for study, pred in preds.items()}
-        if cuda:
-            preds = {study: pred.cpu() for study, pred in preds.items()}
-        preds = {study: pred.data.numpy() for study, pred in preds.items()}
-        return preds
+        preds = {}
+        study_preds = {}
+        for study, loader in data_loaders.items():
+            study_pred = []
+            pred = []
+            for (input, _) in loader:
+                if cuda:
+                    input = input.cuda(device=device)
+                input = Variable(input, volatile=True)
+                input = {study: input}
+                self.module_.eval()
+                this_study_pred, this_pred = self.module_(input)[study]
+                pred.append(this_pred)
+                study_pred.append(this_study_pred)
+            preds[study] = torch.cat(pred)
+            study_preds[study] = torch.cat(study_pred)
+        preds = {study: pred.data.cpu().numpy()
+                 for study, pred in preds.items()}
+        study_preds = {study: study_pred.data.cpu().numpy()
+                       for study, study_pred in study_preds.items()}
+        return study_preds, preds
 
     def predict(self, X):
-        contrasts = self.predict_proba(X)
-        contrasts = {study: np.argmax(contrast, axis=1)
-                     for study, contrast in contrasts.items()}
-        preds = {}
-        for study, contrast in contrasts.items():
-            preds[study] = pd.DataFrame(dict(contrast=contrast, study=0,
-                                             subject=0))
-        return preds
+        study_preds, preds = self.predict_proba(X)
+        study_preds = {study: np.argmax(study_pred, axis=1)
+                       for study, study_pred in study_preds.items()}
+        preds = {study: np.argmax(pred, axis=1)
+                 for study, pred in preds.items()}
+        dfs = {}
+        for study in preds:
+            pred = preds[study]
+            study_pred = study_preds[study]
+            dfs[study] = pd.DataFrame(
+                dict(contrast=pred, study=study_pred, subject=0))
+        return dfs
 
     @property
     def coef_(self):
-        coefs = {}
-        for study, classifier in \
-                self.module_.classifier_head.classifiers.items():
-            coef = classifier.weight[:, -self.embedding_size:].data
-            coef = torch.matmul(coef, self.module_.embedder.linear.weight.data)
-            coef = coef.transpose(0, 1)
-            coefs[study] = coef.cpu().numpy()
-        return coefs
+        coefs = self.module_.coefs()
+        return {study: coef.cpu().numpy() for study, coef in coefs.items()}
 
     @property
     def intercept_(self):
-        return {study: classifier[study].bias.data.cpu().numpy()
-                for study, classifier in
-                self.module_.classifier_head.classifiers.items()}
+        intercepts = self.module_.intercepts()
+        return {study: intercept.cpu().numpy()
+                for study, intercept in intercepts.items()}
 
     @property
     def coef_cat_(self):
@@ -420,7 +432,7 @@ class FactoredClassifier(BaseEstimator):
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        for key in ['module_', 'optimizer_']:
+        for key in ['module_', 'optimizer_', 'scheduler_']:
             if key in state:
                 val = state.pop(key)
                 with tempfile.SpooledTemporaryFile() as f:
@@ -432,7 +444,7 @@ class FactoredClassifier(BaseEstimator):
 
     def __setstate__(self, state):
         disable_cuda = False
-        for key in ['module_', 'optimizer_']:
+        for key in ['module_', 'optimizer_', 'scheduler_']:
             if key not in state:
                 continue
             dump = state.pop(key)

@@ -24,9 +24,9 @@ class NiftiTargetDataset(Dataset):
         data = torch.from_numpy(data).float()
         if self.targets is None:
             if data.ndimension() == 2:
-                targets = torch.LongTensor((data.shape[0], 3)).fill_(-100)
+                targets = torch.LongTensor((data.shape[0], 3)).fill_(0)
             else:
-                targets = - torch.LongTensor((3,)).fill_(-100)
+                targets = - torch.LongTensor((3,)).fill_(0)
         else:
             targets = self.targets.iloc[index][['study', 'subject',
                                                 'contrast']]
