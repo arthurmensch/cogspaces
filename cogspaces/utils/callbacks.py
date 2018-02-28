@@ -29,11 +29,11 @@ class ScoreCallback:
                               for study, score in scores.items())
         scores_str = 'Score: ' + scores_str
         print(scores_str)
-        #
-        # scores_str = ' '.join('%s: %.3f' % (study, score)
-        #                       for study, score in study_scores.items())
-        # scores_str = 'Study score: ' + scores_str
-        # print(scores_str)
+
+        scores_str = ' '.join('%s: %.3f' % (study, score)
+                              for study, score in study_scores.items())
+        scores_str = 'Study score: ' + scores_str
+        print(scores_str)
 
         print('Rank :', rank)
 

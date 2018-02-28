@@ -73,7 +73,7 @@ class MultiTaskModule(nn.Module):
 
             if private_embedding_size > 0:
                 self.private_embedders[study] = Linear(
-                    in_features, private_embedding_size)
+                    in_features, private_embedding_size, bias=False)
                 self.add_module('private_embedder_%s' % study,
                                 self.private_embedders[study])
 
@@ -101,17 +101,16 @@ class MultiTaskModule(nn.Module):
         for study, sub_input in input.items():
             embedding = []
 
-            sub_input = self.input_dropout(sub_input)
-
             if self.skip_connection:
                 embedding.append(sub_input)
+
+            sub_input = self.input_dropout(sub_input)
 
             if self.shared_embedding_size > 0:
                 if 'hard' in self.shared_embedding:
                     shared_embedding = self.shared_embedder(sub_input)
                 else:
                     shared_embedding = self.shared_embedders[study](sub_input)
-                shared_embedding = self.dropout(shared_embedding)
                 if 'adversarial' in self.shared_embedding:
                     # adversarial
                     study_pred = log_softmax(self.study_classifier(
@@ -128,19 +127,23 @@ class MultiTaskModule(nn.Module):
                     requires_grad=False)
 
             if self.private_embedding_size > 0:
-                private_embedding = self.dropout(
-                    self.private_embedders[study](sub_input))
-                embedding.append(
-                    self.dropout(self.private_embedders[study](sub_input)))
+                private_embedding = self.private_embedders[study](sub_input)
+                embedding.append(private_embedding)
 
-            if self.private_embedding_size > 0 and \
-                    self.shared_embedding_size > 0:
-                corr = torch.sum(torch.bmm(private_embedding[:, :, None],
-                                           shared_embedding[:, None, :]) ** 2)
-                corr /= self.private_embedding_size \
-                        * self.shared_embedding_size
+            # if self.private_embedding_size > 0 and \
+            #         self.shared_embedding_size > 0:
+            #
+            #     # corr = torch.sum(torch.mm(self.private_embedders[study].weight,
+            #     #                           self.shared_embedder.weight.transpose(0, 1))
+            #     #                  ** 2)
+            #     corr = torch.sum(torch.bmm(private_embedding[:, :, None],
+            #                                shared_embedding[:, None, :]) ** 2)
+            #     corr /= self.private_embedding_size * self.shared_embedding_size
+            # else:
+            corr = 0
 
             embedding = torch.cat(embedding, dim=1)
+            embedding = self.dropout(embedding)
             pred = log_softmax(self.classifiers[study](embedding), dim=1)
 
             preds[study] = study_pred, pred, corr
@@ -313,9 +316,11 @@ class FactoredClassifier(BaseEstimator):
             data_loaders = {study: iter(loader) for study, loader in
                             data_loaders.items()}
             if self.optimizer == 'adam':
-                self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr)
+                self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr,
+                                       weight_decay=5e-4)
             else:
-                self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr)
+                self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr,
+                                      weight_decay=5e-4)
                 self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=30,
                                                     eta_min=self.lr * 1e-3)
 

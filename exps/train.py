@@ -26,7 +26,7 @@ def default():
     system = dict(
         device=-1,
         seed=0,
-        verbose=100,
+        verbose=1000,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
@@ -36,18 +36,18 @@ def default():
         normalize=True,
         estimator='factored',
         study_weight='study',
-        max_iter=100,
+        max_iter=1000,
     )
     factored = dict(
-        optimizer='adam',
-        shared_embedding_size=10,
-        private_embedding_size=100,
-        shared_embedding='hard',
+        optimizer='sgd',
+        shared_embedding_size=200,
+        private_embedding_size=0,
+        shared_embedding='hard+adversarial',
         skip_connection=False,
         batch_size=128,
-        dropout=0.,
-        lr=1e-3,
-        input_dropout=0.,
+        dropout=0.80,
+        lr=1e-2,
+        input_dropout=0.25,
     )
     trace = dict(
         trace_penalty=5e-2,
