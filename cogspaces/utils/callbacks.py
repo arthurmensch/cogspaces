@@ -15,8 +15,8 @@ class ScoreCallback:
         preds = self.estimator.predict(self.X)
         scores = {}
         study_scores = {}
-        coef = self.estimator.coef_cat_
-        rank = np.linalg.matrix_rank(coef)
+        # coef = self.estimator.coef_cat_
+        # rank = np.linalg.matrix_rank(coef)
         for study in self.y:
             scores[study] = self.score_function(preds[study]['contrast'],
                                                 self.y[study]['contrast'])
@@ -35,7 +35,7 @@ class ScoreCallback:
         scores_str = 'Study score: ' + scores_str
         print(scores_str)
 
-        print('Rank :', rank)
+        # print('Rank :', rank)
 
 
 class MultiCallback:

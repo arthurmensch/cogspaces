@@ -1,6 +1,7 @@
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import LogisticRegression
 import pandas as pd
+import numpy as np
 
 
 class MultiLogisticClassifier(BaseEstimator):
@@ -34,3 +35,8 @@ class MultiLogisticClassifier(BaseEstimator):
                 contrast=self.estimators_[study].predict(this_X),
                 subject=-100, study=-100))
         return res
+
+    @property
+    def coef_(self):
+        return {study: estimator.coef_ for study, estimator
+                in self.estimators_.items()}

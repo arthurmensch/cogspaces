@@ -1,20 +1,21 @@
 import tempfile
 import warnings
-from math import ceil, floor
+from math import ceil, floor, sqrt
 
 import numpy as np
 import pandas as pd
 import torch
-from cogspaces.data import NiftiTargetDataset, RepeatedDataLoader
-from cogspaces.optim.lbfgs import LBFGSScipy
 from sklearn.base import BaseEstimator
 from torch import nn
 from torch.autograd import Variable
 from torch.nn import Linear
-from torch.nn.functional import log_softmax, nll_loss
+from torch.nn.functional import nll_loss
 from torch.optim import Adam, SGD
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
+
+from cogspaces.data import NiftiTargetDataset, RepeatedDataLoader
+from cogspaces.optim.lbfgs import LBFGSScipy
 
 
 class GradientReversal(nn.Module):
@@ -31,6 +32,14 @@ class GradientReversal(nn.Module):
         pass
 
 
+class Identity(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, input):
+        return input
+
+
 class MultiTaskModule(nn.Module):
     def __init__(self, in_features,
                  shared_embedding_size,
@@ -38,6 +47,7 @@ class MultiTaskModule(nn.Module):
                  target_sizes,
                  input_dropout=0.,
                  dropout=0.,
+                 activation='linear',
                  shared_embedding='hard+adversarial',
                  skip_connection=False):
         super().__init__()
@@ -45,6 +55,11 @@ class MultiTaskModule(nn.Module):
         self.in_features = in_features
         self.shared_embedding_size = shared_embedding_size
         self.private_embedding_size = private_embedding_size
+
+        if activation == 'linear':
+            self.activation = Identity()
+        elif activation == 'relu':
+            self.activation = nn.ReLU()
 
         self.dropout = nn.Dropout(p=dropout)
         self.input_dropout = nn.Dropout(p=input_dropout)
@@ -54,38 +69,47 @@ class MultiTaskModule(nn.Module):
 
         if private_embedding_size > 0:
             self.private_embedders = {}
+
         if shared_embedding_size > 0:
+
+            def get_shared_embedder():
+                return nn.Sequential(
+                    Linear(in_features, shared_embedding_size, bias=False),
+                    self.activation)
+
             if 'hard' in shared_embedding:
-                self.shared_embedder = Linear(in_features,
-                                              shared_embedding_size,
-                                              bias=False)
+                shared_embedder = get_shared_embedder()
+                self.shared_embedders = {study: shared_embedder
+                                         for study in target_sizes}
             else:
-                self.shared_embedders = {}
+                self.shared_embedders = {study: get_shared_embedder()
+                                         for study in target_sizes}
+                for study in target_sizes:
+                    self.add_module('shared_embedder_%s' % study,
+                                    self.shared_embedders[study])
 
         self.classifiers = {}
 
         for study, size in target_sizes.items():
-            if shared_embedding_size and not 'hard' in shared_embedding:
-                self.shared_embedders[study] = Linear(
-                    in_features, shared_embedding_size, bias=False)
-                self.add_module('shared_embedder_%s' % study,
-                                self.shared_embedders[study])
-
             if private_embedding_size > 0:
-                self.private_embedders[study] = Linear(
-                    in_features, private_embedding_size, bias=False)
+                self.private_embedders[study] = nn.Sequential(
+                    Linear(in_features, private_embedding_size, bias=False),
+                    self.activation)
                 self.add_module('private_embedder_%s' % study,
                                 self.private_embedders[study])
 
-            self.classifiers[study] = Linear(shared_embedding_size +
-                                             private_embedding_size
-                                             + in_features * skip_connection,
-                                             size)
+            self.classifiers[study] = nn.Sequential(
+                Linear(shared_embedding_size + private_embedding_size
+                       + in_features * skip_connection, size),
+                nn.LogSoftmax(dim=1))
             self.add_module('classifier_%s' % study, self.classifiers[study])
 
         if 'adversarial' in shared_embedding:
-            self.study_classifier = Linear(shared_embedding_size,
-                                           len(target_sizes))
+            self.study_classifier = nn.Sequential(
+                Linear(shared_embedding_size, len(target_sizes), bias=True),
+                nn.ReLU(),
+                Linear(len(target_sizes), len(target_sizes), bias=True),
+                nn.LogSoftmax(dim=1))
             self.gradient_reversal = GradientReversal()
         self.reset_parameters()
 
@@ -107,14 +131,11 @@ class MultiTaskModule(nn.Module):
             sub_input = self.input_dropout(sub_input)
 
             if self.shared_embedding_size > 0:
-                if 'hard' in self.shared_embedding:
-                    shared_embedding = self.shared_embedder(sub_input)
-                else:
-                    shared_embedding = self.shared_embedders[study](sub_input)
+                shared_embedding = self.shared_embedders[study](sub_input)
                 if 'adversarial' in self.shared_embedding:
                     # adversarial
-                    study_pred = log_softmax(self.study_classifier(
-                        self.gradient_reversal(shared_embedding)), dim=1)
+                    study_pred = self.study_classifier(
+                        self.gradient_reversal(shared_embedding))
                 else:
                     study_pred = Variable(
                         sub_input.data.new(sub_input.shape[0], 1),
@@ -130,29 +151,27 @@ class MultiTaskModule(nn.Module):
                 private_embedding = self.private_embedders[study](sub_input)
                 embedding.append(private_embedding)
 
-            # if self.private_embedding_size > 0 and \
-            #         self.shared_embedding_size > 0:
-            #
-            #     # corr = torch.sum(torch.mm(self.private_embedders[study].weight,
-            #     #                           self.shared_embedder.weight.transpose(0, 1))
-            #     #                  ** 2)
-            #     corr = torch.sum(torch.bmm(private_embedding[:, :, None],
-            #                                shared_embedding[:, None, :]) ** 2)
-            #     corr /= self.private_embedding_size * self.shared_embedding_size
-            # else:
-            corr = 0
+            if self.private_embedding_size > 0 and \
+                    self.shared_embedding_size > 0:
+                corr = torch.bmm(private_embedding[:, :, None],
+                                 shared_embedding[:, None, :])
+                corr /= sqrt(self.private_embedding_size
+                             * self.shared_embedding_size)
+                penalty = torch.sum(corr ** 2)
+            else:
+                penalty = Variable(torch.FloatTensor([0.]))
 
             embedding = torch.cat(embedding, dim=1)
             embedding = self.dropout(embedding)
-            pred = log_softmax(self.classifiers[study](embedding), dim=1)
+            pred = self.classifiers[study](embedding)
 
-            preds[study] = study_pred, pred, corr
+            preds[study] = study_pred, pred, penalty
         return preds
 
     def coefs(self):
         coefs = {}
         for study in self.classifiers:
-            coef = self.classifiers[study].weight.data
+            coef = self.classifiers[study][0].weight.data
             if self.skip_connection:
                 skip_coef = coef[:, :self.in_features]
                 if self.in_features < coef.shape[1]:
@@ -161,16 +180,13 @@ class MultiTaskModule(nn.Module):
                 skip_coef = 0
             if self.shared_embedding_size > 0:
                 shared_coef = coef[:, :self.shared_embedding_size]
-                if 'hard' in self.shared_embedding:
-                    shared_embed = self.shared_embedder.weight.data
-                else:
-                    shared_embed = self.shared_embedders[study].weight.data
+                shared_embed = self.shared_embedders[study][0].weight.data
                 shared_coef = torch.matmul(shared_coef, shared_embed)
             else:
                 shared_coef = 0
             if self.private_embedding_size > 0:
                 private_coef = coef[:, -self.private_embedding_size:]
-                private_embed = self.private_embedders[study].weight.data
+                private_embed = self.private_embedders[study][0].weight.data
                 private_coef = torch.matmul(private_coef, private_embed)
             else:
                 private_coef = 0
@@ -180,7 +196,7 @@ class MultiTaskModule(nn.Module):
         return coefs
 
     def intercepts(self):
-        return {study: classifier.bias.data for study, classifier
+        return {study: classifier[0].bias.data for study, classifier
                 in self.classifiers.items()}
 
 
@@ -193,21 +209,24 @@ class MultiTaskLoss(nn.Module):
     def forward(self, inputs, targets):
         loss = 0
         for study in inputs:
-            study_pred, pred, corr = inputs[study]
+            study_pred, pred, penalty = inputs[study]
             study_target, target = targets[study][:, 0], targets[study][:, 1]
-            loss += corr
             if self.adversarial:
-                loss += nll_loss(study_pred, study_target,
-                                 size_average=False)
-            loss += nll_loss(pred, target,
-                             size_average=False)
-            loss *= self.study_weights[study]
+                study_loss = nll_loss(study_pred, study_target,
+                                      size_average=False)
+            else:
+                study_loss = Variable(torch.Tensor([0.]))
+            pred_loss = nll_loss(pred, target, size_average=False)
+            # print(pred_loss.data[0], study_loss.data[0])
+            loss += penalty * self.study_weights[study] + study_loss \
+                    + pred_loss * self.study_weights[study]
         return loss
 
 
 class FactoredClassifier(BaseEstimator):
     def __init__(self, skip_connection=False, shared_embedding_size=30,
                  private_embedding_size=5,
+                 activation='linear',
                  shared_embedding='hard+adversarial',
                  batch_size=128, optimizer='sgd',
                  lr=0.001,
@@ -219,6 +238,7 @@ class FactoredClassifier(BaseEstimator):
         self.shared_embedding = shared_embedding
         self.shared_embedding_size = shared_embedding_size
         self.private_embedding_size = private_embedding_size
+        self.activation = activation
 
         self.input_dropout = input_dropout
         self.dropout = dropout
@@ -265,6 +285,7 @@ class FactoredClassifier(BaseEstimator):
 
         self.module_ = MultiTaskModule(
             in_features=in_features,
+            activation=self.activation,
             shared_embedding=self.shared_embedding,
             shared_embedding_size=self.shared_embedding_size,
             private_embedding_size=self.private_embedding_size,
@@ -317,22 +338,24 @@ class FactoredClassifier(BaseEstimator):
                             data_loaders.items()}
             if self.optimizer == 'adam':
                 self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr,
-                                       weight_decay=5e-4)
+                                       )
             else:
                 self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr,
-                                      weight_decay=5e-4)
-                self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=30,
+                                      )
+                self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=5,
                                                     eta_min=self.lr * 1e-3)
 
             total_seen_samples = 0
-            mean_loss = 0
             seen_samples = 0
+            mean_loss = 0
             old_epoch = -1
             self.n_iter_ = 0
+            self.module_.train()
             while self.n_iter_ < self.max_iter:
+                if hasattr(self, 'scheduler_'):
+                    self.scheduler_.step(self.n_iter_)
+                self.optimizer_.zero_grad()
                 for study, loader in data_loaders.items():
-                    self.module_.train()
-                    self.optimizer_.zero_grad()
                     input, target = next(loader)
                     target = target[:, [0, 2]]
 
@@ -346,30 +369,30 @@ class FactoredClassifier(BaseEstimator):
                     input = {study: input}
                     target = {study: target}
                     pred = self.module_(input)
-                    loss = self.loss_(pred, target) / batch_size
-                    loss.backward()
-                    self.optimizer_.step()
 
-                    mean_loss += loss
+                    this_loss = self.loss_(pred, target)
+                    mean_loss += this_loss.data[0]
                     seen_samples += batch_size
                     total_seen_samples += batch_size
+
+                    this_loss /= batch_size
+                    this_loss.backward()
+
                     self.n_iter_ = total_seen_samples / n_samples
 
-                    epoch = floor(self.n_iter_)
-                    if report_every is not None and epoch > old_epoch \
-                            and epoch % report_every == 0:
-                        mean_loss = mean_loss.data[0] / seen_samples
-                        print('Epoch %.2f, train loss: % .4f' %
-                              (epoch, mean_loss))
-                        mean_loss = 0
-                        seen_samples = 0
-                        if hasattr(self, 'scheduler_'):
-                            self.scheduler_.step(epoch)
+                self.optimizer_.step()
 
-                        if callback is not None:
-                            callback(self.n_iter_)
+                epoch = floor(self.n_iter_)
+                if report_every is not None and epoch > old_epoch \
+                        and epoch % report_every == 0:
+                    mean_loss = mean_loss / seen_samples
+                    print('Epoch %.2f, train loss: % .4f' % (epoch, mean_loss))
+                    mean_loss = 0
+                    seen_samples = 0
 
-                    old_epoch = epoch
+                    if callback is not None:
+                        callback(self.n_iter_)
+                old_epoch = epoch
         else:
             raise NotImplementedError('Optimizer not supported.')
 
@@ -395,6 +418,7 @@ class FactoredClassifier(BaseEstimator):
                                              pin_memory=cuda)
         preds = {}
         study_preds = {}
+        self.module_.eval()
         for study, loader in data_loaders.items():
             study_pred = []
             pred = []
@@ -403,7 +427,6 @@ class FactoredClassifier(BaseEstimator):
                     input = input.cuda(device=device)
                 input = Variable(input, volatile=True)
                 input = {study: input}
-                self.module_.eval()
                 this_study_pred, this_pred, _ = self.module_(input)[study]
                 pred.append(this_pred)
                 study_pred.append(this_study_pred)
@@ -413,6 +436,7 @@ class FactoredClassifier(BaseEstimator):
                  for study, pred in preds.items()}
         study_preds = {study: study_pred.data.cpu().numpy()
                        for study, study_pred in study_preds.items()}
+        self.module_.train()
         return study_preds, preds
 
     def predict(self, X):
