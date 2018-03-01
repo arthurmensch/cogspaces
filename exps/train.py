@@ -29,25 +29,25 @@ def default():
         verbose=1000,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies=['archi', 'hcp', 'brainomics', 'la5c']
+        source_dir=join(get_data_dir(), 'reduced_512_icbm_gm'),
+        studies='all'
     )
     model = dict(
         normalize=True,
         estimator='factored',
-        study_weight='study',
+        study_weight='sqrt_sample',
         max_iter=1000,
     )
     factored = dict(
-        optimizer='sgd',
-        shared_embedding_size=64,
-        private_embedding_size=4,
-        shared_embedding='hard',
+        optimizer='adam',
+        shared_embedding_size=128,
+        private_embedding_size=0,
+        shared_embedding='hard+adversarial',
         skip_connection=False,
         batch_size=32,
-        dropout=0.5,
+        dropout=0.75,
         activation='linear',
-        lr=1e-2,
+        lr=1e-3,
         input_dropout=0.25,
     )
     trace = dict(

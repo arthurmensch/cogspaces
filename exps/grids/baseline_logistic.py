@@ -8,7 +8,7 @@ from sklearn.model_selection import ParameterGrid
 
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
-from cogspaces.utils.sacred import get_id, ObservedRun, OurFileStorageObserver
+from cogspaces.utils.sacred import get_id, OurFileStorageObserver
 
 from exps.train import exp
 
@@ -21,7 +21,7 @@ def baseline():
         verbose=100,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512'),
+        source_dir=join(get_data_dir(), 'reduced_512_icbm_gm'),
         studies='archi'
     )
     model = dict(
@@ -37,8 +37,8 @@ def baseline():
 def run_exp(output_dir, config_updates, _id):
     """Boiler plate function that has to be put in every multiple
         experiment script, as exp does not pickle."""
-    exp.run_command('print_config', config_updates=config_updates,)
-    run = exp._create_run(config_updates=config_updates,)
+    exp.run_command('print_config', config_updates=config_updates, )
+    run = exp._create_run(config_updates=config_updates, )
     run._id = _id
     observer = OurFileStorageObserver.create(basedir=output_dir)
     run.observers.append(observer)
@@ -53,12 +53,12 @@ if __name__ == '__main__':
 
     config_updates = ParameterGrid({'logistic.l2_penalty': l2_penalties,
                                     'data.studies': studies})
-    output_dir = join(get_output_dir(), 'baseline_logistic')
+    output_dir = join(get_output_dir(), 'baseline_logistic_icbm_gm')
 
     _id = get_id(output_dir)
 
-    Parallel(n_jobs=2, verbose=100)(delayed(run_exp)(exp, output_dir,
-                                                     config_update,
-                                                     _id=_id + i)
-                                    for i, config_update
-                                    in enumerate(config_updates))
+    Parallel(n_jobs=40, verbose=100)(delayed(run_exp)(output_dir,
+                                                      config_update,
+                                                      _id=_id + i)
+                                     for i, config_update
+                                     in enumerate(config_updates))

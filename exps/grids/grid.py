@@ -70,22 +70,33 @@ def factored_l2():
 
 
 def factored():
+    system = dict(
+        device=-1,
+        seed=0,
+        verbose=1000,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512_icbm_gm'),
+        studies='all'
+    )
+
     model = dict(
         normalize=True,
         estimator='factored',
+        study_weight='study',
         max_iter=1000,
     )
 
     factored = dict(
         optimizer='sgd',
-        shared_embedding_size=100,
+        shared_embedding_size=128,
         private_embedding_size=0,
-        shared_embedding='hard+adversarial',
+        shared_embedding='hard',
         skip_connection=False,
-        batch_size=128,
+        batch_size=32,
         dropout=0.75,
         lr=1e-2,
-        input_dropout=0.5,
+        input_dropout=0.25,
     )
 
 
@@ -147,82 +158,29 @@ if __name__ == '__main__':
     elif grid == 'factored':
         output_dir = join(get_output_dir(), 'factored')
         exp.config(factored)
-        print(output_dir)
-        # config_updates = [
-        #     dict(
-        #         optimizer='sgd',
-        #         shared_embedding_size=100,
-        #         private_embedding_size=0,
-        #         shared_embedding='hard',
-        #         skip_connection=False,
-        #         batch_size=128,
-        #         dropout=0.75,
-        #         lr=1e-2,
-        #         input_dropout=0.25,
-        #     ),
-        #     dict(
-        #         optimizer='sgd',
-        #         shared_embedding_size=100,
-        #         private_embedding_size=0,
-        #         shared_embedding='hard+adversarial',
-        #         skip_connection=False,
-        #         batch_size=128,
-        #         dropout=0.75,
-        #         lr=1e-2,
-        #         input_dropout=0.25,
-        #     ),
-        #     dict(
-        #         optimizer='adam',
-        #         shared_embedding_size=100,
-        #         private_embedding_size=0,
-        #         shared_embedding='hard',
-        #         skip_connection=False,
-        #         batch_size=128,
-        #         dropout=0.75,
-        #         lr=1e-3,
-        #         input_dropout=0.25,
-        #     ),
-        #     dict(
-        #         optimizer='sgd',
-        #         shared_embedding_size=100,
-        #         private_embedding_size=10,
-        #         shared_embedding='hard+adversarial',
-        #         skip_connection=False,
-        #         batch_size=128,
-        #         dropout=0.75,
-        #         lr=1e-2,
-        #         input_dropout=0.25,
-        #     ),
-        #     dict(
-        #         optimizer='sgd',
-        #         shared_embedding_size=100,
-        #         private_embedding_size=10,
-        #         shared_embedding='hard',
-        #         skip_connection=False,
-        #         batch_size=128,
-        #         dropout=0.75,
-        #         lr=1e-2,
-        #         input_dropout=0.25,
-        #     ),
-        #     dict(
-        #         optimizer='adam',
-        #         shared_embedding_size=100,
-        #         private_embedding_size=10,
-        #         shared_embedding='hard',
-        #         skip_connection=False,
-        #         batch_size=128,
-        #         dropout=0.75,
-        #         lr=1e-3,
-        #         input_dropout=0.25,
-        #     )
-        # ]
-        # config_updates = [{'factored': config_update}
-        #                   for config_update in config_updates]
-        # _id = get_id(output_dir)
-        # Parallel(n_jobs=15, verbose=100)(delayed(run_exp)(output_dir,
-        #                                                   config_update,
-        #                                                   _id=_id + i)
-        #                                  for i, config_update
-        #                                  in enumerate(config_updates))
+        config_updates = list(ParameterGrid({'factored.dropout': [0.75, 0.875],
+                                             'factored.shared_embedding_size':
+                                                 [128, 256],
+                                             'factored.private_embedding_size':
+                                                 [0, 16],
+                                             'factored.shared_embedding':
+                                                 ['hard', 'hard+adversarial'],
+                                             'factored.optimizer':
+                                                 ['adam', 'sgd'],
+                                             'model.study_weight':
+                                                 ['study', 'sqrt_sample']
+                                             }))
+        for config_update in config_updates:
+            if config_update['factored.optimizer'] == 'adam':
+                config_update['factored.lr'] = 1e-3
+            else:
+                config_update['factored.lr'] = 1e-2
+
+        _id = get_id(output_dir)
+        Parallel(n_jobs=1, verbose=100)(delayed(run_exp)(output_dir,
+                                                          config_update,
+                                                          _id=_id + i)
+                                         for i, config_update
+                                         in enumerate(config_updates))
     else:
         raise ValueError('Wrong argument')

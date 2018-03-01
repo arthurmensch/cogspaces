@@ -368,7 +368,7 @@ class FactoredClassifier(BaseEstimator):
                 self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr, )
             else:
                 self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr, )
-                self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=5,
+                self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=10,
                                                     eta_min=self.lr * 1e-3)
 
             old_epoch = -1

@@ -10,7 +10,7 @@ class MultiLogisticClassifier(BaseEstimator):
         self.verbose = verbose
         self.max_iter = max_iter
 
-    def fit(self, X, y, callback=None):
+    def fit(self, X, y, study_weights=None, callback=None):
         self.estimators_ = {}
         for study in X:
             n_samples = X[study].shape[0]
@@ -33,7 +33,7 @@ class MultiLogisticClassifier(BaseEstimator):
         for study, this_X in X.items():
             res[study] = pd.DataFrame(dict(
                 contrast=self.estimators_[study].predict(this_X),
-                subject=-100, study=-100))
+                subject=0, study=0))
         return res
 
     @property
