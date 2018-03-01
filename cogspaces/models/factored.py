@@ -1,6 +1,7 @@
 import tempfile
 import warnings
 from math import ceil, floor, sqrt
+from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -149,18 +150,23 @@ class MultiTaskModule(nn.Module):
                 study_pred = Variable(
                     sub_input.data.new(sub_input.shape[0], 1),
                     requires_grad=False)
+                shared_embedding = None
 
             if self.private_embedding_size > 0:
                 private_embedding = self.private_embedders[study](sub_input)
                 embedding.append(private_embedding)
+            else:
+                private_embedding = None
 
-            if self.private_embedding_size > 0 and \
-                    self.shared_embedding_size > 0:
-                corr = torch.bmm(private_embedding[:, :, None],
-                                 shared_embedding[:, None, :])
-                corr /= sqrt(self.private_embedding_size
-                             * self.shared_embedding_size)
-                penalty = torch.sum(corr ** 2)
+            if shared_embedding is not None and private_embedding is not None:
+                corr = torch.matmul(shared_embedding.transpose(0, 1),
+                                    private_embedding)
+                # S_shared = torch.sqrt(torch.sum(shared_embedding ** 2,
+                #                                 dim=0))[:, None]
+                # S_private = torch.sqrt(torch.sum(private_embedding ** 2,
+                #                                  dim=0))[None, :]
+                corr /= self.private_embedding_size * self.shared_embedding_size
+                penalty = torch.sum(torch.abs(corr))
             else:
                 penalty = Variable(torch.FloatTensor([0.]))
 
@@ -203,25 +209,46 @@ class MultiTaskModule(nn.Module):
 
 
 class MultiTaskLoss(nn.Module):
-    def __init__(self, study_weights=None, adversarial=True):
+    def __init__(self, study_weights: Dict[str, float],
+                 adversarial: bool = True) -> None:
         super().__init__()
         self.study_weights = study_weights
         self.adversarial = adversarial
 
-    def forward(self, inputs, targets):
+    def forward(self, inputs: Dict[str, torch.FloatTensor],
+                targets: Dict[str, torch.LongTensor]) -> torch.FloatTensor:
         loss = 0
         for study in inputs:
             study_pred, pred, penalty = inputs[study]
             study_target, target = targets[study][:, 0], targets[study][:, 1]
             if self.adversarial:
                 study_loss = nll_loss(study_pred, study_target,
-                                      size_average=False) * 10
+                                      size_average=True)
             else:
-                study_loss = Variable(torch.Tensor([0.]))
-            pred_loss = nll_loss(pred, target, size_average=False)
-            
-            loss += (penalty + study_loss + pred_loss) * self.study_weights[study]
+                study_loss = Variable(torch.FloatTensor([0.]))
+            pred_loss = nll_loss(pred, target, size_average=True)
+            penalty /= pred.shape[0]
+            loss += ((penalty + study_loss + pred_loss)
+                     * self.study_weights[study])
         return loss
+
+
+def next_batches(data_loaders, cuda, device):
+    inputs = {}
+    targets = {}
+    batch_size = 0
+    for study, loader in data_loaders.items():
+        input, target = next(loader)
+        batch_size += input.shape[0]
+        target = target[:, [0, 2]]
+        if cuda:
+            input = input.cuda(device=device)
+            target = target.cuda(device=device)
+        input = Variable(input)
+        target = Variable(target)
+        inputs[study] = input
+        targets[study] = target
+    return inputs, targets, batch_size
 
 
 class FactoredClassifier(BaseEstimator):
@@ -338,56 +365,42 @@ class FactoredClassifier(BaseEstimator):
             data_loaders = {study: iter(loader) for study, loader in
                             data_loaders.items()}
             if self.optimizer == 'adam':
-                self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr,)
+                self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr, )
             else:
-                self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr,)
+                self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr, )
                 self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=5,
                                                     eta_min=self.lr * 1e-3)
 
-            total_seen_samples = 0
-            seen_samples = 0
-            mean_loss = 0
             old_epoch = -1
             self.n_iter_ = 0
+            seen_samples = 0
+            epoch_loss = 0
+            epoch_iter = 0
             self.module_.train()
             while self.n_iter_ < self.max_iter:
                 if hasattr(self, 'scheduler_'):
                     self.scheduler_.step(self.n_iter_)
                 self.optimizer_.zero_grad()
-                for study, loader in data_loaders.items():
-                    input, target = next(loader)
-                    target = target[:, [0, 2]]
-
-                    if cuda:
-                        input = input.cuda(device=device)
-                        target = target.cuda(device=device)
-                    input = Variable(input)
-                    target = Variable(target)
-
-                    batch_size = len(input)
-                    input = {study: input}
-                    target = {study: target}
-                    pred = self.module_(input)
-
-                    this_loss = self.loss_(pred, target)
-                    mean_loss += this_loss.data[0]
-                    seen_samples += batch_size
-                    total_seen_samples += batch_size
-
-                    this_loss /= batch_size
-                    this_loss.backward()
-
-                    self.n_iter_ = total_seen_samples / n_samples
+                inputs, targets, batch_size = next_batches(data_loaders,
+                                                           cuda=cuda,
+                                                           device=device)
+                preds = self.module_(inputs)
+                this_loss = self.loss_(preds, targets)
+                this_loss.backward()
                 self.optimizer_.step()
 
+                seen_samples += batch_size
+                epoch_loss += this_loss
+                epoch_iter += 1
+                self.n_iter_ = seen_samples / n_samples
                 epoch = floor(self.n_iter_)
                 if report_every is not None and epoch > old_epoch \
                         and epoch % report_every == 0:
-                    mean_loss = mean_loss / seen_samples
-                    print('Epoch %.2f, train loss: % .4f' % (epoch, mean_loss))
-                    mean_loss = 0
-                    seen_samples = 0
-
+                    epoch_loss /= epoch_iter
+                    print('Epoch %.2f, train loss: % .4f'
+                          % (epoch, epoch_loss))
+                    epoch_loss = 0
+                    epoch_iter = 0
                     if callback is not None:
                         callback(self.n_iter_)
                 old_epoch = epoch

@@ -40,12 +40,12 @@ def default():
     )
     factored = dict(
         optimizer='sgd',
-        shared_embedding_size=100,
-        private_embedding_size=5,
+        shared_embedding_size=64,
+        private_embedding_size=4,
         shared_embedding='hard',
         skip_connection=False,
         batch_size=32,
-        dropout=0.75,
+        dropout=0.5,
         activation='linear',
         lr=1e-2,
         input_dropout=0.25,
