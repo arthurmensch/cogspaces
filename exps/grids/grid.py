@@ -177,7 +177,7 @@ if __name__ == '__main__':
                 config_update['factored.lr'] = 1e-2
 
         _id = get_id(output_dir)
-        Parallel(n_jobs=1, verbose=100)(delayed(run_exp)(output_dir,
+        Parallel(n_jobs=36, verbose=100)(delayed(run_exp)(output_dir,
                                                           config_update,
                                                           _id=_id + i)
                                          for i, config_update

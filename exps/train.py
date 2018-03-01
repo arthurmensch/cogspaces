@@ -2,6 +2,8 @@
 from math import sqrt
 from os.path import join
 
+import numpy as np
+import pandas as pd
 from joblib import dump
 from sacred import Experiment
 from sklearn.metrics import accuracy_score
@@ -15,8 +17,6 @@ from cogspaces.models.trace import TraceClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
-
-import pandas as pd
 
 exp = Experiment('multi_studies')
 
@@ -41,7 +41,7 @@ def default():
     factored = dict(
         optimizer='adam',
         shared_embedding_size=128,
-        private_embedding_size=0,
+        private_embedding_size=16,
         shared_embedding='hard+adversarial',
         skip_connection=False,
         batch_size=32,
@@ -107,16 +107,7 @@ def train(system, model, factored, trace, logistic,
     else:
         standard_scaler = None
 
-    if model['study_weight'] == 'sqrt_sample':
-        study_weights = {study: sqrt(len(train_data[study]))
-                         for study in train_data}
-    elif model['study_weight'] == 'sample':
-        study_weights = {study: len(train_data[study])
-                         for study in train_data}
-    elif model['study_weight'] == 'study':
-        study_weights = {study: 1. for study in train_data}
-    else:
-        raise ValueError
+    study_weights = get_study_weights(model['study_weight'], train_data)
 
     if model['estimator'] == 'factored':
         estimator = FactoredClassifier(verbose=system['verbose'],
@@ -165,6 +156,28 @@ def train(system, model, factored, trace, logistic,
                                       keys=['pred', 'true'], names=['target'])
     save_output(target_encoder, standard_scaler, estimator, test_preds)
     return test_scores
+
+
+def get_study_weights(study_weight, train_data):
+    if study_weight == 'sqrt_sample':
+        study_weights = np.array(
+            [sqrt(len(train_data[study])) for study in train_data])
+        s = np.sum(study_weights)
+        study_weights /= s / len(train_data)
+        study_weights = {study: weight for study, weight in zip(train_data,
+                                                                study_weights)}
+    elif study_weight == 'sample':
+        study_weights = np.array(
+            [len(train_data[study]) for study in train_data])
+        s = np.sum(study_weights)
+        study_weights /= s / len(train_data)
+        study_weights = {study: weight for study, weight in zip(train_data,
+                                                                study_weights)}
+    elif study_weight == 'study':
+        study_weights = {study: 1. for study in train_data}
+    else:
+        raise ValueError
+    return study_weights
 
 
 if __name__ == '__main__':

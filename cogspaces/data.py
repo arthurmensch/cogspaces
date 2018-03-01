@@ -43,6 +43,7 @@ class RepeatedDataLoader(DataLoader):
             for data in super().__iter__():
                 yield data
 
+
 def load_data_from_dir(data_dir):
     expr = re.compile("data_(.*).pt")
 
