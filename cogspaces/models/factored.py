@@ -8,7 +8,7 @@ import pandas as pd
 import torch
 from sklearn.base import BaseEstimator
 from torch import nn
-from torch.autograd import Variable
+from torch.autograd import Variable, Function
 from torch.nn import Linear
 from torch.nn.functional import nll_loss
 from torch.optim import Adam, SGD
@@ -19,18 +19,19 @@ from cogspaces.data import NiftiTargetDataset, RepeatedDataLoader
 from cogspaces.optim.lbfgs import LBFGSScipy
 
 
+class GradReverseFunc(Function):
+    @staticmethod
+    def forward(ctx, x):
+        return x.view_as(x)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output.neg()
+
+
 class GradientReversal(nn.Module):
-    def __init__(self):
-        super().__init__()
-
     def forward(self, input):
-        return input
-
-    def backward(self, grad):
-        return - grad
-
-    def reset_parameters(self):
-        pass
+        return GradReverseFunc.apply(input)
 
 
 class Identity(nn.Module):
@@ -166,7 +167,7 @@ class MultiTaskModule(nn.Module):
                 # S_private = torch.sqrt(torch.sum(private_embedding ** 2,
                 #                                  dim=0))[None, :]
                 corr /= self.private_embedding_size * self.shared_embedding_size
-                penalty = torch.sum(torch.abs(corr))
+                penalty = torch.sum(corr ** 2)
             else:
                 penalty = Variable(torch.FloatTensor([0.]))
 
@@ -210,8 +211,10 @@ class MultiTaskModule(nn.Module):
 
 class MultiTaskLoss(nn.Module):
     def __init__(self, study_weights: Dict[str, float],
+                 loss_weights: Dict[str, float],
                  adversarial: bool = True) -> None:
         super().__init__()
+        self.loss_weights = loss_weights
         self.study_weights = study_weights
         self.adversarial = adversarial
 
@@ -221,15 +224,20 @@ class MultiTaskLoss(nn.Module):
         for study in inputs:
             study_pred, pred, penalty = inputs[study]
             study_target, target = targets[study][:, 0], targets[study][:, 1]
+
+            this_loss = (nll_loss(pred, target, size_average=True)
+                         * self.loss_weights['contrast'])
+
+            if penalty.data[0] != 0:
+                penalty /= pred.shape[0]
+                this_loss += penalty * self.loss_weights['penalty']
+
             if self.adversarial:
                 study_loss = nll_loss(study_pred, study_target,
                                       size_average=True)
-            else:
-                study_loss = Variable(torch.FloatTensor([0.]))
-            pred_loss = nll_loss(pred, target, size_average=True)
-            penalty /= pred.shape[0]
-            loss += ((penalty + study_loss + pred_loss)
-                     * self.study_weights[study])
+                this_loss += study_loss * self.loss_weights['adversarial']
+
+            loss += this_loss * self.study_weights[study]
         return loss
 
 
@@ -252,11 +260,14 @@ def next_batches(data_loaders, cuda, device):
 
 
 class FactoredClassifier(BaseEstimator):
-    def __init__(self, skip_connection=False, shared_embedding_size=30,
+    def __init__(self,
+                 skip_connection=False,
+                 shared_embedding_size=30,
                  private_embedding_size=5,
                  activation='linear',
                  shared_embedding='hard+adversarial',
                  batch_size=128, optimizer='sgd',
+                 loss_weights=None,
                  lr=0.001,
                  dropout=0.5, input_dropout=0.25,
                  max_iter=10000, verbose=0,
@@ -276,6 +287,8 @@ class FactoredClassifier(BaseEstimator):
         self.verbose = verbose
         self.device = device
         self.lr = lr
+
+        self.loss_weights = loss_weights
 
     def fit(self, X, y, study_weights=None, callback=None):
         assert (self.shared_embedding in ['hard', 'adversarial',
@@ -322,6 +335,7 @@ class FactoredClassifier(BaseEstimator):
             dropout=self.dropout,
             target_sizes=target_sizes)
         self.loss_ = MultiTaskLoss(study_weights=study_weights,
+                                   loss_weights=self.loss_weights,
                                    adversarial='adversarial'
                                                in self.shared_embedding)
 

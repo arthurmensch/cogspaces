@@ -30,24 +30,26 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_icbm_gm'),
-        studies='all'
+        studies=['archi', 'hcp']
     )
     model = dict(
         normalize=True,
         estimator='factored',
-        study_weight='sqrt_sample',
+        study_weight='study',
         max_iter=1000,
     )
     factored = dict(
-        optimizer='adam',
-        shared_embedding_size=128,
-        private_embedding_size=16,
-        shared_embedding='hard+adversarial',
+        optimizer='sgd',
+        shared_embedding_size=32,
+        private_embedding_size=8,
+        shared_embedding='adversarial',
         skip_connection=False,
         batch_size=32,
-        dropout=0.75,
+        dropout=0.5,
         activation='linear',
-        lr=1e-3,
+        loss_weights=dict(contrast=1., adversarial=1.,
+                            penalty=1.),
+        lr=1e-2,
         input_dropout=0.25,
     )
     trace = dict(

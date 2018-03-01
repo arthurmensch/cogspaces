@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 
 def summarize_baseline():
-    output_dir = expanduser('~/output/cogspaces/baseline_logistic')
+    output_dir = expanduser('~/output/cogspaces/baseline_logistic_icbm_gm')
 
     regex = re.compile(r'[0-9]+$')
     res = []
@@ -33,7 +33,10 @@ def summarize_baseline():
             continue
         study = config['data']['studies']
         l2_penalty = config['logistic']['l2_penalty']
-        test_score = run['result'][study]
+        if run['result'] is None:
+            continue
+        else:
+            test_score = run['result'][study]
         res.append(dict(study=study, test_score=test_score,
                         run=this_dir))
     res = pd.DataFrame(res)
@@ -71,7 +74,7 @@ def summarize_baseline():
     plt.savefig(expanduser('~/output/cogspaces/corr.png'))
     plt.close(fig)
     pd.to_pickle(max_res, join(expanduser('~/output/cogspaces/'
-                                          'baseline_logistic.pkl')))
+                                          'baseline_logistic_icbm_gm.pkl')))
 
 
 def summarize_factored():
