@@ -30,22 +30,22 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies=['archi', 'hcp', 'brainomics']
+        studies=['archi', 'hcp', 'brainomics', 'la5c']
     )
     model = dict(
         normalize=True,
         estimator='factored',
-        study_weight='sample',
+        study_weight='study',
         max_iter=1000,
     )
     factored = dict(
         optimizer='sgd',
-        shared_embedding_size=50,
-        private_embedding_size=0,
+        shared_embedding_size=100,
+        private_embedding_size=5,
         shared_embedding='hard',
         skip_connection=False,
         batch_size=32,
-        dropout=0.5,
+        dropout=0.75,
         activation='linear',
         lr=1e-2,
         input_dropout=0.25,

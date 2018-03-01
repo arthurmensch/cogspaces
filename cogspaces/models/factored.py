@@ -75,10 +75,12 @@ class MultiTaskModule(nn.Module):
             def get_shared_embedder():
                 return nn.Sequential(
                     Linear(in_features, shared_embedding_size, bias=False),
-                    self.activation)
+                    self.activation,
+                    self.dropout)
 
             if 'hard' in shared_embedding:
                 shared_embedder = get_shared_embedder()
+                self.add_module('shared_embedder', shared_embedder)
                 self.shared_embedders = {study: shared_embedder
                                          for study in target_sizes}
             else:
@@ -94,7 +96,8 @@ class MultiTaskModule(nn.Module):
             if private_embedding_size > 0:
                 self.private_embedders[study] = nn.Sequential(
                     Linear(in_features, private_embedding_size, bias=False),
-                    self.activation)
+                    self.activation,
+                    self.dropout)
                 self.add_module('private_embedder_%s' % study,
                                 self.private_embedders[study])
 
@@ -162,7 +165,6 @@ class MultiTaskModule(nn.Module):
                 penalty = Variable(torch.FloatTensor([0.]))
 
             embedding = torch.cat(embedding, dim=1)
-            embedding = self.dropout(embedding)
             pred = self.classifiers[study](embedding)
 
             preds[study] = study_pred, pred, penalty
@@ -213,13 +215,12 @@ class MultiTaskLoss(nn.Module):
             study_target, target = targets[study][:, 0], targets[study][:, 1]
             if self.adversarial:
                 study_loss = nll_loss(study_pred, study_target,
-                                      size_average=False)
+                                      size_average=False) * 10
             else:
                 study_loss = Variable(torch.Tensor([0.]))
             pred_loss = nll_loss(pred, target, size_average=False)
-            # print(pred_loss.data[0], study_loss.data[0])
-            loss += penalty * self.study_weights[study] + study_loss \
-                    + pred_loss * self.study_weights[study]
+            
+            loss += (penalty + study_loss + pred_loss) * self.study_weights[study]
         return loss
 
 
@@ -337,11 +338,9 @@ class FactoredClassifier(BaseEstimator):
             data_loaders = {study: iter(loader) for study, loader in
                             data_loaders.items()}
             if self.optimizer == 'adam':
-                self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr,
-                                       )
+                self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr,)
             else:
-                self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr,
-                                      )
+                self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr,)
                 self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=5,
                                                     eta_min=self.lr * 1e-3)
 
@@ -379,7 +378,6 @@ class FactoredClassifier(BaseEstimator):
                     this_loss.backward()
 
                     self.n_iter_ = total_seen_samples / n_samples
-
                 self.optimizer_.step()
 
                 epoch = floor(self.n_iter_)

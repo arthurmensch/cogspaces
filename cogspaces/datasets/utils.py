@@ -1,9 +1,10 @@
 import warnings
 import os
 
+from os.path import join
+
 warnings.filterwarnings('ignore', category=FutureWarning, module='h5py')
 from nilearn.datasets.utils import _fetch_files, _get_dataset_dir
-
 
 
 def get_data_dir(data_dir=None):
@@ -79,7 +80,7 @@ def fetch_mask(data_dir=None, url=None, resume=True, verbose=1):
     if url is None:
         url = 'http://www.amensch.fr/data/cogspaces/mask/'
 
-    files = ['mask_img.nii.gz']
+    files = ['hcp_mask.nii.gz', 'icbm_gm_mask.nii.gz', 'contrast_mask.nii.gz']
 
     if isinstance(url, str):
         url = [url] * len(files)
@@ -90,6 +91,6 @@ def fetch_mask(data_dir=None, url=None, resume=True, verbose=1):
     data_dir = get_data_dir(data_dir)
     dataset_dir = _get_dataset_dir(dataset_name, data_dir=data_dir,
                                    verbose=verbose)
-    files_ = _fetch_files(dataset_dir, files, resume=resume,
-                          verbose=verbose)
-    return files_[0]
+    files = _fetch_files(dataset_dir, files, resume=resume,
+                         verbose=verbose)
+    return {'hcp': files[0], 'icbm_gm': files[1], 'contrast': files[2]}
