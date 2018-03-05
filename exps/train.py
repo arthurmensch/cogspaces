@@ -26,11 +26,11 @@ def default():
     system = dict(
         device=-1,
         seed=0,
-        verbose=1000,
+        verbose=20,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_icbm_gm'),
-        studies=['archi', 'hcp']
+        studies='all'
     )
     model = dict(
         normalize=True,
@@ -40,20 +40,20 @@ def default():
     )
     factored = dict(
         optimizer='sgd',
-        shared_embedding_size=32,
-        private_embedding_size=8,
-        shared_embedding='adversarial',
+        shared_embedding_size=256,
+        private_embedding_size=0,
+        shared_embedding='hard+adversarial',
         skip_connection=False,
         batch_size=32,
-        dropout=0.5,
+        dropout=0.75,
         activation='linear',
         loss_weights=dict(contrast=1., adversarial=1.,
-                            penalty=1.),
+                          penalty=1.),
         lr=1e-2,
         input_dropout=0.25,
     )
     trace = dict(
-        trace_penalty=5e-2,
+        trace_penalty=1e-1,
     )
     logistic = dict(
         l2_penalty=1e-3,

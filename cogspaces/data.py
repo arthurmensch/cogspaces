@@ -37,11 +37,10 @@ class NiftiTargetDataset(Dataset):
         return self.data.shape[0]
 
 
-class RepeatedDataLoader(DataLoader):
-    def __iter__(self):
-        while True:
-            for data in super().__iter__():
-                yield data
+def infinite_iter(iterable):
+    while True:
+        for elem in iterable:
+            yield elem
 
 
 def load_data_from_dir(data_dir):

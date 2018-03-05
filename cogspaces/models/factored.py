@@ -15,7 +15,7 @@ from torch.optim import Adam, SGD
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 
-from cogspaces.data import NiftiTargetDataset, RepeatedDataLoader
+from cogspaces.data import NiftiTargetDataset, infinite_iter
 from cogspaces.optim.lbfgs import LBFGSScipy
 
 
@@ -167,7 +167,7 @@ class MultiTaskModule(nn.Module):
                 # S_private = torch.sqrt(torch.sum(private_embedding ** 2,
                 #                                  dim=0))[None, :]
                 corr /= self.private_embedding_size * self.shared_embedding_size
-                penalty = torch.sum(corr ** 2)
+                penalty = torch.sum(torch.abs(corr))
             else:
                 penalty = Variable(torch.FloatTensor([0.]))
 
@@ -269,6 +269,7 @@ class FactoredClassifier(BaseEstimator):
                  batch_size=128, optimizer='sgd',
                  loss_weights=None,
                  lr=0.001,
+                 fine_tune=False,
                  dropout=0.5, input_dropout=0.25,
                  max_iter=10000, verbose=0,
                  device=-1):
@@ -288,20 +289,13 @@ class FactoredClassifier(BaseEstimator):
         self.device = device
         self.lr = lr
 
+        self.fine_tune = fine_tune
+
         self.loss_weights = loss_weights
 
     def fit(self, X, y, study_weights=None, callback=None):
         assert (self.shared_embedding in ['hard', 'adversarial',
                                           'hard+adversarial'])
-
-        if self.optimizer == 'lbfgs':
-            try:
-                assert (self.dropout == 0)
-                assert (self.input_dropout == 0)
-                assert ('adversarial' not in self.shared_embedding)
-            except AssertionError:
-                raise ValueError('Dropout and adversarial training'
-                                 'should not be used with LBFGS solver.')
 
         cuda, device = self._check_cuda()
         in_features = next(iter(X.values())).shape[1]
@@ -313,16 +307,15 @@ class FactoredClassifier(BaseEstimator):
         data_loaders = {}
         target_sizes = {}
 
-        data_loader = DataLoader if self.optimizer == 'lbfgs' else \
-            RepeatedDataLoader
-        shuffle = self.optimizer != 'lbfgs'
-
         for study in X:
             target_sizes[study] = int(y[study]['contrast'].max()) + 1
-            data_loaders[study] = data_loader(
+            data_loaders[study] = DataLoader(
                 NiftiTargetDataset(X[study], y[study]),
-                shuffle=shuffle,
+                shuffle=True,
                 batch_size=self.batch_size, pin_memory=cuda)
+
+        data_loaders = {study: infinite_iter(loader) for study, loader in
+                        data_loaders.items()}
 
         self.module_ = MultiTaskModule(
             in_features=in_features,
@@ -339,87 +332,84 @@ class FactoredClassifier(BaseEstimator):
                                    adversarial='adversarial'
                                                in self.shared_embedding)
 
+        if self.optimizer == 'adam':
+            self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr, )
+            self.scheduler_ = None
+        else:
+            self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr, )
+            self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=10,
+                                                eta_min=self.lr * 1e-3)
+
+        self.n_iter_ = 0
+        # Logging logic
+        old_epoch = -1
+        seen_samples = 0
+        epoch_loss = 0
+        epoch_iter = 0
         report_every = ceil(self.max_iter / self.verbose)
 
-        if self.optimizer == 'lbfgs':
-            def closure():
-                self.module_.train()
-                loss = 0
-                for study, loader in data_loaders.items():
-                    n_samples = 0
-                    study_loss = 0
-                    for input, target in loader:
-                        target = target[:, [0, 2]]
-
-                        if cuda:
-                            input = input.cuda(device=device)
-                            target = target.cuda(device=device)
-                        input = Variable(input)
-                        target = Variable(target)
-
-                        n_samples += len(input)
-                        input = {study: input}
-                        target = {study: target}
-                        pred = self.module_(input)
-
-                        study_loss += self.loss_(target, pred)
-
-                    loss += study_loss / n_samples
-                return loss
-
-            self.optimizer_ = LBFGSScipy(self.module_.parameters(),
-                                         callback=callback,
-                                         max_iter=self.max_iter,
-                                         tolerance_grad=0,
-                                         tolerance_change=0,
-                                         report_every=report_every)
-            self.optimizer_.step(closure)
-            self.n_iter_ = self.optimizer_.n_iter_
-        elif self.optimizer in ['adam', 'sgd']:
-            data_loaders = {study: iter(loader) for study, loader in
-                            data_loaders.items()}
-            if self.optimizer == 'adam':
-                self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr, )
-            else:
-                self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr, )
-                self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=10,
-                                                    eta_min=self.lr * 1e-3)
-
-            old_epoch = -1
-            self.n_iter_ = 0
-            seen_samples = 0
-            epoch_loss = 0
-            epoch_iter = 0
+        self.module_.train()
+        while self.n_iter_ < self.max_iter:
+            if self.scheduler_ is not None:
+                self.scheduler_.step(self.n_iter_)
+            self.optimizer_.zero_grad()
+            inputs, targets, batch_size = next_batches(data_loaders,
+                                                       cuda=cuda,
+                                                       device=device)
             self.module_.train()
-            while self.n_iter_ < self.max_iter:
-                if hasattr(self, 'scheduler_'):
-                    self.scheduler_.step(self.n_iter_)
-                self.optimizer_.zero_grad()
-                inputs, targets, batch_size = next_batches(data_loaders,
-                                                           cuda=cuda,
-                                                           device=device)
-                preds = self.module_(inputs)
-                this_loss = self.loss_(preds, targets)
-                this_loss.backward()
-                self.optimizer_.step()
+            preds = self.module_(inputs)
+            this_loss = self.loss_(preds, targets)
+            this_loss.backward()
+            self.optimizer_.step()
 
-                seen_samples += batch_size
-                epoch_loss += this_loss
-                epoch_iter += 1
-                self.n_iter_ = seen_samples / n_samples
-                epoch = floor(self.n_iter_)
-                if report_every is not None and epoch > old_epoch \
-                        and epoch % report_every == 0:
-                    epoch_loss /= epoch_iter
-                    print('Epoch %.2f, train loss: % .4f'
-                          % (epoch, epoch_loss))
-                    epoch_loss = 0
-                    epoch_iter = 0
-                    if callback is not None:
-                        callback(self.n_iter_)
-                old_epoch = epoch
-        else:
-            raise NotImplementedError('Optimizer not supported.')
+            seen_samples += batch_size
+            epoch_loss += this_loss
+            epoch_iter += 1
+            self.n_iter_ = seen_samples / n_samples
+            epoch = floor(self.n_iter_)
+            if report_every is not None and epoch > old_epoch \
+                    and epoch % report_every == 0:
+                epoch_loss /= epoch_iter
+                print('Epoch %.2f, train loss: % .4f'
+                      % (epoch, epoch_loss))
+                epoch_loss = 0
+                epoch_iter = 0
+                if callback is not None:
+                    callback(self.n_iter_)
+            old_epoch = epoch
+
+        if self.fine_tune:
+            print('Fine tuning')
+            parameters = []
+            for classifier in self.module_.classifiers.values():
+                parameters += list(classifier.parameters())
+            if 'adversarial' in self.shared_embedding:
+                parameters += list(self.module_.study_classifier.parameters())
+
+            for study in X:
+                data_loaders[study] = DataLoader(
+                    NiftiTargetDataset(X[study], y[study]),
+                    len(X[study]), shuffle=False, pin_memory=cuda)
+
+            # Desactivate dropout
+            def closure():
+                data_loaders_iter = {study: iter(data_loader_) for study,
+                                                                   data_loader_
+                                     in data_loaders.items()}
+                inputs_, targets_, _ = next_batches(data_loaders_iter,
+                                                    cuda=cuda,
+                                                    device=device)
+                self.module_.eval()
+                preds_ = self.module_(inputs_)
+                return self.loss_(preds_, targets_)
+
+            optimizer = LBFGSScipy(parameters,
+                                   callback=callback,
+                                   max_iter=10,
+                                   tolerance_grad=0,
+                                   tolerance_change=0,
+                                   report_every=2)
+            optimizer.step(closure)
 
     def _check_cuda(self):
         if self.device > -1 and not torch.cuda.is_available():
@@ -461,7 +451,6 @@ class FactoredClassifier(BaseEstimator):
                  for study, pred in preds.items()}
         study_preds = {study: study_pred.data.cpu().numpy()
                        for study, study_pred in study_preds.items()}
-        self.module_.train()
         return study_preds, preds
 
     def predict(self, X):

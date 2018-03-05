@@ -297,8 +297,8 @@ class TraceClassifier(BaseEstimator):
                      for study, contrast in contrasts.items()}
         preds = {}
         for study, contrast in contrasts.items():
-            preds[study] = pd.DataFrame(dict(contrast=contrast, study=-100,
-                                             subject=-100))
+            preds[study] = pd.DataFrame(dict(contrast=contrast, study=0,
+                                             subject=0))
         return preds
 
 

@@ -32,6 +32,7 @@ def config():
     n_jobs = 5
     smoothing_fwhm = 4
     positive = True
+    raw_dir = 'hcp_icbm_gm'
 
 
 @exp.automain
@@ -45,14 +46,14 @@ def compute_components(n_components,
                        method,
                        n_epochs,
                        verbose,
+                       raw_dir,
                        n_jobs,
                        _run):
     artifact_dir = join(_run.observers[0].dir, 'artifacts')
     if not os.path.exists(artifact_dir):
         os.makedirs(artifact_dir)
 
-    raw_res_dir = join(modl_get_output_dir(),
-                       'unmasked', 'hcp')
+    raw_res_dir = join(modl_get_output_dir(), 'unmasked', raw_dir)
     masker, data = get_raw_rest_data(raw_res_dir)
 
     train_imgs, test_imgs = train_test_split(data,

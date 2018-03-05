@@ -19,7 +19,7 @@ sys.path.append(
 from exps.decompose.decompose import exp as single_exp
 
 exp = Experiment('grid_decompose')
-basedir = join(get_output_dir(), 'grid_decompose')
+basedir = join(get_output_dir(), 'grid_decompose_icbm_gm')
 if not os.path.exists(basedir):
     os.makedirs(basedir)
 exp.observers.append(FileStorageObserver.create(basedir=basedir))
@@ -27,7 +27,7 @@ exp.observers.append(FileStorageObserver.create(basedir=basedir))
 
 @exp.config
 def config():
-    n_jobs = 5
+    n_jobs = 12
     seed = 1000
 
 
@@ -44,6 +44,7 @@ def config():
     n_jobs = 1
     smoothing_fwhm = 4
     positive = True
+    raw_dir = 'hcp_icbm_gm'
 
 
 def single_run(config_updates, rundir, _id):
@@ -58,9 +59,11 @@ def single_run(config_updates, rundir, _id):
 def run(n_jobs, _run, _seed):
     random_state = check_random_state(_seed)
     exps = []
-    for alpha in np.logspace(-6, -4, 5):
-        seed = random_state.randint(np.iinfo(np.uint32).max)
-        exps.append(dict(alpha=alpha, seed=seed))
+    for n_components in [128, 256, 512]:
+        for alpha in np.logspace(-5, -2, 4):
+            seed = random_state.randint(np.iinfo(np.uint32).max)
+            exps.append(dict(alpha=alpha, n_components=n_components,
+                             seed=seed))
     rundir = join(basedir, str(_run._id), 'run')
     if not os.path.exists(rundir):
         os.makedirs(rundir)
