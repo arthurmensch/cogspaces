@@ -46,7 +46,7 @@ def summarize_baseline():
     max_res = res.iloc[max_res.values.tolist()]
 
     coefs = {}
-    print(max_res)
+    # print(max_res)
     for this_dir in max_res['run']:
         exp_dir = join(output_dir, str(this_dir))
         estimator = load(join(exp_dir, 'estimator.pkl'))
@@ -79,7 +79,7 @@ def summarize_baseline():
 
 
 def summarize_factored():
-    output_dir = [expanduser('~/output/cogspaces/factored'), ]
+    output_dir = [expanduser('~/output/cogspaces/factored_new'), ]
 
     regex = re.compile(r'[0-9]+$')
     res = []
@@ -115,6 +115,8 @@ def summarize_factored():
                 this_res['dropout'] = config['factored']['dropout']
                 this_res['input_dropout'] = config['factored'][
                     'input_dropout']
+                this_res['lr'] = config['factored'][
+                    'lr']
             else:
                 this_res['optimizer'] = 'fista'
             if studies == 'all' and test_scores is not None:
@@ -126,11 +128,15 @@ def summarize_factored():
     res = pd.DataFrame(res)
     res.set_index(['optimizer', 'shared_embedding_size',
                    'private_embedding_size', 'shared_embedding',
-                   'dropout', 'input_dropout', 'estimator', 'run',
+                   'dropout', 'input_dropout', 'lr', 'estimator', 'run',
                    'study_weight'], inplace=True)
-    res.query("private_embedding_size == 256 and shared_embedding=='hard'")
+    res = res.sort_index()
+    # res = res.query("shared_embedding_size == 256 and shared_embedding == 'hard'")
     pd.to_pickle(res, join(expanduser('~/output/cogspaces/factored.pkl')))
     max = res.apply('max')
+    print(max)
+    # print(res['mean_test'])
+    print(res['mean_test'])
     pd.to_pickle(max, join(expanduser('~/output/cogspaces/max_factored.pkl')))
 
 
@@ -211,6 +217,6 @@ def plot():
 
 if __name__ == '__main__':
     # summarize_mtl
-    summarize_baseline()
+    # summarize_baseline()
     summarize_factored()
-    plot()
+    # plot()

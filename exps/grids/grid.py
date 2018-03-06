@@ -73,7 +73,7 @@ def factored():
     system = dict(
         device=-1,
         seed=0,
-        verbose=1000,
+        verbose=30,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_icbm_gm'),
@@ -84,7 +84,7 @@ def factored():
         normalize=True,
         estimator='factored',
         study_weight='study',
-        max_iter=1000,
+        max_iter=300,
     )
 
     factored = dict(

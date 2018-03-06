@@ -26,31 +26,31 @@ def default():
     system = dict(
         device=-1,
         seed=0,
-        verbose=20,
+        verbose=100,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512_icbm_gm'),
+        source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
         studies='all'
     )
     model = dict(
         normalize=True,
         estimator='factored',
-        study_weight='study',
-        max_iter=1000,
+        study_weight='sqrt_sample',
+        max_iter=100,
     )
     factored = dict(
         optimizer='sgd',
-        shared_embedding_size=256,
+        shared_embedding_size=300,
         private_embedding_size=0,
-        shared_embedding='hard+adversarial',
+        shared_embedding='hard',
         skip_connection=False,
         batch_size=32,
         dropout=0.75,
         activation='linear',
         loss_weights=dict(contrast=1., adversarial=1.,
                           penalty=1.),
-        lr=1e-2,
-        input_dropout=0.25,
+        lr=5e-2,
+        input_dropout=0.,
     )
     trace = dict(
         trace_penalty=1e-1,
