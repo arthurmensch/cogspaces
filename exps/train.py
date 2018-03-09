@@ -23,14 +23,14 @@ exp = Experiment('multi_studies')
 
 @exp.config
 def default():
+    seed = 0
     system = dict(
         device=-1,
-        seed=0,
         verbose=100,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies='all'
+        studies=['archi', 'hcp']
     )
     model = dict(
         normalize=True,
@@ -40,16 +40,16 @@ def default():
     )
     factored = dict(
         optimizer='sgd',
-        shared_embedding_size=300,
+        shared_embedding_size=128,
         private_embedding_size=0,
         shared_embedding='hard',
         skip_connection=False,
         batch_size=32,
         dropout=0.75,
-        activation='linear',
+        activation='relu',
         loss_weights=dict(contrast=1., adversarial=1.,
                           penalty=1.),
-        lr=5e-2,
+        lr=5e-3,
         input_dropout=0.,
     )
     trace = dict(
@@ -94,6 +94,7 @@ def load_data(source_dir, studies):
 @exp.main
 def train(system, model, factored, trace, logistic,
           _run, _seed):
+    print(_seed)
     data, target = load_data()
 
     target_encoder = MultiTargetEncoder().fit(target)
@@ -115,6 +116,7 @@ def train(system, model, factored, trace, logistic,
         estimator = FactoredClassifier(verbose=system['verbose'],
                                        device=system['device'],
                                        max_iter=model['max_iter'],
+                                       seed=_seed,
                                        **factored)
     elif model['estimator'] == 'trace':
         estimator = TraceClassifier(verbose=system['verbose'],
@@ -170,8 +172,8 @@ def get_study_weights(study_weight, train_data):
                                                                 study_weights)}
     elif study_weight == 'sample':
         study_weights = np.array(
-            [len(train_data[study]) for study in train_data])
-        s = np.sum(study_weights)
+            [float(len(train_data[study])) for study in train_data])
+        s = float(np.sum(study_weights))
         study_weights /= s / len(train_data)
         study_weights = {study: weight for study, weight in zip(train_data,
                                                                 study_weights)}

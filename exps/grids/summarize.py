@@ -79,7 +79,7 @@ def summarize_baseline():
 
 
 def summarize_factored():
-    output_dir = [expanduser('~/output/cogspaces/factored_new'), ]
+    output_dir = [expanduser('~/output/cogspaces/factored_4'), ]
 
     regex = re.compile(r'[0-9]+$')
     res = []

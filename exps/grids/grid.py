@@ -73,7 +73,7 @@ def factored():
     system = dict(
         device=-1,
         seed=0,
-        verbose=30,
+        verbose=50,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_icbm_gm'),
@@ -84,7 +84,7 @@ def factored():
         normalize=True,
         estimator='factored',
         study_weight='study',
-        max_iter=300,
+        max_iter=500,
     )
 
     factored = dict(
@@ -175,12 +175,42 @@ if __name__ == '__main__':
                 config_update['factored.lr'] = 1e-3
             else:
                 config_update['factored.lr'] = 1e-2
-
+    elif grid == 'factored_5':
+        output_dir = join(get_output_dir(), 'factored_5')
+        exp.config(factored)
+        config_updates = []
+        for optimizer in ['adam', 'sgd']:
+            config_updates += list(
+                ParameterGrid({'factored.dropout': [0.75, 0.875],
+                               'factored.shared_embedding_size': [256, 512],
+                               'factored.private_embedding_size': [0],
+                               'factored.shared_embedding': ['hard'],
+                               'factored.optimizer': [optimizer],
+                               'factored.lr': [1e-3, 2e-3, 5e-3]
+                               if optimizer == 'sgd' else [1e-3],
+                               'model.study_weight': ['sqrt_sample']
+                               }))
         _id = get_id(output_dir)
-        Parallel(n_jobs=64, verbose=100)(delayed(run_exp)(output_dir,
-                                                          config_update,
-                                                          _id=_id + i)
-                                         for i, config_update
-                                         in enumerate(config_updates))
+    elif grid == 'factored_4':
+        output_dir = join(get_output_dir(), 'factored_4')
+        exp.config(factored)
+        config_updates = []
+        config_updates += list(
+            ParameterGrid({'factored.dropout': [15 / 16],
+                           'factored.shared_embedding_size': [512],
+                           'factored.private_embedding_size': [0],
+                           'factored.shared_embedding':
+                               ['hard'],
+                           'factored.optimizer': ['adam', 'sgd'],
+                           'factored.lr': [5e-3, 1e-3],
+                           'model.study_weight':
+                               ['sqrt_sample']
+                           }))
+        _id = get_id(output_dir)
     else:
         raise ValueError('Wrong argument')
+    Parallel(n_jobs=32, verbose=100)(delayed(run_exp)(output_dir,
+                                                      config_update,
+                                                      _id=_id + i)
+                                     for i, config_update
+                                     in enumerate(config_updates))

@@ -76,8 +76,10 @@ class MultiTaskModule(nn.Module):
 
             def get_shared_embedder():
                 return nn.Sequential(
-                    Linear(in_features, shared_embedding_size, bias=False),
+                    Linear(in_features, shared_embedding_size // 2, bias=False),
                     self.activation,
+                    Linear(shared_embedding_size // 2,
+                           shared_embedding_size, bias=False),
                     self.dropout)
 
             if 'hard' in shared_embedding:
@@ -272,7 +274,8 @@ class FactoredClassifier(BaseEstimator):
                  fine_tune=False,
                  dropout=0.5, input_dropout=0.25,
                  max_iter=10000, verbose=0,
-                 device=-1):
+                 device=-1,
+                 seed=None):
 
         self.skip_connection = skip_connection
         self.shared_embedding = shared_embedding
@@ -293,6 +296,8 @@ class FactoredClassifier(BaseEstimator):
 
         self.loss_weights = loss_weights
 
+        self.seed = seed
+
     def fit(self, X, y, study_weights=None, callback=None):
         assert (self.shared_embedding in ['hard', 'adversarial',
                                           'hard+adversarial'])
@@ -306,6 +311,8 @@ class FactoredClassifier(BaseEstimator):
 
         data_loaders = {}
         target_sizes = {}
+
+        torch.manual_seed(self.seed)
 
         for study in X:
             target_sizes[study] = int(y[study]['contrast'].max()) + 1
