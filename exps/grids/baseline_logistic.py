@@ -15,9 +15,9 @@ from exps.train import exp
 
 @exp.config
 def baseline():
+    seed = 0
     system = dict(
         device=-1,
-        seed=0,
         verbose=100,
     )
     data = dict(
@@ -53,7 +53,7 @@ if __name__ == '__main__':
 
     config_updates = ParameterGrid({'logistic.l2_penalty': l2_penalties,
                                     'data.studies': studies})
-    output_dir = join(get_output_dir(), 'baseline_logistic_icbm_gm')
+    output_dir = join(get_output_dir(), 'baseline_logistic_icbm_gm_2')
 
     _id = get_id(output_dir)
 

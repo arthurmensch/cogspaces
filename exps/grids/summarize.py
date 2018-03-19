@@ -16,7 +16,7 @@ import seaborn as sns
 
 
 def summarize_baseline():
-    output_dir = expanduser('~/output/cogspaces/baseline_logistic_icbm_gm')
+    output_dir = expanduser('~/output/cogspaces/baseline_logistic_icbm_gm_2')
 
     regex = re.compile(r'[0-9]+$')
     res = []
@@ -44,6 +44,10 @@ def summarize_baseline():
 
     max_res = res.groupby(by='study').aggregate('idxmax')['test_score']
     max_res = res.iloc[max_res.values.tolist()]
+    print(max_res)
+    pd.to_pickle(max_res, join(expanduser('~/output/cogspaces/'
+                                          'max_baseline.pkl')))
+
 
     coefs = {}
     # print(max_res)
@@ -74,12 +78,10 @@ def summarize_baseline():
     ax.set_yticklabels(names)
     plt.savefig(expanduser('~/output/cogspaces/corr.png'))
     plt.close(fig)
-    pd.to_pickle(max_res, join(expanduser('~/output/cogspaces/'
-                                          'max_baseline.pkl')))
 
 
 def summarize_factored():
-    output_dir = [expanduser('~/output/cogspaces/factored_4'), ]
+    output_dir = [expanduser('~/output/cogspaces/factored_5'), ]
 
     regex = re.compile(r'[0-9]+$')
     res = []
@@ -140,49 +142,6 @@ def summarize_factored():
     pd.to_pickle(max, join(expanduser('~/output/cogspaces/max_factored.pkl')))
 
 
-def summarize_mtl():
-    output_dir = [expanduser('~/output/cogspaces/factored_dropout'), ]
-
-    regex = re.compile(r'[0-9]+$')
-    res = []
-    for this_output_dir in output_dir:
-        for this_dir in filter(regex.match, os.listdir(this_output_dir)):
-            this_exp_dir = join(this_output_dir, this_dir)
-            this_dir = int(this_dir)
-            try:
-                config = json.load(
-                    open(join(this_exp_dir, 'config.json'), 'r'))
-                run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
-                info = json.load(open(join(this_exp_dir, 'info.json'), 'r'))
-            except (FileNotFoundError, json.decoder.JSONDecodeError):
-                print('Skipping exp %i' % this_dir)
-                continue
-            estimator = config['model']['estimator']
-            studies = config['data']['studies']
-            test_scores = run['result']
-            this_res = dict(estimator=estimator,
-                            run=this_dir)
-            this_res['study_weight'] = config['data']['study_weight']
-            if estimator == 'factored':
-                this_res['optimizer'] = config['factored']['optimizer']
-                this_res['embedding_dim'] = config['factored'][
-                    'embedding_size']
-                this_res['dropout'] = config['factored']['dropout']
-                this_res['input_dropout'] = config['factored']['input_dropout']
-            else:
-                this_res['optimizer'] = 'fista'
-            if studies == 'all' and test_scores is not None:
-                mean_test = np.mean(np.array(
-                    list(test_scores.values())))
-                this_res['mean_test'] = mean_test
-                this_res = dict(**this_res, **test_scores)
-                res.append(this_res)
-    res = pd.DataFrame(res)
-    res.set_index([''])
-    pd.to_pickle(res, join(expanduser('~/output/cogspaces/'
-                                      'factored_dropout.pkl')))
-
-
 def plot():
     output_dir = expanduser('~/output/cogspaces/')
     baseline = pd.read_pickle(join(output_dir, 'max_baseline.pkl'))
@@ -217,6 +176,6 @@ def plot():
 
 if __name__ == '__main__':
     # summarize_mtl
-    # summarize_baseline()
+    summarize_baseline()
     summarize_factored()
     # plot()

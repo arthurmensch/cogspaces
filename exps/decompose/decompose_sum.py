@@ -8,23 +8,21 @@ from os.path import join
 import numpy as np
 from nilearn.input_data import NiftiMasker
 
-from cogspaces.datasets import fetch_mask
-from cogspaces.pipeline import get_output_dir
+from cogspaces.datasets.utils import fetch_mask, get_output_dir
 
-basedir = join(get_output_dir(), 'multi_decompose', '3', 'run')
-mask = fetch_mask()
+basedir = join(get_output_dir(), 'grid_decompose_icbm_gm', '1', 'run')
+mask = fetch_mask()['icbm_gm']
 masker = NiftiMasker(mask_img=mask).fit()
 
 
 res = []
 for exp_dir in os.listdir(basedir):
-    print(basedir)
     try:
         id_exp = int(exp_dir)
     except:
         continue
     exp_dir = join(basedir, exp_dir)
-    artifact_dir = join(get_output_dir(), 'decompose', str(id_exp), 'artifacts')
+    artifact_dir = join(exp_dir, 'artifacts')
     try:
         config = json.load(open(join(exp_dir, 'config.json'), 'r'))
         info = json.load(open(join(exp_dir, 'info.json'), 'r'))

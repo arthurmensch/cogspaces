@@ -26,34 +26,34 @@ def default():
     seed = 0
     system = dict(
         device=-1,
-        verbose=100,
+        verbose=1000,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies=['archi', 'hcp']
+        studies='all'
     )
     model = dict(
         normalize=True,
         estimator='factored',
         study_weight='sqrt_sample',
-        max_iter=100,
+        max_iter=1000,
     )
     factored = dict(
-        optimizer='sgd',
-        shared_embedding_size=128,
+        optimizer='lbfgs',
+        shared_embedding_size=50,
         private_embedding_size=0,
         shared_embedding='hard',
         skip_connection=False,
-        batch_size=32,
-        dropout=0.75,
-        activation='relu',
+        batch_size=10000,
+        dropout=0.0,
+        activation='linear',
         loss_weights=dict(contrast=1., adversarial=1.,
                           penalty=1.),
         lr=5e-3,
         input_dropout=0.,
     )
     trace = dict(
-        trace_penalty=1e-1,
+        trace_penalty=1e-3,
     )
     logistic = dict(
         l2_penalty=1e-3,

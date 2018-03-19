@@ -316,13 +316,6 @@ class FactoredClassifier(BaseEstimator):
 
         for study in X:
             target_sizes[study] = int(y[study]['contrast'].max()) + 1
-            data_loaders[study] = DataLoader(
-                NiftiTargetDataset(X[study], y[study]),
-                shuffle=True,
-                batch_size=self.batch_size, pin_memory=cuda)
-
-        data_loaders = {study: infinite_iter(loader) for study, loader in
-                        data_loaders.items()}
 
         self.module_ = MultiTaskModule(
             in_features=in_features,
@@ -339,51 +332,86 @@ class FactoredClassifier(BaseEstimator):
                                    adversarial='adversarial'
                                                in self.shared_embedding)
 
-        if self.optimizer == 'adam':
-            self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr, )
-            self.scheduler_ = None
+        if self.optimizer == 'lbfgs':
+            for study in X:
+                data_loaders[study] = DataLoader(
+                    NiftiTargetDataset(X[study], y[study]),
+                    len(X[study]), shuffle=False, pin_memory=cuda)
+
+            # Desactivate dropout
+            def closure():
+                data_loaders_iter = {study: iter(data_loader_) for study,
+                                                                   data_loader_
+                                     in data_loaders.items()}
+                inputs_, targets_, _ = next_batches(data_loaders_iter,
+                                                    cuda=cuda,
+                                                    device=device)
+                self.module_.eval()
+                preds_ = self.module_(inputs_)
+                return self.loss_(preds_, targets_)
+
+            optimizer = LBFGSScipy(self.module_.parameters(),
+                                   callback=callback,
+                                   max_iter=self.max_iter,
+                                   tolerance_grad=0,
+                                   tolerance_change=0,
+                                   report_every=2)
+            optimizer.step(closure)
         else:
-            self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr, )
-            self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=30,
-                                                eta_min=0)
+            for study in X:
+                data_loaders[study] = DataLoader(
+                    NiftiTargetDataset(X[study], y[study]),
+                    shuffle=True,
+                    batch_size=self.batch_size, pin_memory=cuda)
 
-        self.n_iter_ = 0
-        # Logging logic
-        old_epoch = -1
-        seen_samples = 0
-        epoch_loss = 0
-        epoch_iter = 0
-        report_every = ceil(self.max_iter / self.verbose)
+            data_loaders = {study: infinite_iter(loader) for study, loader in
+                            data_loaders.items()}
 
-        self.module_.train()
-        while self.n_iter_ < self.max_iter:
-            if self.scheduler_ is not None:
-                self.scheduler_.step(self.n_iter_)
-            self.optimizer_.zero_grad()
-            inputs, targets, batch_size = next_batches(data_loaders,
-                                                       cuda=cuda,
-                                                       device=device)
+            if self.optimizer == 'adam':
+                self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr, )
+                self.scheduler_ = None
+            else:
+                self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr, )
+                self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=30,
+                                                    eta_min=0)
+
+            self.n_iter_ = 0
+            # Logging logic
+            old_epoch = -1
+            seen_samples = 0
+            epoch_loss = 0
+            epoch_iter = 0
+            report_every = ceil(self.max_iter / self.verbose)
+
             self.module_.train()
-            preds = self.module_(inputs)
-            this_loss = self.loss_(preds, targets)
-            this_loss.backward()
-            self.optimizer_.step()
+            while self.n_iter_ < self.max_iter:
+                if self.scheduler_ is not None:
+                    self.scheduler_.step(self.n_iter_)
+                self.optimizer_.zero_grad()
+                inputs, targets, batch_size = next_batches(data_loaders,
+                                                           cuda=cuda,
+                                                           device=device)
+                self.module_.train()
+                preds = self.module_(inputs)
+                this_loss = self.loss_(preds, targets)
+                this_loss.backward()
+                self.optimizer_.step()
 
-            seen_samples += batch_size
-            epoch_loss += this_loss
-            epoch_iter += 1
-            self.n_iter_ = seen_samples / n_samples
-            epoch = floor(self.n_iter_)
-            if report_every is not None and epoch > old_epoch \
-                    and epoch % report_every == 0:
-                epoch_loss /= epoch_iter
-                print('Epoch %.2f, train loss: % .4f'
-                      % (epoch, epoch_loss))
-                epoch_loss = 0
-                epoch_iter = 0
-                if callback is not None:
-                    callback(self.n_iter_)
-            old_epoch = epoch
+                seen_samples += batch_size
+                epoch_loss += this_loss
+                epoch_iter += 1
+                self.n_iter_ = seen_samples / n_samples
+                epoch = floor(self.n_iter_)
+                if report_every is not None and epoch > old_epoch \
+                        and epoch % report_every == 0:
+                    epoch_loss /= epoch_iter
+                    print('Epoch %.2f, train loss: % .4f'
+                          % (epoch, epoch_loss))
+                    epoch_loss = 0
+                    epoch_iter = 0
+                    if callback is not None:
+                        callback(self.n_iter_)
+                old_epoch = epoch
 
         if self.fine_tune:
             print('Fine tuning')
@@ -412,7 +440,7 @@ class FactoredClassifier(BaseEstimator):
 
             optimizer = LBFGSScipy(parameters,
                                    callback=callback,
-                                   max_iter=10,
+                                   max_iter=self.max_iter,
                                    tolerance_grad=0,
                                    tolerance_change=0,
                                    report_every=2)

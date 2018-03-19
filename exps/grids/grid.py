@@ -12,6 +12,7 @@ from exps.train import exp
 
 @exp.config
 def base():
+    seed = 0
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
         studies='all'
@@ -26,7 +27,7 @@ def trace():
         max_iter=300,
     )
     trace = dict(
-        trace_penalty=5e-2,
+        trace_penalty=1e-2,
     )
 
 
