@@ -317,11 +317,16 @@ class FactoredClassifier(BaseEstimator):
         for study in X:
             target_sizes[study] = int(y[study]['contrast'].max()) + 1
 
+        if self.shared_embedding_size == 'auto':
+            shared_embedding_size = sum(target_sizes.values())
+        else:
+            shared_embedding_size = self.shared_embedding_size
+
         self.module_ = MultiTaskModule(
             in_features=in_features,
             activation=self.activation,
             shared_embedding=self.shared_embedding,
-            shared_embedding_size=self.shared_embedding_size,
+            shared_embedding_size=shared_embedding_size,
             private_embedding_size=self.private_embedding_size,
             skip_connection=self.skip_connection,
             input_dropout=self.input_dropout,

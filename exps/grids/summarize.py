@@ -16,7 +16,7 @@ import seaborn as sns
 
 
 def summarize_baseline():
-    output_dir = expanduser('~/output/cogspaces/baseline_logistic_icbm_gm_2')
+    output_dir = expanduser('~/output/cogspaces/baseline_logistic_gm')
 
     regex = re.compile(r'[0-9]+$')
     res = []
@@ -46,7 +46,7 @@ def summarize_baseline():
     max_res = res.iloc[max_res.values.tolist()]
     print(max_res)
     pd.to_pickle(max_res, join(expanduser('~/output/cogspaces/'
-                                          'max_baseline.pkl')))
+                                          'max_baseline_gm.pkl')))
 
 
     coefs = {}
@@ -177,5 +177,5 @@ def plot():
 if __name__ == '__main__':
     # summarize_mtl
     summarize_baseline()
-    summarize_factored()
+    # summarize_factored()
     # plot()

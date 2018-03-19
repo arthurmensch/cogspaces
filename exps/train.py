@@ -29,8 +29,8 @@ def default():
         verbose=1000,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies='all'
+        source_dir=join(get_data_dir(), 'reduced_512_gm'),
+        studies=['archi', 'hcp']
     )
     model = dict(
         normalize=True,
@@ -40,16 +40,16 @@ def default():
     )
     factored = dict(
         optimizer='lbfgs',
-        shared_embedding_size=50,
+        shared_embedding_size='auto',
         private_embedding_size=0,
         shared_embedding='hard',
         skip_connection=False,
-        batch_size=10000,
+        batch_size=128,
         dropout=0.0,
         activation='linear',
         loss_weights=dict(contrast=1., adversarial=1.,
                           penalty=1.),
-        lr=5e-3,
+        lr=1e-2,
         input_dropout=0.,
     )
     trace = dict(

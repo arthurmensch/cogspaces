@@ -127,10 +127,10 @@ def compute_icbm_mask(output_dir):
 
 def main():
     masked_dir = join(get_data_dir(), 'masked_gm')
-    reduced_dir = join(get_data_dir(), 'reduced_512_gm')
+    reduced_dir = join(get_data_dir(), 'reduced_512_gm_lstsq')
     # mask_all(output_dir=masked_dir, n_jobs=30, mask='icbm_gm')
     reduce_all(output_dir=reduced_dir,
-               masked_dir=masked_dir, n_jobs=30, mask='icbm_gm')
+               masked_dir=masked_dir, n_jobs=30, mask='icbm_gm', lstsq=True)
     # Data can now be loaded using `cogspaces.utils.data.load_masked_data`
 
 

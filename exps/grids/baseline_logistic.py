@@ -21,7 +21,7 @@ def baseline():
         verbose=100,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512_icbm_gm'),
+        source_dir=join(get_data_dir(), 'reduced_512_gm'),
         studies='archi'
     )
     model = dict(
@@ -46,14 +46,14 @@ def run_exp(output_dir, config_updates, _id):
 
 
 if __name__ == '__main__':
-    source_dir = join(get_data_dir(), 'reduced_512')
+    source_dir = join(get_data_dir(), 'reduced_512_gm')
     data, target = load_data_from_dir(data_dir=source_dir)
     studies = list(data.keys())
     l2_penalties = np.logspace(-4, -1, 20)
 
     config_updates = ParameterGrid({'logistic.l2_penalty': l2_penalties,
                                     'data.studies': studies})
-    output_dir = join(get_output_dir(), 'baseline_logistic_icbm_gm_2')
+    output_dir = join(get_output_dir(), 'baseline_logistic_gm')
 
     _id = get_id(output_dir)
 

@@ -5,6 +5,7 @@ import sys
 from joblib import Parallel, delayed
 from sklearn.model_selection import ParameterGrid
 
+from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.utils.sacred import get_id, OurFileStorageObserver
 from exps.train import exp
@@ -91,6 +92,34 @@ def factored():
     factored = dict(
         optimizer='sgd',
         shared_embedding_size=128,
+        private_embedding_size=0,
+        shared_embedding='hard',
+        skip_connection=False,
+        batch_size=32,
+        dropout=0.75,
+        lr=1e-2,
+        input_dropout=0.25,
+    )
+
+def all_pairs():
+    system = dict(
+        device=-1,
+        seed=0,
+        verbose=50,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512_gm'),
+        studies='all'
+    )
+    model = dict(
+        normalize=True,
+        estimator='factored',
+        study_weight='study',
+        max_iter=500,
+    )
+    factored = dict(
+        optimizer='sgd',
+        shared_embedding_size='auto',
         private_embedding_size=0,
         shared_embedding='hard',
         skip_connection=False,
@@ -191,7 +220,6 @@ if __name__ == '__main__':
                                if optimizer == 'sgd' else [1e-3],
                                'model.study_weight': ['sqrt_sample']
                                }))
-        _id = get_id(output_dir)
     elif grid == 'factored_4':
         output_dir = join(get_output_dir(), 'factored_4')
         exp.config(factored)
@@ -207,9 +235,22 @@ if __name__ == '__main__':
                            'model.study_weight':
                                ['sqrt_sample']
                            }))
-        _id = get_id(output_dir)
+    elif grid == 'all_pairs':
+        output_dir = join(get_output_dir(), 'all_pairs')
+        exp.config(all_pairs)
+        source_dir = join(get_data_dir(), 'reduced_512_gm')
+        data, target = load_data_from_dir(data_dir=source_dir)
+        studies_list = list(data.keys())
+        n_studies = len(studies_list)
+        config_updates = []
+        for i in range(n_studies):
+            for j in range(i):
+                studies = [studies_list[i], studies_list[j]]
+                config_updates.append({'data.studies': studies})
+
     else:
         raise ValueError('Wrong argument')
+    _id = get_id(output_dir)
     Parallel(n_jobs=32, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       _id=_id + i)
