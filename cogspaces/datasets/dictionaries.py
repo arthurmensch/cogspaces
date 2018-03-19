@@ -16,13 +16,14 @@ def fetch_atlas_modl(data_dir=None, url=None,
         Download URL of the dataset. Overwrite the default URL.
     """
     if url is None:
-        url = 'http://www.amensch.fr/data/cogspaces/modl/'
+        url = 'http://amensch.fr/data/cogspaces/modl/'
 
     files = [
         'components_16.nii.gz',
         'components_64.nii.gz',
         'components_128.nii.gz',
         'components_512.nii.gz',
+        'components_512_gm.nii.gz',
     ]
 
     if isinstance(url, str):
@@ -43,6 +44,7 @@ def fetch_atlas_modl(data_dir=None, url=None,
             'components64',
             'components128',
             'components512',
+            'components512_gm'
             ]
 
     params = dict(zip(keys, files_))

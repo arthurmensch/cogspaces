@@ -43,10 +43,8 @@ res = pd.DataFrame(res)
 print(res)
 res.set_index(['id_exp'])
 res.sort_index(inplace=True)
-res.to_pickle(join(get_output_dir(), 'multi_decompose',
-                   '3', 'decompose_sum.pkl'))
+res.to_pickle(join(basedir, 'decompose_sum.pkl'))
 
-df = pd.read_pickle(join(get_output_dir(), 'multi_decompose',
-                    '3', 'decompose_sum.pkl'))
+df = pd.read_pickle(join(basedir, 'decompose_sum.pkl'))
 df = df.sort_values(by=['n_components', 'alpha'])
 print(df)

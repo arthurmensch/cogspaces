@@ -69,7 +69,7 @@ def reduce_all(masked_dir, output_dir, n_jobs=1, lstsq=False,
 
     modl_atlas = fetch_atlas_modl()
     mask = fetch_mask()[mask]
-    dictionary = modl_atlas['components512']
+    dictionary = modl_atlas['components512_gm']
     masker = NiftiMasker(mask_img=mask).fit()
     components = masker.transform(dictionary)
 
@@ -125,15 +125,12 @@ def compute_icbm_mask(output_dir):
     mask.to_filename(join(output_dir, 'icbm_gm_mask.nii.gz'))
 
 
-def main(mask: str='icbm_gm'):
-    mask_dir = join(get_data_dir(), 'mask')
-    if mask == 'icbm_gm':
-        compute_icbm_mask(mask_dir)
-    masked_dir = join(get_data_dir(), 'masked_%s' % mask)
-    reduced_dir = join(get_data_dir(), 'reduced_512_%s' % mask)
-    mask_all(output_dir=masked_dir, n_jobs=30, mask=mask)
+def main():
+    masked_dir = join(get_data_dir(), 'masked_gm')
+    reduced_dir = join(get_data_dir(), 'reduced_512_gm')
+    # mask_all(output_dir=masked_dir, n_jobs=30, mask='icbm_gm')
     reduce_all(output_dir=reduced_dir,
-               masked_dir=masked_dir, n_jobs=30, mask=mask)
+               masked_dir=masked_dir, n_jobs=30, mask='icbm_gm')
     # Data can now be loaded using `cogspaces.utils.data.load_masked_data`
 
 
