@@ -377,8 +377,8 @@ class FactoredClassifier(BaseEstimator):
                 self.scheduler_ = None
             else:
                 self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr, )
-                self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=30,
-                                                    eta_min=0)
+                self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=10,
+                                                    eta_min=1e-3 * self.lr)
 
             self.n_iter_ = 0
             # Logging logic

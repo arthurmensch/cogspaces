@@ -29,7 +29,7 @@ def default():
         verbose=1000,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512_gm'),
+        source_dir=join(get_data_dir(), 'reduced_512'),
         studies=['archi', 'hcp']
     )
     model = dict(
@@ -39,18 +39,18 @@ def default():
         max_iter=1000,
     )
     factored = dict(
-        optimizer='lbfgs',
-        shared_embedding_size='auto',
+        optimizer='sgd',
+        shared_embedding_size=100,
         private_embedding_size=0,
         shared_embedding='hard',
         skip_connection=False,
         batch_size=128,
-        dropout=0.0,
+        dropout=0.75,
         activation='linear',
         loss_weights=dict(contrast=1., adversarial=1.,
                           penalty=1.),
         lr=1e-2,
-        input_dropout=0.,
+        input_dropout=0.25,
     )
     trace = dict(
         trace_penalty=1e-3,

@@ -4,6 +4,7 @@ import numpy as np
 import sys
 from joblib import Parallel, delayed
 from sklearn.model_selection import ParameterGrid
+from sklearn.utils import check_random_state
 
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
@@ -16,7 +17,7 @@ def base():
     seed = 0
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies='all'
+        studies=['hcp']
     )
 
 
@@ -59,14 +60,14 @@ def factored_l2():
     )
 
     factored = dict(
-        optimizer='sgd',
+        optimizer='adam',
         shared_embedding_size=100,
         private_embedding_size=0,
         shared_embedding='hard+adversarial',
         skip_connection=False,
         batch_size=128,
         dropout=0.75,
-        lr=1e-2,
+        lr=1e-3,
         input_dropout=0.5,
     )
 
@@ -86,59 +87,62 @@ def factored():
         normalize=True,
         estimator='factored',
         study_weight='study',
-        max_iter=500,
+        max_iter=50,
     )
 
-    factored = dict(
-        optimizer='sgd',
-        shared_embedding_size=128,
-        private_embedding_size=0,
-        shared_embedding='hard',
-        skip_connection=False,
-        batch_size=32,
-        dropout=0.75,
-        lr=1e-2,
-        input_dropout=0.25,
-    )
-
-def all_pairs():
-    system = dict(
-        device=-1,
-        seed=0,
-        verbose=50,
-    )
-    data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512_gm'),
-        studies='all'
-    )
-    model = dict(
-        normalize=True,
-        estimator='factored',
-        study_weight='study',
-        max_iter=500,
-    )
     factored = dict(
         optimizer='sgd',
         shared_embedding_size='auto',
         private_embedding_size=0,
         shared_embedding='hard',
         skip_connection=False,
-        batch_size=32,
+        batch_size=128,
         dropout=0.75,
         lr=1e-2,
         input_dropout=0.25,
     )
 
 
-def run_exp(output_dir, config_updates, _id):
+def all_pairs():
+    seed = 1
+    system = dict(
+        device=-1,
+        verbose=5,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512'),
+        studies=['hcp']
+    )
+    model = dict(
+        normalize=True,
+        estimator='factored',
+        study_weight='study',
+        max_iter=300,
+    )
+    factored = dict(
+        optimizer='adam',
+        shared_embedding_size=100,
+        private_embedding_size=0,
+        shared_embedding='hard',
+        skip_connection=False,
+        batch_size=64,
+        dropout=0.75,
+        lr=1e-3,
+        input_dropout=0.25,
+    )
+
+
+def run_exp(output_dir, config_updates, _id, mock=False):
     """Boiler plate function that has to be put in every multiple
         experiment script, as exp does not pickle."""
-    exp.run_command('print_config', config_updates=config_updates, )
-    run = exp._create_run(config_updates=config_updates, )
-    run._id = _id
-    observer = OurFileStorageObserver.create(basedir=output_dir)
-    run.observers.append(observer)
-    run()
+    if not mock:
+        run = exp._create_run(config_updates=config_updates, )
+        run._id = _id
+        observer = OurFileStorageObserver.create(basedir=output_dir)
+        run.observers.append(observer)
+        run()
+    else:
+        exp.run_command('print_config', config_updates=config_updates, )
 
 
 if __name__ == '__main__':
@@ -236,23 +240,28 @@ if __name__ == '__main__':
                                ['sqrt_sample']
                            }))
     elif grid == 'all_pairs':
-        output_dir = join(get_output_dir(), 'all_pairs')
+        output_dir = join(get_output_dir(), 'all_pairs_3')
         exp.config(all_pairs)
-        source_dir = join(get_data_dir(), 'reduced_512_gm')
+        source_dir = join(get_data_dir(), 'reduced_512')
         data, target = load_data_from_dir(data_dir=source_dir)
         studies_list = list(data.keys())
         n_studies = len(studies_list)
         config_updates = []
-        for i in range(n_studies):
-            for j in range(i):
-                studies = [studies_list[i], studies_list[j]]
-                config_updates.append({'data.studies': studies})
+        seeds = check_random_state(1).randint(0, 100000, size=20)
+        for seed in seeds:
+            for i in range(n_studies):
+                for j in range(i):
+                    studies = [studies_list[i], studies_list[j]]
+                    config_updates.append({'data.studies': studies,
+                                           'seed': seed})
+                config_updates.append({'data.studies': [studies_list[i]],
+                                       'seed': seed})
 
     else:
         raise ValueError('Wrong argument')
     _id = get_id(output_dir)
-    Parallel(n_jobs=32, verbose=100)(delayed(run_exp)(output_dir,
-                                                      config_update,
-                                                      _id=_id + i)
-                                     for i, config_update
-                                     in enumerate(config_updates))
+    Parallel(n_jobs=80, verbose=100)(delayed(run_exp)(output_dir,
+                                                     config_update,
+                                                     _id=_id + i)
+                                    for i, config_update
+                                    in enumerate(config_updates))
