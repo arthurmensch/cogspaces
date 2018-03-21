@@ -22,26 +22,26 @@ exp.observers.append(OurFileStorageObserver.create(basedir=output_dir))
 
 @exp.config
 def default():
+    seed = 0,
     system = dict(
         device=-1,
-        seed=0,
         verbose=100,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'hcp', 'brainomics']
+        studies=['archi', 'hcp']
     )
     model = dict(
         normalize=True,
-        estimator='trace',
+        estimator='factored',
         max_iter=1000,
     )
     factored = dict(
         optimizer='adam',
-        embedding_size=20,
+        embedding_size=100,
         batch_size=128,
-        dropout=0.,
-        input_dropout=0.0,
+        dropout=0.75,
+        input_dropout=0.25,
         l2_penalty=0,
     )
     trace = dict(
