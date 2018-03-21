@@ -42,7 +42,6 @@ def default():
         optimizer='adam',
         shared_embedding_size=100,
         private_embedding_size=0,
-        shared_embedding='hard',
         skip_connection=False,
         batch_size=128,
         cycle=True,

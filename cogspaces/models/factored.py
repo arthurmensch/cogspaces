@@ -50,7 +50,7 @@ class MultiTaskModule(nn.Module):
                  input_dropout=0.,
                  dropout=0.,
                  activation='linear',
-                 shared_embedding='hard+adversarial',
+                 shared_embedding='hard',
                  skip_connection=False):
         super().__init__()
 
@@ -73,21 +73,8 @@ class MultiTaskModule(nn.Module):
             self.private_embedders = {}
 
         if shared_embedding_size > 0:
-
-            def get_shared_embedder():
-                return Linear(in_features, shared_embedding_size, bias=False)
-
-            if 'hard' in shared_embedding:
-                shared_embedder = get_shared_embedder()
-                self.add_module('shared_embedder', shared_embedder)
-                self.shared_embedders = {study: shared_embedder
-                                         for study in target_sizes}
-            else:
-                self.shared_embedders = {study: get_shared_embedder()
-                                         for study in target_sizes}
-                for study in target_sizes:
-                    self.add_module('shared_embedder_%s' % study,
-                                    self.shared_embedders[study])
+            self.shared_embedder = Linear(in_features,
+                                          shared_embedding_size, bias=False)
 
         self.classifiers = {}
 
@@ -103,13 +90,6 @@ class MultiTaskModule(nn.Module):
                        + in_features * skip_connection, size)
             self.add_module('classifier_%s' % study, self.classifiers[study])
 
-        if 'adversarial' in shared_embedding:
-            self.study_classifier = nn.Sequential(
-                Linear(shared_embedding_size, len(target_sizes), bias=True),
-                nn.ReLU(),
-                Linear(len(target_sizes), len(target_sizes), bias=True),
-                nn.LogSoftmax(dim=1))
-            self.gradient_reversal = GradientReversal()
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -130,15 +110,9 @@ class MultiTaskModule(nn.Module):
             sub_input = self.input_dropout(sub_input)
 
             if self.shared_embedding_size > 0:
-                shared_embedding = self.shared_embedders[study](sub_input)
-                if 'adversarial' in self.shared_embedding:
-                    study_pred = self.study_classifier(
-                        self.gradient_reversal(shared_embedding))
-                else:
-                    study_pred = None
+                shared_embedding = self.shared_embedder(sub_input)
                 embedding.append(shared_embedding)
             else:
-                study_pred = None
                 shared_embedding = None
 
             if self.private_embedding_size > 0:
@@ -163,7 +137,7 @@ class MultiTaskModule(nn.Module):
             pred = F.log_softmax(self.classifiers[study](
                 self.dropout(self.activation(embedding))), dim=1)
 
-            preds[study] = study_pred, pred, penalty
+            preds[study] = pred, penalty
         return preds
 
     def coefs(self):
@@ -178,7 +152,7 @@ class MultiTaskModule(nn.Module):
                 skip_coef = 0
             if self.shared_embedding_size > 0:
                 shared_coef = coef[:, :self.shared_embedding_size]
-                shared_embed = self.shared_embedders[study][0].weight.data
+                shared_embed = self.shared_embedder.weight.data
                 shared_coef = torch.matmul(shared_coef, shared_embed)
             else:
                 shared_coef = 0
@@ -209,8 +183,8 @@ class MultiTaskLoss(nn.Module):
                 targets: Dict[str, torch.LongTensor]) -> torch.FloatTensor:
         loss = 0
         for study in inputs:
-            study_pred, pred, penalty = inputs[study]
-            study_target, target = targets[study][0], targets[study][1]
+            pred, penalty = inputs[study]
+            target = targets[study]
 
             this_loss = (nll_loss(pred, target, size_average=True)
                          * self.loss_weights['contrast'])
@@ -218,11 +192,6 @@ class MultiTaskLoss(nn.Module):
             if penalty != 0:
                 penalty /= pred.shape[0]
                 this_loss += penalty * self.loss_weights['penalty']
-
-            if study_pred is not None:
-                study_loss = nll_loss(study_pred, study_target,
-                                      size_average=True)
-                this_loss += study_loss * self.loss_weights['adversarial']
 
             loss += this_loss * self.study_weights[study]
         return loss
@@ -234,20 +203,18 @@ def next_batches(data_loaders, cuda, device, cycle=True):
         targets = {}
         batch_sizes = 0
     for study, loader in data_loaders.items():
-        input, study_target, target = next(loader)
+        input, target = next(loader)
         batch_size = input.shape[0]
         if cuda:
             input = input.cuda(device=device)
             target = target.cuda(device=device)
-            study_target = study_target.cuda(device=device)
         input = Variable(input)
         target = Variable(target)
-        study_target = Variable(study_target)
         if cycle:
-            yield {study: input}, {study: [study_target, target]}, batch_size
+            yield {study: input}, {study: target}, batch_size
         else:
             inputs[study] = input
-            targets[study] = [study_target, target]
+            targets[study] = target
             batch_sizes += batch_size
     if not cycle:
         yield inputs, targets, batch_sizes
@@ -259,7 +226,6 @@ class FactoredClassifier(BaseEstimator):
                  shared_embedding_size=30,
                  private_embedding_size=5,
                  activation='linear',
-                 shared_embedding='hard+adversarial',
                  batch_size=128, optimizer='sgd',
                  loss_weights=None,
                  lr=0.001,
@@ -271,7 +237,6 @@ class FactoredClassifier(BaseEstimator):
                  seed=None):
 
         self.skip_connection = skip_connection
-        self.shared_embedding = shared_embedding
         self.shared_embedding_size = shared_embedding_size
         self.private_embedding_size = private_embedding_size
         self.activation = activation
@@ -293,8 +258,6 @@ class FactoredClassifier(BaseEstimator):
         self.seed = seed
 
     def fit(self, X, y, study_weights=None, callback=None):
-        assert (self.shared_embedding in ['hard', 'adversarial',
-                                          'hard+adversarial'])
 
         cuda, device = self._check_cuda()
         in_features = next(iter(X.values())).shape[1]
@@ -319,7 +282,6 @@ class FactoredClassifier(BaseEstimator):
         self.module_ = MultiTaskModule(
             in_features=in_features,
             activation=self.activation,
-            shared_embedding=self.shared_embedding,
             shared_embedding_size=shared_embedding_size,
             private_embedding_size=self.private_embedding_size,
             skip_connection=self.skip_connection,
@@ -415,8 +377,6 @@ class FactoredClassifier(BaseEstimator):
             parameters = []
             for classifier in self.module_.classifiers.values():
                 parameters += list(classifier.parameters())
-            if 'adversarial' in self.shared_embedding:
-                parameters += list(self.module_.study_classifier.parameters())
 
             for study in X:
                 data_loaders[study] = DataLoader(
@@ -464,50 +424,30 @@ class FactoredClassifier(BaseEstimator):
                                              shuffle=False,
                                              pin_memory=cuda)
         preds = {}
-        if 'adversarial' in self.shared_embedding:
-            study_preds = {}
-        else:
-            study_preds = None
         self.module_.eval()
         for study, loader in data_loaders.items():
-            if study_preds is not None:
-                study_pred = []
             pred = []
-            for (input, _, _) in loader:
+            for input, _ in loader:
                 if cuda:
                     input = input.cuda(device=device)
                 input = Variable(input, volatile=True)
                 input = {study: input}
-                this_study_pred, this_pred, _ = self.module_(input)[study]
+                this_pred, _ = self.module_(input)[study]
                 pred.append(this_pred)
-                if study_preds is not None:
-                    study_pred.append(this_study_pred)
             preds[study] = torch.cat(pred)
-            if study_preds is not None:
-                study_preds[study] = torch.cat(study_pred)
         preds = {study: pred.data.cpu().numpy()
                  for study, pred in preds.items()}
-        if study_preds is not None:
-            study_preds = {study: study_pred.data.cpu().numpy()
-                           for study, study_pred in study_preds.items()}
-        return study_preds, preds
+        return preds
 
     def predict(self, X):
-        study_preds, preds = self.predict_proba(X)
-        if study_preds is not None:
-            study_preds = {study: np.argmax(study_pred, axis=1)
-                           for study, study_pred in study_preds.items()}
-        else:
-            study_preds = {study: 0 for study in preds}
+        preds = self.predict_proba(X)
         preds = {study: np.argmax(pred, axis=1)
                  for study, pred in preds.items()}
         dfs = {}
         for study in preds:
             pred = preds[study]
-
-            study_pred = study_preds[study]
             dfs[study] = pd.DataFrame(
-                dict(contrast=pred, study=study_pred, subject=0))
+                dict(contrast=pred, subject=0))
         return dfs
 
     @property
