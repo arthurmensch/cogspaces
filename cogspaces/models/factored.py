@@ -160,8 +160,8 @@ class MultiTaskModule(nn.Module):
                 embedding = torch.cat(embedding, dim=1)
             else:
                 embedding = embedding[0]
-            pred = F.log_softmax(self.dropout(self.activation(
-                self.classifiers[study](embedding))), dim=1)
+            pred = F.log_softmax(self.classifiers[study](
+                self.dropout(self.activation(embedding))), dim=1)
 
             preds[study] = study_pred, pred, penalty
         return preds
@@ -210,7 +210,7 @@ class MultiTaskLoss(nn.Module):
         loss = 0
         for study in inputs:
             study_pred, pred, penalty = inputs[study]
-            study_target, target = targets[study][:, 0], targets[study][:, 1]
+            study_target, target = targets[study][0], targets[study][1]
 
             this_loss = (nll_loss(pred, target, size_average=True)
                          * self.loss_weights['contrast'])
@@ -234,19 +234,20 @@ def next_batches(data_loaders, cuda, device, cycle=True):
         targets = {}
         batch_sizes = 0
     for study, loader in data_loaders.items():
-        input, target = next(loader)
+        input, study_target, target = next(loader)
         batch_size = input.shape[0]
-        target = target[:, [0, 2]]
         if cuda:
             input = input.cuda(device=device)
             target = target.cuda(device=device)
+            study_target = study_target.cuda(device=device)
         input = Variable(input)
         target = Variable(target)
+        study_target = Variable(study_target)
         if cycle:
-            yield {study: input}, {study: target}, batch_size
+            yield {study: input}, {study: [study_target, target]}, batch_size
         else:
             inputs[study] = input
-            targets[study] = target
+            targets[study] = [study_target, target]
             batch_sizes += batch_size
     if not cycle:
         yield inputs, targets, batch_sizes
@@ -386,7 +387,6 @@ class FactoredClassifier(BaseEstimator):
                                                                 cuda=cuda,
                                                                 device=device,
                                                                 cycle=self.cycle):
-                    print(inputs)
                     self.module_.train()
                     self.optimizer_.zero_grad()
                     preds = self.module_(inputs)
@@ -472,7 +472,7 @@ class FactoredClassifier(BaseEstimator):
             if study_preds is not None:
                 study_pred = []
             pred = []
-            for (input, _) in loader:
+            for (input, _, _) in loader:
                 if cuda:
                     input = input.cuda(device=device)
                 input = Variable(input, volatile=True)

@@ -26,7 +26,7 @@ def default():
     seed = 0
     system = dict(
         device=-1,
-        verbose=100,
+        verbose=10,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
