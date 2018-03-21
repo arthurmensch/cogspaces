@@ -16,8 +16,13 @@ class NiftiTargetDataset(Dataset):
     def __init__(self, data, targets=None):
         if targets is not None:
             assert data.shape[0] == targets.shape[0]
+            self.study_targets = targets['study'].values
+            self.targets = targets['contrast'].values
+        else:
+            self.targets = None
+            self.study_targets = None
+
         self.data = data
-        self.targets = targets
 
     def __getitem__(self, index):
         single = isinstance(index, int)
@@ -31,11 +36,11 @@ class NiftiTargetDataset(Dataset):
                 study_targets = torch.LongTensor((data.shape[0], 1)).fill_(0)
                 targets = torch.LongTensor((data.shape[0], 1)).fill_(0)
         else:
-            targets = self.targets.iloc[index]['contrast']
-            study_targets = self.targets.iloc[index]['study']
+            targets = self.targets[index]
+            study_targets = self.study_targets[index]
             if not single:
-                targets = torch.from_numpy(targets.values).long()
-                study_targets = torch.from_numpy(study_targets.values).long()
+                targets = torch.from_numpy(targets.values)
+                study_targets = torch.from_numpy(study_targets.values)
         return data, study_targets, targets
 
     def __len__(self):

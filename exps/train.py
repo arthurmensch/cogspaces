@@ -29,14 +29,14 @@ def default():
         verbose=10,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'hcp']
+        source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
+        studies=['amalric2012mathematicians', 'hcp']
     )
     model = dict(
         normalize=True,
         estimator='factored',
         study_weight='study',
-        max_iter=100,
+        max_iter=400,
     )
     factored = dict(
         optimizer='adam',

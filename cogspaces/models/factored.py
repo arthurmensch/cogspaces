@@ -210,7 +210,7 @@ class MultiTaskLoss(nn.Module):
         loss = 0
         for study in inputs:
             study_pred, pred, penalty = inputs[study]
-            study_target, target = targets[study][0], targets[study][1]
+            study_target, target = targets[study]
 
             this_loss = (nll_loss(pred, target, size_average=True)
                          * self.loss_weights['contrast'])
@@ -244,10 +244,10 @@ def next_batches(data_loaders, cuda, device, cycle=True):
         target = Variable(target)
         study_target = Variable(study_target)
         if cycle:
-            yield {study: input}, {study: [study_target, target]}, batch_size
+            yield {study: input}, {study: (study_target, target)}, batch_size
         else:
             inputs[study] = input
-            targets[study] = [study_target, target]
+            targets[study] = study_target, target
             batch_sizes += batch_size
     if not cycle:
         yield inputs, targets, batch_sizes
@@ -367,9 +367,9 @@ class FactoredClassifier(BaseEstimator):
             if self.optimizer == 'adam':
                 self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr, )
                 self.scheduler_ = None
-            else:
+            elif self.optimizer == 'sgd':
                 self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr, )
-                self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=10,
+                self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=30,
                                                     eta_min=1e-3 * self.lr)
 
             self.n_iter_ = 0
@@ -394,7 +394,6 @@ class FactoredClassifier(BaseEstimator):
                     this_loss.backward()
                     self.optimizer_.step()
                     seen_samples += batch_size
-                    print(seen_samples)
                     epoch_seen_samples += batch_size
                     epoch_loss += this_loss * batch_size
                 self.n_iter_ = seen_samples / n_samples

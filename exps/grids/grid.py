@@ -116,7 +116,7 @@ def all_pairs():
     model = dict(
         normalize=True,
         estimator='factored',
-        study_weight='sqrt_sample',
+        study_weight='study',
         max_iter=300,
     )
     factored = dict(
@@ -126,7 +126,7 @@ def all_pairs():
         shared_embedding='hard',
         skip_connection=False,
         cycle=True,
-        batch_size=64,
+        batch_size=128,
         dropout=0.75,
         lr=1e-3,
         input_dropout=0.25,
