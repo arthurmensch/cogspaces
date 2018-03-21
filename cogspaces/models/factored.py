@@ -394,6 +394,7 @@ class FactoredClassifier(BaseEstimator):
                     this_loss.backward()
                     self.optimizer_.step()
                     seen_samples += batch_size
+                    print(seen_samples)
                     epoch_seen_samples += batch_size
                     epoch_loss += this_loss * batch_size
                 self.n_iter_ = seen_samples / n_samples
