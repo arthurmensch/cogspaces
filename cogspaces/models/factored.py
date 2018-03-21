@@ -141,19 +141,13 @@ class MultiTaskModule(nn.Module):
             if self.shared_embedding_size > 0:
                 shared_embedding = self.shared_embedders[study](sub_input)
                 if 'adversarial' in self.shared_embedding:
-                    # adversarial
                     study_pred = self.study_classifier(
                         self.gradient_reversal(shared_embedding))
                 else:
-                    study_pred = Variable(
-                        sub_input.data.new(sub_input.shape[0], 1),
-                        requires_grad=False)
+                    study_pred = None
                 embedding.append(shared_embedding)
             else:
-                # Return dummy variable
-                study_pred = Variable(
-                    sub_input.data.new(sub_input.shape[0], 1),
-                    requires_grad=False)
+                study_pred = None
                 shared_embedding = None
 
             if self.private_embedding_size > 0:
@@ -165,14 +159,10 @@ class MultiTaskModule(nn.Module):
             if shared_embedding is not None and private_embedding is not None:
                 corr = torch.matmul(shared_embedding.transpose(0, 1),
                                     private_embedding)
-                # S_shared = torch.sqrt(torch.sum(shared_embedding ** 2,
-                #                                 dim=0))[:, None]
-                # S_private = torch.sqrt(torch.sum(private_embedding ** 2,
-                #                                  dim=0))[None, :]
                 corr /= self.private_embedding_size * self.shared_embedding_size
                 penalty = torch.sum(torch.abs(corr))
             else:
-                penalty = Variable(torch.FloatTensor([0.]))
+                penalty = 0
 
             embedding = torch.cat(embedding, dim=1)
             pred = self.classifiers[study](embedding)
@@ -214,12 +204,10 @@ class MultiTaskModule(nn.Module):
 
 class MultiTaskLoss(nn.Module):
     def __init__(self, study_weights: Dict[str, float],
-                 loss_weights: Dict[str, float],
-                 adversarial: bool = True) -> None:
+                 loss_weights: Dict[str, float]) -> None:
         super().__init__()
         self.loss_weights = loss_weights
         self.study_weights = study_weights
-        self.adversarial = adversarial
 
     def forward(self, inputs: Dict[str, torch.FloatTensor],
                 targets: Dict[str, torch.LongTensor]) -> torch.FloatTensor:
@@ -231,11 +219,11 @@ class MultiTaskLoss(nn.Module):
             this_loss = (nll_loss(pred, target, size_average=True)
                          * self.loss_weights['contrast'])
 
-            if penalty.data[0] != 0:
+            if penalty != 0:
                 penalty /= pred.shape[0]
                 this_loss += penalty * self.loss_weights['penalty']
 
-            if self.adversarial:
+            if study_pred is not None:
                 study_loss = nll_loss(study_pred, study_target,
                                       size_average=True)
                 this_loss += study_loss * self.loss_weights['adversarial']
@@ -342,9 +330,7 @@ class FactoredClassifier(BaseEstimator):
             dropout=self.dropout,
             target_sizes=target_sizes)
         self.loss_ = MultiTaskLoss(study_weights=study_weights,
-                                   loss_weights=self.loss_weights,
-                                   adversarial='adversarial'
-                                               in self.shared_embedding)
+                                   loss_weights=self.loss_weights)
 
         if self.optimizer == 'lbfgs':
             for study in X:
@@ -408,8 +394,6 @@ class FactoredClassifier(BaseEstimator):
                     self.module_.train()
                     preds = self.module_(inputs)
                     this_loss = self.loss_(preds, targets)
-                    if self.cycle:
-                        this_loss *= len(data_loaders)
                     this_loss.backward()
                     self.optimizer_.step()
                     seen_samples += batch_size
@@ -482,10 +466,14 @@ class FactoredClassifier(BaseEstimator):
                                              shuffle=False,
                                              pin_memory=cuda)
         preds = {}
-        study_preds = {}
+        if 'adversarial' in self.shared_embedding:
+            study_preds = {}
+        else:
+            study_preds = None
         self.module_.eval()
         for study, loader in data_loaders.items():
-            study_pred = []
+            if study_preds is not None:
+                study_pred = []
             pred = []
             for (input, _) in loader:
                 if cuda:
@@ -494,24 +482,31 @@ class FactoredClassifier(BaseEstimator):
                 input = {study: input}
                 this_study_pred, this_pred, _ = self.module_(input)[study]
                 pred.append(this_pred)
-                study_pred.append(this_study_pred)
+                if study_preds is not None:
+                    study_pred.append(this_study_pred)
             preds[study] = torch.cat(pred)
-            study_preds[study] = torch.cat(study_pred)
+            if study_preds is not None:
+                study_preds[study] = torch.cat(study_pred)
         preds = {study: pred.data.cpu().numpy()
                  for study, pred in preds.items()}
-        study_preds = {study: study_pred.data.cpu().numpy()
-                       for study, study_pred in study_preds.items()}
+        if study_preds is not None:
+            study_preds = {study: study_pred.data.cpu().numpy()
+                           for study, study_pred in study_preds.items()}
         return study_preds, preds
 
     def predict(self, X):
         study_preds, preds = self.predict_proba(X)
-        study_preds = {study: np.argmax(study_pred, axis=1)
-                       for study, study_pred in study_preds.items()}
+        if study_preds is not None:
+            study_preds = {study: np.argmax(study_pred, axis=1)
+                           for study, study_pred in study_preds.items()}
+        else:
+            study_preds = {study: 0 for study in preds}
         preds = {study: np.argmax(pred, axis=1)
                  for study, pred in preds.items()}
         dfs = {}
         for study in preds:
             pred = preds[study]
+
             study_pred = study_preds[study]
             dfs[study] = pd.DataFrame(
                 dict(contrast=pred, study=study_pred, subject=0))
