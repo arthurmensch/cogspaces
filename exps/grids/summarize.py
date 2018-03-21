@@ -4,15 +4,9 @@ import os
 import re
 from os.path import expanduser, join
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from joblib import load
-
-from cogspaces.data import load_data_from_dir
-from cogspaces.datasets.utils import get_data_dir, get_output_dir
-from cogspaces.introspect.maps import coefs_from_model
-
-import matplotlib.pyplot as plt
 import seaborn as sns
 
 
@@ -79,93 +73,6 @@ def summarize_baseline():
     # ax.set_yticklabels(names)
     # plt.savefig(expanduser('~/output/cogspaces/corr.png'))
     # plt.close(fig)
-
-
-def summarize_all_pairs():
-    # output_dir = [expanduser('~/output/cogspaces/all_pairs_2'), ]
-    #
-    # regex = re.compile(r'[0-9]+$')
-    # res = []
-    # for this_output_dir in output_dir:
-    #     for this_dir in filter(regex.match, os.listdir(this_output_dir)):
-    #         this_exp_dir = join(this_output_dir, this_dir)
-    #         this_dir = int(this_dir)
-    #         try:
-    #             config = json.load(
-    #                 open(join(this_exp_dir, 'config.json'), 'r'))
-    #             run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
-    #             info = json.load(
-    #                 open(join(this_exp_dir, 'info.json'), 'r'))
-    #         except (FileNotFoundError, json.decoder.JSONDecodeError):
-    #             print('Skipping exp %i' % this_dir)
-    #             continue
-    #         studies = config['data']['studies']
-    #         seed = config['seed']
-    #         test_scores = run['result']
-    #         if test_scores is None:
-    #             test_scores = info['test_scores'][-1]
-    #         if len(studies) > 1:
-    #             this_res = [dict(target=studies[0],
-    #                              help=studies[1],
-    #                              score=test_scores[studies[0]],
-    #                              seed=seed),
-    #                         dict(target=studies[1], help=studies[0],
-    #                              score=test_scores[studies[1]],
-    #                              seed=seed)]
-    #         else:
-    #             this_res = [dict(target=studies[0], help=studies[0],
-    #                              score=test_scores[studies[0]],
-    #                              seed=seed)]
-    #         res += this_res
-    # res = pd.DataFrame(res)
-    # res.set_index(['target', 'help', 'seed'], inplace=True)
-    # res = res.sort_index()
-    # pd.to_pickle(res, join(expanduser('~/output/cogspaces/all_pairs.pkl')))
-    res = pd.read_pickle(join(expanduser('~/output/cogspaces/all_pairs.pkl')))
-    print(res.loc['archi'])
-    seeds = res.index.get_level_values('seed').unique().values
-    n_seeds = len(seeds)
-    source_dir = join(get_data_dir(), 'reduced_512')
-    data, target = load_data_from_dir(data_dir=source_dir)
-    studies_list = list(data.keys())
-    n_studies = len(studies_list)
-    scores = np.zeros((n_studies, n_studies, n_seeds))
-    df = res.groupby(level=['target', 'help']).aggregate('mean')
-    baseline_df = df.loc[[(study, study) for study in studies_list]]
-    baseline_df.sort_index(inplace=True)
-    df = df.groupby(level='target').aggregate('max')
-    print(df)
-    print(baseline_df)
-    for i in range(n_studies):
-        for j in range(n_studies):
-            scores[i, j, :] = res.loc[(studies_list[i],
-                                       studies_list[j]), 'score']
-    single_scores = np.diagonal(scores, axis1=0, axis2=1)
-    single_scores = single_scores.T
-    scores -= single_scores[:, None, :]
-    std_scores = np.std(scores, axis=2)
-    mean_scores = np.mean(scores, axis=2)
-
-    std_scores[std_scores == 0] = 1
-    z_scores = mean_scores / std_scores
-
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 7))
-    for ax, these_scores in zip([ax1, ax2], [mean_scores, z_scores]):
-        vmax = these_scores.max()
-        print(vmax)
-        cax = ax.matshow(these_scores, vmax=vmax, vmin=-vmax,
-                         cmap=plt.get_cmap('RdBu_r'))
-        ax.tick_params(axis='x', labelbottom=True, labeltop=False, top=False,
-                       bottom=True)
-        ax.set_xticks(np.arange(n_studies))
-        ax.set_xticklabels(studies_list, rotation=90)
-        ax.set_yticks(np.arange(n_studies))
-        ax.set_yticklabels(studies_list)
-        fig.colorbar(cax, ax=ax)
-    plt.subplots_adjust(top=0.98, bottom=0.32, left=0.07, right=0.98)
-
-    plt.savefig(join(get_output_dir(), 'transfer.pdf'))
-
 
 def summarize_factored():
     output_dir = [expanduser('~/output/cogspaces/factored_5'), ]
@@ -262,8 +169,6 @@ def plot():
 
 
 if __name__ == '__main__':
-    # summarize_mtl()
-    # summarize_baseline()
-    summarize_all_pairs()
-    # summarize_factored()
+    summarize_baseline()
+    summarize_factored()
     # plot()

@@ -110,13 +110,13 @@ def all_pairs():
         verbose=5,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512'),
+        source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
         studies=['hcp']
     )
     model = dict(
         normalize=True,
         estimator='factored',
-        study_weight='study',
+        study_weight='sqrt_sample',
         max_iter=300,
     )
     factored = dict(
@@ -125,6 +125,7 @@ def all_pairs():
         private_embedding_size=0,
         shared_embedding='hard',
         skip_connection=False,
+        cycle=True,
         batch_size=64,
         dropout=0.75,
         lr=1e-3,
@@ -260,8 +261,8 @@ if __name__ == '__main__':
     else:
         raise ValueError('Wrong argument')
     _id = get_id(output_dir)
-    Parallel(n_jobs=80, verbose=100)(delayed(run_exp)(output_dir,
-                                                     config_update,
-                                                     _id=_id + i)
-                                    for i, config_update
-                                    in enumerate(config_updates))
+    Parallel(n_jobs=40, verbose=100)(delayed(run_exp)(output_dir,
+                                                      config_update,
+                                                      _id=_id + i)
+                                     for i, config_update
+                                     in enumerate(config_updates))

@@ -23,33 +23,34 @@ exp = Experiment('multi_studies')
 
 @exp.config
 def default():
-    seed = 0
+    seed = 10
     system = dict(
         device=-1,
         verbose=1000,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512'),
+        source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
         studies=['archi', 'hcp']
     )
     model = dict(
         normalize=True,
         estimator='factored',
-        study_weight='sqrt_sample',
+        study_weight='study',
         max_iter=1000,
     )
     factored = dict(
-        optimizer='sgd',
+        optimizer='adam',
         shared_embedding_size=100,
         private_embedding_size=0,
         shared_embedding='hard',
         skip_connection=False,
         batch_size=128,
+        cycle=True,
         dropout=0.75,
         activation='linear',
         loss_weights=dict(contrast=1., adversarial=1.,
                           penalty=1.),
-        lr=1e-2,
+        lr=1e-3,
         input_dropout=0.25,
     )
     trace = dict(
@@ -111,6 +112,7 @@ def train(system, model, factored, trace, logistic,
         standard_scaler = None
 
     study_weights = get_study_weights(model['study_weight'], train_data)
+    print(study_weights)
 
     if model['estimator'] == 'factored':
         estimator = FactoredClassifier(verbose=system['verbose'],
@@ -167,18 +169,18 @@ def get_study_weights(study_weight, train_data):
         study_weights = np.array(
             [sqrt(len(train_data[study])) for study in train_data])
         s = np.sum(study_weights)
-        study_weights /= s / len(train_data)
+        study_weights /= s
         study_weights = {study: weight for study, weight in zip(train_data,
                                                                 study_weights)}
     elif study_weight == 'sample':
         study_weights = np.array(
             [float(len(train_data[study])) for study in train_data])
         s = float(np.sum(study_weights))
-        study_weights /= s / len(train_data)
+        study_weights /= s
         study_weights = {study: weight for study, weight in zip(train_data,
                                                                 study_weights)}
     elif study_weight == 'study':
-        study_weights = {study: 1. for study in train_data}
+        study_weights = {study: 1. / len(train_data) for study in train_data}
     else:
         raise ValueError
     return study_weights

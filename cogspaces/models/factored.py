@@ -76,7 +76,8 @@ class MultiTaskModule(nn.Module):
 
             def get_shared_embedder():
                 return nn.Sequential(
-                    Linear(in_features, shared_embedding_size // 2, bias=False),
+                    Linear(in_features, shared_embedding_size // 2,
+                           bias=False),
                     self.activation,
                     Linear(shared_embedding_size // 2,
                            shared_embedding_size, bias=False),
@@ -243,22 +244,28 @@ class MultiTaskLoss(nn.Module):
         return loss
 
 
-def next_batches(data_loaders, cuda, device):
-    inputs = {}
-    targets = {}
-    batch_size = 0
+def next_batches(data_loaders, cuda, device, cycle=True):
+    if not cycle:
+        inputs = {}
+        targets = {}
+        batch_sizes = 0
     for study, loader in data_loaders.items():
         input, target = next(loader)
-        batch_size += input.shape[0]
+        batch_size = input.shape[0]
         target = target[:, [0, 2]]
         if cuda:
             input = input.cuda(device=device)
             target = target.cuda(device=device)
         input = Variable(input)
         target = Variable(target)
-        inputs[study] = input
-        targets[study] = target
-    return inputs, targets, batch_size
+        if cycle:
+            yield {study: input}, {study: target}, batch_size
+        else:
+            inputs[study] = input
+            targets[study] = target
+            batch_sizes += batch_size
+    if not cycle:
+        yield inputs, targets, batch_sizes
 
 
 class FactoredClassifier(BaseEstimator):
@@ -275,6 +282,7 @@ class FactoredClassifier(BaseEstimator):
                  dropout=0.5, input_dropout=0.25,
                  max_iter=10000, verbose=0,
                  device=-1,
+                 cycle=True,
                  seed=None):
 
         self.skip_connection = skip_connection
@@ -291,6 +299,7 @@ class FactoredClassifier(BaseEstimator):
         self.verbose = verbose
         self.device = device
         self.lr = lr
+        self.cycle = cycle
 
         self.fine_tune = fine_tune
 
@@ -345,8 +354,8 @@ class FactoredClassifier(BaseEstimator):
 
             # Desactivate dropout
             def closure():
-                data_loaders_iter = {study: iter(data_loader_) for study,
-                                                                   data_loader_
+                data_loaders_iter = {study: iter(data_loader_)
+                                     for study, data_loader_
                                      in data_loaders.items()}
                 inputs_, targets_, _ = next_batches(data_loaders_iter,
                                                     cuda=cuda,
@@ -385,35 +394,36 @@ class FactoredClassifier(BaseEstimator):
             old_epoch = -1
             seen_samples = 0
             epoch_loss = 0
-            epoch_iter = 0
+            epoch_seen_samples = 0
             report_every = ceil(self.max_iter / self.verbose)
 
-            self.module_.train()
             while self.n_iter_ < self.max_iter:
                 if self.scheduler_ is not None:
                     self.scheduler_.step(self.n_iter_)
                 self.optimizer_.zero_grad()
-                inputs, targets, batch_size = next_batches(data_loaders,
-                                                           cuda=cuda,
-                                                           device=device)
-                self.module_.train()
-                preds = self.module_(inputs)
-                this_loss = self.loss_(preds, targets)
-                this_loss.backward()
-                self.optimizer_.step()
-
-                seen_samples += batch_size
-                epoch_loss += this_loss
-                epoch_iter += 1
+                for inputs, targets, batch_size in next_batches(data_loaders,
+                                                                cuda=cuda,
+                                                                device=device,
+                                                                cycle=self.cycle):
+                    self.module_.train()
+                    preds = self.module_(inputs)
+                    this_loss = self.loss_(preds, targets)
+                    if self.cycle:
+                        this_loss *= len(data_loaders)
+                    this_loss.backward()
+                    self.optimizer_.step()
+                    seen_samples += batch_size
+                    epoch_seen_samples += batch_size
+                    epoch_loss += this_loss * batch_size
                 self.n_iter_ = seen_samples / n_samples
                 epoch = floor(self.n_iter_)
                 if report_every is not None and epoch > old_epoch \
                         and epoch % report_every == 0:
-                    epoch_loss /= epoch_iter
+                    epoch_loss /= epoch_seen_samples
                     print('Epoch %.2f, train loss: % .4f'
                           % (epoch, epoch_loss))
                     epoch_loss = 0
-                    epoch_iter = 0
+                    epoch_seen_samples = 0
                     if callback is not None:
                         callback(self.n_iter_)
                 old_epoch = epoch
