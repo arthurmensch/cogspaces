@@ -22,7 +22,7 @@ exp.observers.append(OurFileStorageObserver.create(basedir=output_dir))
 
 @exp.config
 def default():
-    seed = 0,
+    seed = 0
     system = dict(
         device=-1,
         verbose=100,
