@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 
 from cogspaces.data import NiftiTargetDataset, infinite_iter
 from cogspaces.optim.lbfgs import LBFGSScipy
-
+import torch.nn.functional as F
 
 class GradReverseFunc(Function):
     @staticmethod
@@ -75,13 +75,7 @@ class MultiTaskModule(nn.Module):
         if shared_embedding_size > 0:
 
             def get_shared_embedder():
-                return nn.Sequential(
-                    Linear(in_features, shared_embedding_size // 2,
-                           bias=False),
-                    self.activation,
-                    Linear(shared_embedding_size // 2,
-                           shared_embedding_size, bias=False),
-                    self.dropout)
+                return Linear(in_features, shared_embedding_size, bias=False)
 
             if 'hard' in shared_embedding:
                 shared_embedder = get_shared_embedder()
@@ -99,17 +93,14 @@ class MultiTaskModule(nn.Module):
 
         for study, size in target_sizes.items():
             if private_embedding_size > 0:
-                self.private_embedders[study] = nn.Sequential(
+                self.private_embedders[study] = \
                     Linear(in_features, private_embedding_size, bias=False),
-                    self.activation,
-                    self.dropout)
                 self.add_module('private_embedder_%s' % study,
                                 self.private_embedders[study])
 
-            self.classifiers[study] = nn.Sequential(
+            self.classifiers[study] =\
                 Linear(shared_embedding_size + private_embedding_size
-                       + in_features * skip_connection, size),
-                nn.LogSoftmax(dim=1))
+                       + in_features * skip_connection, size)
             self.add_module('classifier_%s' % study, self.classifiers[study])
 
         if 'adversarial' in shared_embedding:
@@ -159,13 +150,18 @@ class MultiTaskModule(nn.Module):
             if shared_embedding is not None and private_embedding is not None:
                 corr = torch.matmul(shared_embedding.transpose(0, 1),
                                     private_embedding)
-                corr /= self.private_embedding_size * self.shared_embedding_size
+                corr /= self.private_embedding_size *\
+                        self.shared_embedding_size
                 penalty = torch.sum(torch.abs(corr))
             else:
                 penalty = 0
 
-            embedding = torch.cat(embedding, dim=1)
-            pred = self.classifiers[study](embedding)
+            if len(embedding) > 1:
+                embedding = torch.cat(embedding, dim=1)
+            else:
+                embedding = embedding[0]
+            pred = F.log_softmax(self.dropout(self.activation(
+                self.classifiers[study](embedding))), dim=1)
 
             preds[study] = study_pred, pred, penalty
         return preds
@@ -386,12 +382,13 @@ class FactoredClassifier(BaseEstimator):
             while self.n_iter_ < self.max_iter:
                 if self.scheduler_ is not None:
                     self.scheduler_.step(self.n_iter_)
-                self.optimizer_.zero_grad()
                 for inputs, targets, batch_size in next_batches(data_loaders,
                                                                 cuda=cuda,
                                                                 device=device,
                                                                 cycle=self.cycle):
+                    print(inputs)
                     self.module_.train()
+                    self.optimizer_.zero_grad()
                     preds = self.module_(inputs)
                     this_loss = self.loss_(preds, targets)
                     this_loss.backward()

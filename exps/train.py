@@ -29,7 +29,7 @@ def default():
         verbose=100,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
+        source_dir=join(get_data_dir(), 'reduced_512'),
         studies=['archi', 'hcp']
     )
     model = dict(
