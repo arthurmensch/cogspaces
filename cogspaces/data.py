@@ -29,9 +29,9 @@ class NiftiTargetDataset(Dataset):
             else:
                 targets = torch.LongTensor((data.shape[0], 1)).fill_(0)
         else:
-            targets = self.targets.iloc[index]['contrast']
+            targets = self.targets[index]
             if not single:
-                targets = torch.from_numpy(targets.values).long()
+                targets = torch.from_numpy(targets)
         return data, targets
 
     def __len__(self):

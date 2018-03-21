@@ -35,11 +35,11 @@ def default():
     model = dict(
         normalize=True,
         estimator='factored',
-        study_weight='study',
-        max_iter=100,
+        study_weight='sqrt_sample',
+        max_iter=400,
     )
     factored = dict(
-        optimizer='adam',
+        optimizer='sgd',
         shared_embedding_size=100,
         private_embedding_size=0,
         skip_connection=False,
@@ -49,8 +49,8 @@ def default():
         activation='linear',
         loss_weights=dict(contrast=1., adversarial=1.,
                           penalty=1.),
-        lr=1e-3,
-        input_dropout=0.25,
+        lr=1e-2,
+        input_dropout=0.,
     )
     trace = dict(
         trace_penalty=1e-3,

@@ -294,7 +294,7 @@ class FactoredClassifier(BaseEstimator):
         if self.optimizer == 'lbfgs':
             for study in X:
                 data_loaders[study] = DataLoader(
-                    NiftiTargetDataset(X[study], y[study]),
+                    NiftiTargetDataset(X[study], y[study]['contrast'].values),
                     len(X[study]), shuffle=False, pin_memory=cuda)
 
             # Desactivate dropout
@@ -319,7 +319,7 @@ class FactoredClassifier(BaseEstimator):
         else:
             for study in X:
                 data_loaders[study] = DataLoader(
-                    NiftiTargetDataset(X[study], y[study]),
+                    NiftiTargetDataset(X[study], y[study]['contrast'].values),
                     shuffle=True,
                     batch_size=self.batch_size, pin_memory=cuda)
 
@@ -356,7 +356,6 @@ class FactoredClassifier(BaseEstimator):
                     this_loss.backward()
                     self.optimizer_.step()
                     seen_samples += batch_size
-                    print(seen_samples)
                     epoch_seen_samples += batch_size
                     epoch_loss += this_loss * batch_size
                 self.n_iter_ = seen_samples / n_samples
@@ -380,7 +379,7 @@ class FactoredClassifier(BaseEstimator):
 
             for study in X:
                 data_loaders[study] = DataLoader(
-                    NiftiTargetDataset(X[study], y[study]),
+                    NiftiTargetDataset(X[study], y[study]['contrast'].values),
                     len(X[study]), shuffle=False, pin_memory=cuda)
 
             # Desactivate dropout
