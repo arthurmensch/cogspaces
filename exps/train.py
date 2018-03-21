@@ -23,10 +23,10 @@ exp = Experiment('multi_studies')
 
 @exp.config
 def default():
-    seed = 10
+    seed = 0
     system = dict(
         device=-1,
-        verbose=1000,
+        verbose=100,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
@@ -36,7 +36,7 @@ def default():
         normalize=True,
         estimator='factored',
         study_weight='study',
-        max_iter=1000,
+        max_iter=100,
     )
     factored = dict(
         optimizer='adam',
@@ -169,18 +169,18 @@ def get_study_weights(study_weight, train_data):
         study_weights = np.array(
             [sqrt(len(train_data[study])) for study in train_data])
         s = np.sum(study_weights)
-        study_weights /= s
+        study_weights /= s / len(train_data)
         study_weights = {study: weight for study, weight in zip(train_data,
                                                                 study_weights)}
     elif study_weight == 'sample':
         study_weights = np.array(
             [float(len(train_data[study])) for study in train_data])
         s = float(np.sum(study_weights))
-        study_weights /= s
+        study_weights /= s / len(train_data)
         study_weights = {study: weight for study, weight in zip(train_data,
                                                                 study_weights)}
     elif study_weight == 'study':
-        study_weights = {study: 1. / len(train_data) for study in train_data}
+        study_weights = {study: 1. for study in train_data}
     else:
         raise ValueError
     return study_weights
