@@ -9,6 +9,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from cogspaces.data import load_data_from_dir
+from cogspaces.datasets.utils import get_data_dir
+
 
 def summarize_baseline():
     output_dir = expanduser('~/output/cogspaces/baseline_logistic')
@@ -73,6 +76,7 @@ def summarize_baseline():
     # ax.set_yticklabels(names)
     # plt.savefig(expanduser('~/output/cogspaces/corr.png'))
     # plt.close(fig)
+
 
 def summarize_factored():
     output_dir = [expanduser('~/output/cogspaces/factored_5'), ]
@@ -166,7 +170,6 @@ def plot():
     sns.despine(fig)
     plt.savefig(join(output_dir, 'comparison.pdf'))
     plt.show()
-
 
 if __name__ == '__main__':
     summarize_baseline()

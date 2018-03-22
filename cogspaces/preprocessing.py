@@ -24,6 +24,7 @@ class MultiStandardScaler(BaseEstimator, TransformerMixin):
         self.sc_ = {}
         for study, this_data in data.items():
             self.sc_[study] = StandardScaler().fit(this_data)
+            # self.sc_[study].scale_ /= np.sqrt(len(this_data))
         return self
 
     def transform(self, data):

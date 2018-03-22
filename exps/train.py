@@ -23,31 +23,34 @@ exp = Experiment('multi_studies')
 
 @exp.config
 def default():
-    seed = 0
+    seed = 5192
     system = dict(
         device=-1,
         verbose=10,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies=['amalric2012mathematicians', 'hcp']
+        # studies=['amalric2012mathematicians', 'archi', 'brainomics',
+        #          'hcp', 'la5c', 'pinel2009twins']
+        # studies=['amalric2012mathematicians']
+        studies='all'
     )
     model = dict(
         normalize=True,
         estimator='factored',
-        study_weight='study',
-        max_iter=400,
+        study_weight='sqrt_sample',
+        max_iter=1000,
     )
     factored = dict(
         optimizer='adam',
-        shared_embedding_size=100,
-        private_embedding_size=0,
+        shared_embedding_size=32,
+        private_embedding_size=32,
         shared_embedding='hard',
         skip_connection=False,
         batch_size=128,
         cycle=True,
-        dropout=0.75,
-        activation='linear',
+        dropout=0.5,
+        activation='relu',
         loss_weights=dict(contrast=1., adversarial=1.,
                           penalty=1.),
         lr=1e-3,
@@ -112,7 +115,12 @@ def train(system, model, factored, trace, logistic,
         standard_scaler = None
 
     study_weights = get_study_weights(model['study_weight'], train_data)
-    print(study_weights)
+    n_studies = len(study_weights)
+    # if n_studies > 1:
+    #     study_weights = {study: weight / (n_studies - 1) for
+    #                      study, weight in study_weights.items()}
+    #     study_weights['amalric2012mathematicians'] = 1
+    # print(study_weights)
 
     if model['estimator'] == 'factored':
         estimator = FactoredClassifier(verbose=system['verbose'],

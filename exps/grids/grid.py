@@ -103,11 +103,11 @@ def factored():
     )
 
 
-def all_pairs():
+def all_pairs_4():
     seed = 1
     system = dict(
         device=-1,
-        verbose=5,
+        verbose=2,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
@@ -117,7 +117,7 @@ def all_pairs():
         normalize=True,
         estimator='factored',
         study_weight='study',
-        max_iter=300,
+        max_iter=500,
     )
     factored = dict(
         optimizer='adam',
@@ -125,6 +125,68 @@ def all_pairs():
         private_embedding_size=0,
         shared_embedding='hard',
         skip_connection=False,
+        activation='linear',
+        cycle=True,
+        batch_size=128,
+        dropout=0.75,
+        lr=1e-3,
+        input_dropout=0.25,
+    )
+
+
+def all_pairs_4():
+    seed = 1
+    system = dict(
+        device=-1,
+        verbose=2,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512'),
+        studies=['hcp']
+    )
+    model = dict(
+        normalize=True,
+        estimator='factored',
+        study_weight='study',
+        max_iter=500,
+    )
+    factored = dict(
+        optimizer='adam',
+        shared_embedding_size=100,
+        private_embedding_size=0,
+        shared_embedding='hard',
+        skip_connection=False,
+        activation='linear',
+        cycle=True,
+        batch_size=128,
+        dropout=0.75,
+        lr=1e-3,
+        input_dropout=0.25,
+    )
+
+def all_pairs_advers():
+    seed = 1
+    system = dict(
+        device=-1,
+        verbose=2,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
+        studies=['hcp']
+    )
+    model = dict(
+        normalize=True,
+        estimator='factored',
+        study_weight='study',
+        max_iter=500,
+    )
+    factored = dict(
+        optimizer='adam',
+        shared_embedding_size=100,
+        private_embedding_size=0,
+        shared_embedding='adversarial',
+        skip_connection=False,
+        activation='linear',
         cycle=True,
         batch_size=128,
         dropout=0.75,
@@ -241,9 +303,26 @@ if __name__ == '__main__':
                                ['sqrt_sample']
                            }))
     elif grid == 'all_pairs':
-        output_dir = join(get_output_dir(), 'all_pairs_3')
+        output_dir = join(get_output_dir(), 'all_pairs_4')
         exp.config(all_pairs)
-        source_dir = join(get_data_dir(), 'reduced_512')
+        source_dir = join(get_data_dir(), 'reduced_512_lstsq')
+        data, target = load_data_from_dir(data_dir=source_dir)
+        studies_list = list(data.keys())
+        n_studies = len(studies_list)
+        config_updates = []
+        seeds = check_random_state(1).randint(0, 100000, size=20)
+        for seed in seeds:
+            for i in range(n_studies):
+                for j in range(i):
+                    studies = [studies_list[i], studies_list[j]]
+                    config_updates.append({'data.studies': studies,
+                                           'seed': seed})
+                config_updates.append({'data.studies': [studies_list[i]],
+                                       'seed': seed})
+    elif grid == 'all_pairs_advers':
+        output_dir = join(get_output_dir(), 'all_pairs_advers')
+        exp.config(all_pairs_advers)
+        source_dir = join(get_data_dir(), 'reduced_512_lstsq')
         data, target = load_data_from_dir(data_dir=source_dir)
         studies_list = list(data.keys())
         n_studies = len(studies_list)
@@ -261,7 +340,7 @@ if __name__ == '__main__':
     else:
         raise ValueError('Wrong argument')
     _id = get_id(output_dir)
-    Parallel(n_jobs=40, verbose=100)(delayed(run_exp)(output_dir,
+    Parallel(n_jobs=60, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       _id=_id + i)
                                      for i, config_update

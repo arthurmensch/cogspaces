@@ -94,7 +94,7 @@ class MultiTaskModule(nn.Module):
         for study, size in target_sizes.items():
             if private_embedding_size > 0:
                 self.private_embedders[study] = \
-                    Linear(in_features, private_embedding_size, bias=False),
+                    Linear(in_features, private_embedding_size, bias=False)
                 self.add_module('private_embedder_%s' % study,
                                 self.private_embedders[study])
 
@@ -154,7 +154,7 @@ class MultiTaskModule(nn.Module):
                         self.shared_embedding_size
                 penalty = torch.sum(torch.abs(corr))
             else:
-                penalty = 0
+                penalty = None
 
             if len(embedding) > 1:
                 embedding = torch.cat(embedding, dim=1)
@@ -215,7 +215,7 @@ class MultiTaskLoss(nn.Module):
             this_loss = (nll_loss(pred, target, size_average=True)
                          * self.loss_weights['contrast'])
 
-            if penalty != 0:
+            if penalty is not None:
                 penalty /= pred.shape[0]
                 this_loss += penalty * self.loss_weights['penalty']
 
