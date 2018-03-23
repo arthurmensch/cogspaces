@@ -39,7 +39,7 @@ def default():
         normalize=True,
         estimator='factored',
         study_weight='sqrt_sample',
-        max_iter=1000,
+        max_iter=100,
     )
     factored = dict(
         optimizer='adam',
@@ -115,12 +115,6 @@ def train(system, model, factored, trace, logistic,
         standard_scaler = None
 
     study_weights = get_study_weights(model['study_weight'], train_data)
-    n_studies = len(study_weights)
-    # if n_studies > 1:
-    #     study_weights = {study: weight / (n_studies - 1) for
-    #                      study, weight in study_weights.items()}
-    #     study_weights['amalric2012mathematicians'] = 1
-    # print(study_weights)
 
     if model['estimator'] == 'factored':
         estimator = FactoredClassifier(verbose=system['verbose'],
@@ -145,7 +139,7 @@ def train(system, model, factored, trace, logistic,
     test_callback = ScoreCallback(estimator, X=test_data, y=test_targets,
                                   score_function=accuracy_score)
     train_callback = ScoreCallback(estimator, X=train_data, y=train_targets,
-                                   score_function=accuracy_score)
+                                       score_function=accuracy_score)
     callback = MultiCallback({'train': train_callback,
                               'test': test_callback})
     _run.info['n_iter'] = train_callback.n_iter_
@@ -189,6 +183,9 @@ def get_study_weights(study_weight, train_data):
                                                                 study_weights)}
     elif study_weight == 'study':
         study_weights = {study: 1. for study in train_data}
+    elif study_weight == 'target':
+        study_weights = {study: 1. if i == 0 else 1. / (len(train_data) - 1)
+                         for i, study in enumerate(train_data)}
     else:
         raise ValueError
     return study_weights

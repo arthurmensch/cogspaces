@@ -1,4 +1,6 @@
-from os.path import join
+import os
+
+from os.path import join, expanduser
 
 import numpy as np
 import sys
@@ -10,6 +12,7 @@ from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.utils.sacred import get_id, OurFileStorageObserver
 from exps.train import exp
+import pandas as pd
 
 
 @exp.config
@@ -164,6 +167,7 @@ def all_pairs_4():
         input_dropout=0.25,
     )
 
+
 def all_pairs_advers():
     seed = 1
     system = dict(
@@ -206,6 +210,42 @@ def run_exp(output_dir, config_updates, _id, mock=False):
         run()
     else:
         exp.run_command('print_config', config_updates=config_updates, )
+
+
+def get_studies_list(exp='all_pairs_4'):
+    res = pd.read_pickle(join(expanduser('~/output/cogspaces/%s.pkl' % exp)))
+
+    baseline = res.reset_index()
+    baseline = baseline.loc[baseline['target'] == baseline['help']]
+    baseline.set_index(['target', 'seed'], inplace=True)
+    baseline.drop(columns=['help'], inplace=True)
+    baseline.sort_index(inplace=True)
+
+    result = pd.merge(res.reset_index(), baseline.reset_index(),
+                      suffixes=('', '_baseline'),
+                      on=['target', 'seed'], how='outer').set_index(
+        ['target', 'help', 'seed'])
+    result.sort_index(inplace=True)
+    result['diff'] = result['score'] - result['score_baseline']
+    diff = result['diff'].groupby(level=['target', 'help']).agg(
+        {'mean': np.mean, 'std': np.std})
+    studies_list = diff.index.get_level_values('target').unique().values
+
+    def trim_neg_and_norm(x):
+        x = x.loc[x > 0].reset_index('target', drop=True)
+        return x
+
+    positive = diff['mean'].groupby('target').apply(trim_neg_and_norm)
+
+    res = []
+    for target in studies_list:
+        try:
+            help = positive.loc[target]
+        except:
+            help = []
+        studies = [target] + help.index.get_level_values('help').values.tolist()
+        res.append(studies)
+    return res
 
 
 if __name__ == '__main__':
@@ -302,9 +342,9 @@ if __name__ == '__main__':
                            'model.study_weight':
                                ['sqrt_sample']
                            }))
-    elif grid == 'all_pairs':
+    elif grid == 'all_pairs_4':
         output_dir = join(get_output_dir(), 'all_pairs_4')
-        exp.config(all_pairs)
+        exp.config(all_pairs_4)
         source_dir = join(get_data_dir(), 'reduced_512_lstsq')
         data, target = load_data_from_dir(data_dir=source_dir)
         studies_list = list(data.keys())
@@ -318,6 +358,25 @@ if __name__ == '__main__':
                     config_updates.append({'data.studies': studies,
                                            'seed': seed})
                 config_updates.append({'data.studies': [studies_list[i]],
+                                       'seed': seed})
+    elif grid == 'all_pairs_positive_transfer':
+        output_dir = join(get_output_dir(), 'all_pairs_positive_transfer')
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        exp.config(all_pairs_4, config_update={'data.study_weight': 'target'})
+        source_dir = join(get_data_dir(), 'reduced_512_lstsq')
+        data, target = load_data_from_dir(data_dir=source_dir)
+        studies_list = list(data.keys())
+        n_studies = len(studies_list)
+        config_updates = []
+        seeds = check_random_state(1).randint(0, 100000, size=20)
+        studies_list = get_studies_list()
+        print(studies_list)
+        for seed in seeds:
+            for studies in studies_list:
+                config_updates.append({'data.studies': studies,
+                                       'seed': seed})
+                config_updates.append({'data.studies': [studies[0]],
                                        'seed': seed})
     elif grid == 'all_pairs_advers':
         output_dir = join(get_output_dir(), 'all_pairs_advers')

@@ -2,15 +2,13 @@
 import json
 import os
 import re
-from os.path import expanduser, join
 
 import matplotlib.pyplot as plt
 import numpy as np
 import ot
 import pandas as pd
 from joblib import delayed, Parallel
-from ot import sinkhorn
-from sklearn.ensemble import RandomForestRegressor
+from os.path import expanduser, join
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 from sklearn.preprocessing import StandardScaler
@@ -21,47 +19,118 @@ from cogspaces.datasets.utils import get_output_dir, get_data_dir
 idx = pd.IndexSlice
 
 
-def summarize_all_pairs(exp='all_pairs_advers'):
-    # output_dir = [expanduser('~/output/cogspaces/%s' % exp), ]
-    #
-    # regex = re.compile(r'[0-9]+$')
-    # res = []
-    # for this_output_dir in output_dir:
-    #     for this_dir in filter(regex.match, os.listdir(this_output_dir)):
-    #         this_exp_dir = join(this_output_dir, this_dir)
-    #         this_dir = int(this_dir)
-    #         try:
-    #             config = json.load(
-    #                 open(join(this_exp_dir, 'config.json'), 'r'))
-    #             run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
-    #             info = json.load(
-    #                 open(join(this_exp_dir, 'info.json'), 'r'))
-    #         except (FileNotFoundError, json.decoder.JSONDecodeError):
-    #             print('Skipping exp %i' % this_dir)
-    #             continue
-    #         studies = config['data']['studies']
-    #         seed = config['seed']
-    #         test_scores = run['result']
-    #         if test_scores is None:
-    #             test_scores = info['test_scores'][-1]
-    #         if len(studies) > 1:
-    #             this_res = [dict(target=studies[0],
-    #                              help=studies[1],
-    #                              score=test_scores[studies[0]],
-    #                              seed=seed),
-    #                         dict(target=studies[1], help=studies[0],
-    #                              score=test_scores[studies[1]],
-    #                              seed=seed)]
-    #         else:
-    #             this_res = [dict(target=studies[0], help=studies[0],
-    #                              score=test_scores[studies[0]],
-    #                              seed=seed)]
-    #         res += this_res
-    # res = pd.DataFrame(res)
-    # res.set_index(['target', 'help', 'seed'], inplace=True)
-    # res = res.sort_index()
-    #
-    # pd.to_pickle(res, join(expanduser('~/output/cogspaces/%s.pkl' % exp)))
+def get_studies_list(exp='all_pairs_4'):
+    res = pd.read_pickle(join(expanduser('~/output/cogspaces/%s.pkl' % exp)))
+
+    baseline = res.reset_index()
+    baseline = baseline.loc[baseline['target'] == baseline['help']]
+    baseline.set_index(['target', 'seed'], inplace=True)
+    baseline.drop(columns=['help'], inplace=True)
+    baseline.sort_index(inplace=True)
+
+    result = pd.merge(res.reset_index(), baseline.reset_index(),
+                      suffixes=('', '_baseline'),
+                      on=['target', 'seed'], how='outer').set_index(
+        ['target', 'help', 'seed'])
+    result.sort_index(inplace=True)
+    result['diff'] = result['score'] - result['score_baseline']
+    diff = result['diff'].groupby(level=['target', 'help']).agg(
+        {'mean': np.mean, 'std': np.std})
+    studies_list = diff.index.get_level_values('target').unique().values
+
+    def trim_neg_and_norm(x):
+        x = x.loc[x > 0].reset_index('target', drop=True)
+        return x
+
+    positive = diff['mean'].groupby('target').apply(trim_neg_and_norm)
+
+    res = []
+    for target in studies_list:
+        try:
+            help = positive.loc[target]
+        except:
+            help = []
+        studies = [target] + help.index.get_level_values('help').values.tolist()
+        res.append(studies)
+    return res
+
+
+def summarize_all_positive(exp='all_pairs_positive_transfer'):
+    output_dir = [expanduser('~/output/cogspaces/%s' % exp), ]
+
+    regex = re.compile(r'[0-9]+$')
+    res = []
+    for this_output_dir in output_dir:
+        for this_dir in filter(regex.match, os.listdir(this_output_dir)):
+            this_exp_dir = join(this_output_dir, this_dir)
+            this_dir = int(this_dir)
+            try:
+                config = json.load(
+                    open(join(this_exp_dir, 'config.json'), 'r'))
+                run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
+                info = json.load(
+                    open(join(this_exp_dir, 'info.json'), 'r'))
+            except (FileNotFoundError, json.decoder.JSONDecodeError):
+                print('Skipping exp %i' % this_dir)
+                continue
+            studies = config['data']['studies']
+            seed = config['seed']
+            test_scores = run['result']
+            if test_scores is None:
+                test_scores = info['test_scores'][-1]
+                this_res = [dict(target=studies[0],
+                                 help=' '.join(studies[1:]),
+                                 score=test_scores[studies[0]],
+                                 seed=seed)]
+                res += this_res
+    res = pd.DataFrame(res)
+    res.set_index(['target', 'help', 'seed'], inplace=True)
+    res = res.sort_index()
+    print(res)
+    pd.to_pickle(res, join(expanduser('~/output/cogspaces/%s.pkl' % exp)))
+
+
+def summarize_all_pairs(exp='all_pairs_4'):
+    output_dir = [expanduser('~/output/cogspaces/%s' % exp), ]
+
+    regex = re.compile(r'[0-9]+$')
+    res = []
+    for this_output_dir in output_dir:
+        for this_dir in filter(regex.match, os.listdir(this_output_dir)):
+            this_exp_dir = join(this_output_dir, this_dir)
+            this_dir = int(this_dir)
+            try:
+                config = json.load(
+                    open(join(this_exp_dir, 'config.json'), 'r'))
+                run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
+                info = json.load(
+                    open(join(this_exp_dir, 'info.json'), 'r'))
+            except (FileNotFoundError, json.decoder.JSONDecodeError):
+                print('Skipping exp %i' % this_dir)
+                continue
+            studies = config['data']['studies']
+            seed = config['seed']
+            test_scores = run['result']
+            if test_scores is None:
+                test_scores = info['test_scores'][-1]
+            if len(studies) > 1:
+                this_res = [dict(target=studies[0],
+                                 help=studies[1],
+                                 score=test_scores[studies[0]],
+                                 seed=seed),
+                            dict(target=studies[1], help=studies[0],
+                                 score=test_scores[studies[1]],
+                                 seed=seed)]
+            else:
+                this_res = [dict(target=studies[0], help=studies[0],
+                                 score=test_scores[studies[0]],
+                                 seed=seed)]
+            res += this_res
+    res = pd.DataFrame(res)
+    res.set_index(['target', 'help', 'seed'], inplace=True)
+    res = res.sort_index()
+
+    pd.to_pickle(res, join(expanduser('~/output/cogspaces/%s.pkl' % exp)))
     res = pd.read_pickle(join(expanduser('~/output/cogspaces/%s.pkl' % exp)))
 
     baseline = res.reset_index()
@@ -277,6 +346,7 @@ def get_distances(target_data, help_data):
 
 if __name__ == '__main__':
     # summarize_all_pairs('all_pairs_advers')
-    summarize_all_pairs('all_pairs_4')
+    # summarize_all_pairs('all_pairs_4')
     # make_features()
     # plot_features()
+    summarize_all_positive()
