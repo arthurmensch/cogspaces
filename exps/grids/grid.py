@@ -1,3 +1,4 @@
+import gc
 import os
 
 from os.path import join, expanduser
@@ -137,37 +138,6 @@ def all_pairs_4():
     )
 
 
-def all_pairs_4():
-    seed = 1
-    system = dict(
-        device=-1,
-        verbose=2,
-    )
-    data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['hcp']
-    )
-    model = dict(
-        normalize=True,
-        estimator='factored',
-        study_weight='study',
-        max_iter=500,
-    )
-    factored = dict(
-        optimizer='adam',
-        shared_embedding_size=100,
-        private_embedding_size=0,
-        shared_embedding='hard',
-        skip_connection=False,
-        activation='linear',
-        cycle=True,
-        batch_size=128,
-        dropout=0.75,
-        lr=1e-3,
-        input_dropout=0.25,
-    )
-
-
 def all_pairs_advers():
     seed = 1
     system = dict(
@@ -199,17 +169,25 @@ def all_pairs_advers():
     )
 
 
+def positive_transfer():
+    data = dict(study_weight='target')
+
+
 def run_exp(output_dir, config_updates, _id, mock=False):
     """Boiler plate function that has to be put in every multiple
         experiment script, as exp does not pickle."""
     if not mock:
+        exp.run_command('print_config', config_updates=config_updates, )
+        observer = OurFileStorageObserver.create(basedir=output_dir)
+
         run = exp._create_run(config_updates=config_updates, )
         run._id = _id
-        observer = OurFileStorageObserver.create(basedir=output_dir)
         run.observers.append(observer)
         run()
     else:
         exp.run_command('print_config', config_updates=config_updates, )
+    run = None
+    gc.collect()
 
 
 def get_studies_list(exp='all_pairs_4'):
@@ -243,7 +221,8 @@ def get_studies_list(exp='all_pairs_4'):
             help = positive.loc[target]
         except:
             help = []
-        studies = [target] + help.index.get_level_values('help').values.tolist()
+        studies = [target] + help.index.get_level_values(
+            'help').values.tolist()
         res.append(studies)
     return res
 
@@ -344,6 +323,8 @@ if __name__ == '__main__':
                            }))
     elif grid == 'all_pairs_4':
         output_dir = join(get_output_dir(), 'all_pairs_4')
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
         exp.config(all_pairs_4)
         source_dir = join(get_data_dir(), 'reduced_512_lstsq')
         data, target = load_data_from_dir(data_dir=source_dir)
@@ -359,19 +340,16 @@ if __name__ == '__main__':
                                            'seed': seed})
                 config_updates.append({'data.studies': [studies_list[i]],
                                        'seed': seed})
-    elif grid == 'all_pairs_positive_transfer':
-        output_dir = join(get_output_dir(), 'all_pairs_positive_transfer')
+    elif grid == 'positive_transfer':
+        output_dir = join(get_output_dir(), 'positive_transfer')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        exp.config(all_pairs_4, config_update={'data.study_weight': 'target'})
+        exp.config(all_pairs_4)
+        exp.config(positive_transfer)
         source_dir = join(get_data_dir(), 'reduced_512_lstsq')
-        data, target = load_data_from_dir(data_dir=source_dir)
-        studies_list = list(data.keys())
-        n_studies = len(studies_list)
+        studies_list = get_studies_list()
         config_updates = []
         seeds = check_random_state(1).randint(0, 100000, size=20)
-        studies_list = get_studies_list()
-        print(studies_list)
         for seed in seeds:
             for studies in studies_list:
                 config_updates.append({'data.studies': studies,
@@ -399,8 +377,9 @@ if __name__ == '__main__':
     else:
         raise ValueError('Wrong argument')
     _id = get_id(output_dir)
-    Parallel(n_jobs=60, verbose=100)(delayed(run_exp)(output_dir,
+    Parallel(n_jobs=30, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
+                                                      mock=False,
                                                       _id=_id + i)
                                      for i, config_update
                                      in enumerate(config_updates))

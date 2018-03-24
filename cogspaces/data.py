@@ -8,6 +8,7 @@ from joblib import load
 from torch.utils.data import Dataset, DataLoader
 
 from cogspaces.utils import unzip_data
+import numpy as np
 
 idx = pd.IndexSlice
 
@@ -61,5 +62,5 @@ def load_data_from_dir(data_dir):
         match = re.match(expr, file)
         if match:
             study = match.group(1)
-            data[study] = load(join(data_dir, file), mmap_mode='r')
+            data[study] = np.asarray(load(join(data_dir, file)))
     return unzip_data(data)

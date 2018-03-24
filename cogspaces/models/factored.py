@@ -207,6 +207,8 @@ class MultiTaskLoss(nn.Module):
 
     def forward(self, inputs: Dict[str, torch.FloatTensor],
                 targets: Dict[str, torch.LongTensor]) -> torch.FloatTensor:
+
+
         loss = 0
         for study in inputs:
             study_pred, pred, penalty = inputs[study]
@@ -302,6 +304,8 @@ class FactoredClassifier(BaseEstimator):
 
         if study_weights is None:
             study_weights = {study: 1. for study in X}
+        if self.loss_weights is None:
+            loss_weights = {'contrast': 1, 'study': 1, 'penalty': 1}
 
         data_loaders = {}
         target_sizes = {}
@@ -327,7 +331,7 @@ class FactoredClassifier(BaseEstimator):
             dropout=self.dropout,
             target_sizes=target_sizes)
         self.loss_ = MultiTaskLoss(study_weights=study_weights,
-                                   loss_weights=self.loss_weights)
+                                   loss_weights=loss_weights)
 
         if self.optimizer == 'lbfgs':
             for study in X:
@@ -379,7 +383,6 @@ class FactoredClassifier(BaseEstimator):
             epoch_loss = 0
             epoch_seen_samples = 0
             report_every = ceil(self.max_iter / self.verbose)
-
             while self.n_iter_ < self.max_iter:
                 if self.scheduler_ is not None:
                     self.scheduler_.step(self.n_iter_)
@@ -395,7 +398,7 @@ class FactoredClassifier(BaseEstimator):
                     self.optimizer_.step()
                     seen_samples += batch_size
                     epoch_seen_samples += batch_size
-                    epoch_loss += this_loss * batch_size
+                    epoch_loss += this_loss.data[0] * batch_size
                 self.n_iter_ = seen_samples / n_samples
                 epoch = floor(self.n_iter_)
                 if report_every is not None and epoch > old_epoch \

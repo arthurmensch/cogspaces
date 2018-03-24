@@ -55,7 +55,7 @@ def get_studies_list(exp='all_pairs_4'):
     return res
 
 
-def summarize_all_positive(exp='all_pairs_positive_transfer'):
+def summarize_all_positive(exp='positive_transfer'):
     output_dir = [expanduser('~/output/cogspaces/%s' % exp), ]
 
     regex = re.compile(r'[0-9]+$')

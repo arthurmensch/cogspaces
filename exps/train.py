@@ -21,41 +21,81 @@ from cogspaces.utils.sacred import OurFileStorageObserver
 exp = Experiment('multi_studies')
 
 
+# @exp.config
+# def default():
+#     seed = 1
+#     system = dict(
+#         device=-1,
+#         verbose=10,
+#     )
+#     data = dict(
+#         source_dir=join(get_data_dir(), 'reduced_512'),
+#         # studies=['amalric2012mathematicians', 'archi', 'brainomics',
+#         #          'hcp', 'la5c', 'pinel2009twins']
+#         # studies=['amalric2012mathematicians']
+#         studies=['amalric2012mathematicians',
+#                  'archi',
+#                  'brainomics',
+#                  'camcan',
+#                  'ds003',
+#                  'hcp',
+#                  'la5c',
+#                  'pinel2009twins']
+#     )
+#     model = dict(
+#         normalize=True,
+#         estimator='factored',
+#         study_weight='study',
+#         max_iter=500,
+#     )
+#     factored = dict(
+#         optimizer='adam',
+#         shared_embedding_size=100,
+#         private_embedding_size=0,
+#         shared_embedding='hard',
+#         skip_connection=False,
+#         activation='linear',
+#         cycle=True,
+#         batch_size=128,
+#         dropout=0.75,
+#         lr=1e-3,
+#         input_dropout=0.25)
+#     trace = dict(
+#         trace_penalty=1e-3,
+#     )
+#     logistic = dict(
+#         l2_penalty=1e-3,
+#     )
+
 @exp.config
 def default():
-    seed = 5192
+    seed = 1
     system = dict(
         device=-1,
-        verbose=10,
+        verbose=2,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        # studies=['amalric2012mathematicians', 'archi', 'brainomics',
-        #          'hcp', 'la5c', 'pinel2009twins']
-        # studies=['amalric2012mathematicians']
-        studies='all'
+        studies=['hcp']
     )
     model = dict(
         normalize=True,
         estimator='factored',
-        study_weight='sqrt_sample',
-        max_iter=100,
+        study_weight='study',
+        max_iter=500,
     )
     factored = dict(
         optimizer='adam',
-        shared_embedding_size=32,
-        private_embedding_size=32,
+        shared_embedding_size=100,
+        private_embedding_size=0,
         shared_embedding='hard',
         skip_connection=False,
-        batch_size=128,
+        activation='linear',
         cycle=True,
-        dropout=0.5,
-        activation='relu',
-        loss_weights=dict(contrast=1., adversarial=1.,
-                          penalty=1.),
+        batch_size=128,
+        dropout=0.75,
         lr=1e-3,
-        input_dropout=0.25,
-    )
+        input_dropout=0.25)
     trace = dict(
         trace_penalty=1e-3,
     )
@@ -135,20 +175,19 @@ def train(system, model, factored, trace, logistic,
         return ValueError("Wrong value for parameter "
                           "`model.estimator`: got '%s'."
                           % model['estimator'])
-
     test_callback = ScoreCallback(estimator, X=test_data, y=test_targets,
                                   score_function=accuracy_score)
     train_callback = ScoreCallback(estimator, X=train_data, y=train_targets,
-                                       score_function=accuracy_score)
+                                   score_function=accuracy_score)
     callback = MultiCallback({'train': train_callback,
                               'test': test_callback})
     _run.info['n_iter'] = train_callback.n_iter_
     _run.info['train_scores'] = train_callback.scores_
     _run.info['test_scores'] = test_callback.scores_
 
-    estimator.fit(train_data, train_targets,
-                  study_weights=study_weights,
-                  callback=callback)
+    estimator.fit(train_data, train_targets, study_weights=study_weights,
+                  callback=callback
+                  )
 
     test_preds = estimator.predict(test_data)
     test_scores = {}
