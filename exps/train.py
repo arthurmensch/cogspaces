@@ -26,32 +26,34 @@ def default():
     seed = 1
     system = dict(
         device=-1,
-        verbose=50,
+        verbose=10,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
         studies='all',
-        target_study='vagharchakian2012temporal'
+        target_study='archi'
     )
     model = dict(
         normalize=True,
         estimator='factored_cv',
-        study_weight='study',
-        max_iter=100,
+        study_weight='sqrt_sample',
+        max_iter=4,
     )
     factored = dict(
         optimizer='adam',
         shared_embedding_size=100,
         private_embedding_size=0,
-        shared_embedding='hard',
+        shared_embedding='hard+adversarial',
         skip_connection=False,
         activation='linear',
         decode=False,
         cycle=True,
         batch_size=128,
-        dropout=0.75,
+        dropout=0.1,
+        loss_weights={'contrast': 1, 'study': 1, 'penalty': 1,
+                      'decoding': 1},
         lr=1e-3,
-        input_dropout=0.25)
+        input_dropout=0.1)
     factored_cv = dict(
         optimizer='adam',
         shared_embedding_size=100,
@@ -64,7 +66,7 @@ def default():
         batch_size=128,
         dropout=0.75,
         n_jobs=30,
-        n_splits=1,
+        n_splits=5,
         lr=1e-3,
         input_dropout=0.25)
     trace = dict(
@@ -165,7 +167,8 @@ def train(system, model, factored, factored_cv, trace, logistic,
     _run.info['test_scores'] = test_callback.scores_
 
     estimator.fit(train_data, train_targets,
-                  study_weights=study_weights)
+                  study_weights=study_weights,
+                  callback=callback)
 
     if model['estimator'] == 'factored_cv':
         target = list(test_data.keys())[0]

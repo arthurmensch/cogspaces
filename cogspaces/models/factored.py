@@ -1,7 +1,7 @@
 import tempfile
 import warnings
 from math import ceil, floor, sqrt
-from typing import Dict
+from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
@@ -228,15 +228,18 @@ class MultiTaskLoss(nn.Module):
         self.study_weights = study_weights
 
     def forward(self, inputs: Dict[str, torch.FloatTensor],
-                targets: Dict[str, torch.LongTensor]) -> torch.FloatTensor:
+                targets: Dict[str, torch.LongTensor]) -> Tuple[
+        torch.FloatTensor,
+        torch.FloatTensor]:
         loss = 0
+        true_loss = 0
         for study in inputs:
             study_pred, pred, penalty, decoded = inputs[study]
             study_target, target, data = targets[study]
 
             this_loss = (F.nll_loss(pred, target, size_average=True)
                          * self.loss_weights['contrast'])
-            if decoded is not None and study != 'archi':
+            if decoded is not None:
                 decoding_loss = F.mse_loss(decoded, data, size_average=True)
                 this_loss += decoding_loss * self.loss_weights['decoding']
 
@@ -247,9 +250,14 @@ class MultiTaskLoss(nn.Module):
             if study_pred is not None:
                 study_loss = F.nll_loss(study_pred, study_target,
                                         size_average=True)
-                this_loss += study_loss * self.loss_weights['adversarial']
+                this_true_loss = this_loss - study_loss * self.loss_weights[
+                    'study']
+                this_loss += study_loss * self.loss_weights['study']
+            else:
+                this_true_loss = this_loss
             loss += this_loss * self.study_weights[study]
-        return loss
+            true_loss += this_true_loss * self.study_weights[study]
+        return loss, true_loss.detach()
 
 
 def next_batches(data_loaders, cuda, device, cycle=True):
@@ -337,7 +345,7 @@ class FactoredClassifierCV(BaseEstimator):
             fine_tune=self.fine_tune,
             dropout=self.dropout,
             input_dropout=self.input_dropout,
-            max_iter=self.max_iter / 5,
+            max_iter=self.max_iter // 2,
             verbose=self.verbose,
             device=self.device,
             cycle=self.cycle,
@@ -346,10 +354,11 @@ class FactoredClassifierCV(BaseEstimator):
         if len(sources) > 0:
             seeds = check_random_state(self.seed).randint(0, 10000,
                                                           size=self.n_splits)
-            rolled = Parallel(n_jobs=self.n_jobs)(delayed(eval_transferability)(
-                classifier, X, y, target, source, seed)
-                                                  for seed in seeds
-                                                  for source in [None] + sources)
+            rolled = Parallel(n_jobs=self.n_jobs)(
+                delayed(eval_transferability)(
+                    classifier, X, y, target, source, seed)
+                for seed in seeds
+                for source in [None] + sources)
             transfer = []
             rolled = iter(rolled)
             for seed in seeds:
@@ -365,23 +374,31 @@ class FactoredClassifierCV(BaseEstimator):
             print('Pair transfers:')
             transfer = transfer.query('diff > 0').sort_values('diff',
                                                               ascending=False)
-            transfer = transfer.iloc[:8]
-            positive = transfer.index.get_level_values('source').values.tolist()
+            positive = transfer.index.get_level_values(
+                'source').values.tolist()
             print('Transfering datasets:', positive)
             self.studies_ = [target] + positive
             study_weights = {study: study_weights[study]
                              for study in self.studies_}
             reweights = transfer['diff']
-            reweights = reweights / reweights.sum()
-            study_weights = {study:
-                             study_weights[study] * reweights.loc[study]
-                             for study in positive}
-            study_weights[target] = 1
+            reweights -= reweights.max()
+            reweights = reweights.apply(np.exp)
+            reweights /= reweights.sum()
+            reweights = reweights.to_dict()
+            reweights[target] = 1
+            study_weights = {study: study_weights[study] * reweights[study]
+                             for study in self.studies_}
+            sum_weights = sum(study_weights.values()) / len(study_weights)
+            study_weights = {study: study_weights[study] / sum_weights
+                             for study in study_weights}
+            self.studies_ = [study for study in self.studies_
+                             if study_weights[study] > 0.01 * len(study_weights)]
+            study_weights = {study: study_weights[study]
+                             for study in self.studies_}
         else:
             self.studies_ = [target]
         X = {study: X[study] for study in self.studies_}
         y = {study: y[study] for study in self.studies_}
-        print(study_weights)
         classifier.set_params(max_iter=self.max_iter)
         self.classifier_ = classifier.fit(X, y, study_weights=study_weights)
 
@@ -467,7 +484,6 @@ class FactoredClassifier(BaseEstimator):
         if study_weights is None:
             study_weights = {study: 1. for study in X}
         else:
-            print(study_weights)
             sum_weight = sum(study_weights.values()) / len(study_weights)
             study_weights = {study: weight / sum_weight for
                              study, weight in study_weights.items()}
@@ -520,7 +536,8 @@ class FactoredClassifier(BaseEstimator):
                                                     device=device)
                 self.module_.eval()
                 preds_ = self.module_(inputs_)
-                return self.loss_(preds_, targets_)
+                loss, true_loss = self.loss_(preds_, targets_)
+                return loss
 
             optimizer = LBFGSScipy(self.module_.parameters(),
                                    callback=callback,
@@ -553,7 +570,10 @@ class FactoredClassifier(BaseEstimator):
             seen_samples = 0
             epoch_loss = 0
             epoch_seen_samples = 0
-            report_every = ceil(self.max_iter / self.verbose)
+            if self.verbose != 0:
+                report_every = ceil(self.max_iter / self.verbose)
+            else:
+                report_every = None
             while self.n_iter_ < self.max_iter:
                 if self.scheduler_ is not None:
                     self.scheduler_.step(self.n_iter_)
@@ -564,12 +584,12 @@ class FactoredClassifier(BaseEstimator):
                     self.module_.train()
                     self.optimizer_.zero_grad()
                     preds = self.module_(inputs)
-                    this_loss = self.loss_(preds, targets)
+                    this_loss, this_true_loss = self.loss_(preds, targets)
                     this_loss.backward()
                     self.optimizer_.step()
                     seen_samples += batch_size
                     epoch_seen_samples += batch_size
-                    epoch_loss += this_loss.data[0] * batch_size
+                    epoch_loss += this_true_loss.data[0] * batch_size
                 self.n_iter_ = seen_samples / n_samples
                 epoch = floor(self.n_iter_)
                 if report_every is not None and epoch > old_epoch \

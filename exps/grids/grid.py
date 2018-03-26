@@ -177,17 +177,17 @@ def study_selection():
     seed = 1
     system = dict(
         device=-1,
-        verbose=2,
+        verbose=0,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies=['hcp'],
-        targe_study='hcp'
+        studies='all',
+        target_study='archi'
     )
     model = dict(
         normalize=True,
         estimator='factored_cv',
-        study_weight='study',
+        study_weight='sqrt_sample',
         max_iter=200,
     )
     factored_cv = dict(
@@ -200,8 +200,8 @@ def study_selection():
         cycle=True,
         batch_size=128,
         dropout=0.75,
-        n_jobs=30,
-        n_splits=5,
+        n_jobs=1,
+        n_splits=10,
         lr=1e-3,
         input_dropout=0.25,
     )
@@ -211,7 +211,6 @@ def run_exp(output_dir, config_updates, _id, mock=False):
     """Boiler plate function that has to be put in every multiple
         experiment script, as exp does not pickle."""
     if not mock:
-        exp.run_command('print_config', config_updates=config_updates, )
         observer = OurFileStorageObserver.create(basedir=output_dir)
 
         run = exp._create_run(config_updates=config_updates, )
@@ -220,8 +219,6 @@ def run_exp(output_dir, config_updates, _id, mock=False):
         run()
     else:
         exp.run_command('print_config', config_updates=config_updates, )
-    run = None
-    gc.collect()
 
 
 def get_studies_list(exp='all_pairs_4'):
@@ -416,20 +413,22 @@ if __name__ == '__main__':
         studies_list = list(data.keys())
         n_studies = len(studies_list)
         config_updates = []
-        seeds = check_random_state(1).randint(0, 100000, size=1)
+        seeds = check_random_state(1).randint(0, 100000, size=10)
         for seed in seeds:
             for study in studies_list:
-                config_updates.append({'data.studies': 'all',
-                                       'data.target_study': study,
-                                       'seed': seed})
-                config_updates.append({'data.studies': [study],
-                                       'data.target_study': study,
-                                       'seed': seed})
-
+                for study_weight in ['study', 'sqrt_sample']:
+                    config_updates.append({'data.studies': 'all',
+                                           'data.target_study': study,
+                                           'model.study_weight': study_weight,
+                                           'seed': seed})
+                    config_updates.append({'data.studies': [study],
+                                           'data.target_study': study,
+                                           'model.study_weight': study_weight,
+                                           'seed': seed})
     else:
         raise ValueError('Wrong argument')
     _id = get_id(output_dir)
-    Parallel(n_jobs=24, verbose=100)(delayed(run_exp)(output_dir,
+    Parallel(n_jobs=44, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       mock=False,
                                                       _id=_id + i)

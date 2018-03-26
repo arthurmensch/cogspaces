@@ -140,6 +140,49 @@ def summarize_factored():
     pd.to_pickle(max, join(expanduser('~/output/cogspaces/max_factored.pkl')))
 
 
+def summarize_study_selection():
+    output_dir = [expanduser('~/output/cogspaces/study_selection_1'), ]
+
+    regex = re.compile(r'[0-9]+$')
+    res = []
+    for this_output_dir in output_dir:
+        for this_dir in filter(regex.match, os.listdir(this_output_dir)):
+            this_exp_dir = join(this_output_dir, this_dir)
+            this_dir = int(this_dir)
+            try:
+                config = json.load(
+                    open(join(this_exp_dir, 'config.json'), 'r'))
+                run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
+                info = json.load(
+                    open(join(this_exp_dir, 'info.json'), 'r'))
+            except (FileNotFoundError, json.decoder.JSONDecodeError):
+                print('Skipping exp %i' % this_dir)
+                continue
+            this_res = dict(run=this_dir, seed=config['seed'])
+            target_study = config['data']['target_study']
+            this_res['target_study'] = target_study
+            studies = config['data']['studies']
+            if isinstance(studies, list):
+                studies = 'baseline'
+            this_res['studies'] = studies
+            test_scores = run['result']
+            if test_scores is None:
+                continue
+            this_res['score'] = test_scores[target_study]
+            res.append(this_res)
+    res = pd.DataFrame(res)
+    res.set_index(['studies', 'target_study', 'seed'], inplace=True)
+    res = res.sort_index()
+    print(res.loc['baseline'])
+    print(res.loc['all'])
+
+    res = res.loc['all'] - res.loc['baseline']
+    res = res.groupby('target_study').agg('mean')
+    print(res)
+    pd.to_pickle(res, join(expanduser('~/output/cogspaces'
+                                      '/study_selection.pkl')))
+
+
 def plot():
     output_dir = expanduser('~/output/cogspaces/')
     baseline = pd.read_pickle(join(output_dir, 'max_baseline.pkl'))
@@ -172,6 +215,7 @@ def plot():
     plt.show()
 
 if __name__ == '__main__':
-    summarize_baseline()
-    summarize_factored()
+    # summarize_baseline()
+    # summarize_factored()
+    summarize_study_selection()
     # plot()
