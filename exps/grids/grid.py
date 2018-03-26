@@ -188,7 +188,7 @@ def study_selection():
         normalize=True,
         estimator='factored_cv',
         study_weight='study',
-        max_iter=300,
+        max_iter=200,
     )
     factored_cv = dict(
         optimizer='adam',

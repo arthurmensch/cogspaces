@@ -337,7 +337,7 @@ class FactoredClassifierCV(BaseEstimator):
             fine_tune=self.fine_tune,
             dropout=self.dropout,
             input_dropout=self.input_dropout,
-            max_iter=10,
+            max_iter=self.max_iter / 5,
             verbose=self.verbose,
             device=self.device,
             cycle=self.cycle,
