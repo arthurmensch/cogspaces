@@ -12,7 +12,7 @@ from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.model_selection import train_test_split
 from cogspaces.models.baseline import MultiLogisticClassifier
-from cogspaces.models.factored import FactoredClassifier
+from cogspaces.models.factored import FactoredClassifier, FactoredClassifierCV
 from cogspaces.models.trace import TraceClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
@@ -21,68 +21,23 @@ from cogspaces.utils.sacred import OurFileStorageObserver
 exp = Experiment('multi_studies')
 
 
-# @exp.config
-# def default():
-#     seed = 1
-#     system = dict(
-#         device=-1,
-#         verbose=10,
-#     )
-#     data = dict(
-#         source_dir=join(get_data_dir(), 'reduced_512'),
-#         # studies=['amalric2012mathematicians', 'archi', 'brainomics',
-#         #          'hcp', 'la5c', 'pinel2009twins']
-#         # studies=['amalric2012mathematicians']
-#         studies=['amalric2012mathematicians',
-#                  'archi',
-#                  'brainomics',
-#                  'camcan',
-#                  'ds003',
-#                  'hcp',
-#                  'la5c',
-#                  'pinel2009twins']
-#     )
-#     model = dict(
-#         normalize=True,
-#         estimator='factored',
-#         study_weight='study',
-#         max_iter=500,
-#     )
-#     factored = dict(
-#         optimizer='adam',
-#         shared_embedding_size=100,
-#         private_embedding_size=0,
-#         shared_embedding='hard',
-#         skip_connection=False,
-#         activation='linear',
-#         cycle=True,
-#         batch_size=128,
-#         dropout=0.75,
-#         lr=1e-3,
-#         input_dropout=0.25)
-#     trace = dict(
-#         trace_penalty=1e-3,
-#     )
-#     logistic = dict(
-#         l2_penalty=1e-3,
-#     )
-
 @exp.config
 def default():
     seed = 1
     system = dict(
         device=-1,
-        verbose=2,
+        verbose=50,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies=['hcp']
+        studies='all',
+        target_study='vagharchakian2012temporal'
     )
     model = dict(
         normalize=True,
-        estimator='factored',
+        estimator='factored_cv',
         study_weight='study',
-        max_iter=500,
+        max_iter=100,
     )
     factored = dict(
         optimizer='adam',
@@ -91,9 +46,25 @@ def default():
         shared_embedding='hard',
         skip_connection=False,
         activation='linear',
+        decode=False,
         cycle=True,
         batch_size=128,
         dropout=0.75,
+        lr=1e-3,
+        input_dropout=0.25)
+    factored_cv = dict(
+        optimizer='adam',
+        shared_embedding_size=100,
+        private_embedding_size=0,
+        shared_embedding='hard',
+        skip_connection=False,
+        activation='linear',
+        decode=False,
+        cycle=True,
+        batch_size=128,
+        dropout=0.75,
+        n_jobs=30,
+        n_splits=1,
         lr=1e-3,
         input_dropout=0.25)
     trace = dict(
@@ -121,7 +92,7 @@ def save_output(target_encoder, standard_scaler, estimator,
 
 
 @exp.capture(prefix='data')
-def load_data(source_dir, studies):
+def load_data(source_dir, studies, target_study):
     data, target = load_data_from_dir(data_dir=source_dir)
 
     if studies == 'all':
@@ -130,13 +101,15 @@ def load_data(source_dir, studies):
         studies = [studies]
     elif not isinstance(studies, list):
         raise ValueError("Studies should be a list or 'all'")
+    studies.remove(target_study)
+    studies = [target_study] + studies
     data = {study: data[study] for study in studies}
     target = {study: target[study] for study in studies}
     return data, target
 
 
 @exp.main
-def train(system, model, factored, trace, logistic,
+def train(system, model, factored, factored_cv, trace, logistic,
           _run, _seed):
     print(_seed)
     data, target = load_data()
@@ -162,6 +135,12 @@ def train(system, model, factored, trace, logistic,
                                        max_iter=model['max_iter'],
                                        seed=_seed,
                                        **factored)
+    elif model['estimator'] == 'factored_cv':
+        estimator = FactoredClassifierCV(verbose=system['verbose'],
+                                         device=system['device'],
+                                         max_iter=model['max_iter'],
+                                         seed=_seed,
+                                         **factored_cv)
     elif model['estimator'] == 'trace':
         estimator = TraceClassifier(verbose=system['verbose'],
                                     max_iter=model['max_iter'],
@@ -185,13 +164,17 @@ def train(system, model, factored, trace, logistic,
     _run.info['train_scores'] = train_callback.scores_
     _run.info['test_scores'] = test_callback.scores_
 
-    estimator.fit(train_data, train_targets, study_weights=study_weights,
-                  callback=callback
-                  )
+    estimator.fit(train_data, train_targets,
+                  study_weights=study_weights)
+
+    if model['estimator'] == 'factored_cv':
+        target = list(test_data.keys())[0]
+        test_data = {target: test_data[target]}
 
     test_preds = estimator.predict(test_data)
+
     test_scores = {}
-    for study in train_targets:
+    for study in test_preds:
         test_scores[study] = accuracy_score(test_preds[study]['contrast'],
                                             test_targets[study]['contrast'])
 

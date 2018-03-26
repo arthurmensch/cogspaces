@@ -6,7 +6,10 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 import torch
+from joblib import Parallel, delayed
 from sklearn.base import BaseEstimator
+from sklearn.metrics import accuracy_score
+from sklearn.utils import check_random_state
 from torch import nn
 from torch.autograd import Variable, Function
 from torch.nn import Linear
@@ -16,8 +19,10 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 
 from cogspaces.data import NiftiTargetDataset, infinite_iter
+from cogspaces.model_selection import train_test_split
 from cogspaces.optim.lbfgs import LBFGSScipy
 import torch.nn.functional as F
+
 
 class GradReverseFunc(Function):
     @staticmethod
@@ -49,6 +54,7 @@ class MultiTaskModule(nn.Module):
                  target_sizes,
                  input_dropout=0.,
                  dropout=0.,
+                 decode=False,
                  activation='linear',
                  shared_embedding='hard+adversarial',
                  skip_connection=False):
@@ -57,6 +63,8 @@ class MultiTaskModule(nn.Module):
         self.in_features = in_features
         self.shared_embedding_size = shared_embedding_size
         self.private_embedding_size = private_embedding_size
+
+        self.decode = decode
 
         if activation == 'linear':
             self.activation = Identity()
@@ -90,6 +98,8 @@ class MultiTaskModule(nn.Module):
                                     self.shared_embedders[study])
 
         self.classifiers = {}
+        if self.decode:
+            self.decoders = {}
 
         for study, size in target_sizes.items():
             if private_embedding_size > 0:
@@ -98,10 +108,16 @@ class MultiTaskModule(nn.Module):
                 self.add_module('private_embedder_%s' % study,
                                 self.private_embedders[study])
 
-            self.classifiers[study] =\
+            self.classifiers[study] = \
                 Linear(shared_embedding_size + private_embedding_size
                        + in_features * skip_connection, size)
             self.add_module('classifier_%s' % study, self.classifiers[study])
+
+            if self.decode:
+                self.decoders[study] = \
+                    Linear(shared_embedding_size + private_embedding_size
+                           + in_features * skip_connection, in_features)
+                self.add_module('decoder_%s' % study, self.classifiers[study])
 
         if 'adversarial' in shared_embedding:
             self.study_classifier = nn.Sequential(
@@ -150,7 +166,7 @@ class MultiTaskModule(nn.Module):
             if shared_embedding is not None and private_embedding is not None:
                 corr = torch.matmul(shared_embedding.transpose(0, 1),
                                     private_embedding)
-                corr /= self.private_embedding_size *\
+                corr /= self.private_embedding_size * \
                         self.shared_embedding_size
                 penalty = torch.sum(torch.abs(corr))
             else:
@@ -160,10 +176,16 @@ class MultiTaskModule(nn.Module):
                 embedding = torch.cat(embedding, dim=1)
             else:
                 embedding = embedding[0]
-            pred = F.log_softmax(self.classifiers[study](
-                self.dropout(self.activation(embedding))), dim=1)
 
-            preds[study] = study_pred, pred, penalty
+            latent = self.dropout(self.activation(embedding))
+            pred = F.log_softmax(self.classifiers[study](latent), dim=1)
+
+            if self.decode:
+                decoded = self.decoders[study](latent)
+            else:
+                decoded = None
+
+            preds[study] = study_pred, pred, penalty, decoded
         return preds
 
     def coefs(self):
@@ -207,25 +229,25 @@ class MultiTaskLoss(nn.Module):
 
     def forward(self, inputs: Dict[str, torch.FloatTensor],
                 targets: Dict[str, torch.LongTensor]) -> torch.FloatTensor:
-
-
         loss = 0
         for study in inputs:
-            study_pred, pred, penalty = inputs[study]
-            study_target, target = targets[study]
+            study_pred, pred, penalty, decoded = inputs[study]
+            study_target, target, data = targets[study]
 
-            this_loss = (nll_loss(pred, target, size_average=True)
+            this_loss = (F.nll_loss(pred, target, size_average=True)
                          * self.loss_weights['contrast'])
+            if decoded is not None and study != 'archi':
+                decoding_loss = F.mse_loss(decoded, data, size_average=True)
+                this_loss += decoding_loss * self.loss_weights['decoding']
 
             if penalty is not None:
                 penalty /= pred.shape[0]
                 this_loss += penalty * self.loss_weights['penalty']
 
             if study_pred is not None:
-                study_loss = nll_loss(study_pred, study_target,
-                                      size_average=True)
+                study_loss = F.nll_loss(study_pred, study_target,
+                                        size_average=True)
                 this_loss += study_loss * self.loss_weights['adversarial']
-
             loss += this_loss * self.study_weights[study]
         return loss
 
@@ -246,13 +268,151 @@ def next_batches(data_loaders, cuda, device, cycle=True):
         target = Variable(target)
         study_target = Variable(study_target)
         if cycle:
-            yield {study: input}, {study: (study_target, target)}, batch_size
+            yield {study: input}, {study: (study_target, target,
+                                           input)}, batch_size
         else:
             inputs[study] = input
-            targets[study] = study_target, target
+            targets[study] = study_target, target, input
             batch_sizes += batch_size
     if not cycle:
         yield inputs, targets, batch_sizes
+
+
+class FactoredClassifierCV(BaseEstimator):
+    def __init__(self,
+                 skip_connection=False,
+                 shared_embedding_size=30,
+                 private_embedding_size=5,
+                 activation='linear',
+                 shared_embedding='hard+adversarial',
+                 batch_size=128, optimizer='sgd',
+                 decode=False,
+                 loss_weights=None,
+                 lr=0.001,
+                 fine_tune=False,
+                 dropout=0.5, input_dropout=0.25,
+                 max_iter=10000, verbose=0,
+                 device=-1,
+                 cycle=True,
+                 n_jobs=1,
+                 n_splits=3,
+                 seed=None):
+        self.skip_connection = skip_connection
+        self.shared_embedding = shared_embedding
+        self.shared_embedding_size = shared_embedding_size
+        self.private_embedding_size = private_embedding_size
+        self.activation = activation
+        self.decode = decode
+        self.input_dropout = input_dropout
+        self.dropout = dropout
+        self.batch_size = batch_size
+        self.optimizer = optimizer
+        self.max_iter = max_iter
+        self.verbose = verbose
+        self.device = device
+        self.lr = lr
+        self.cycle = cycle
+        self.fine_tune = fine_tune
+        self.loss_weights = loss_weights
+        self.seed = seed
+
+        self.n_jobs = n_jobs
+        self.n_splits = n_splits
+
+    def fit(self, X, y, study_weights, callback=None):
+        studies = list(X.keys())
+        target, sources = studies[0], studies[1:]
+
+        classifier = FactoredClassifier(
+            skip_connection=self.skip_connection,
+            shared_embedding_size=self.shared_embedding_size,
+            private_embedding_size=self.private_embedding_size,
+            activation=self.activation,
+            shared_embedding=self.shared_embedding,
+            batch_size=self.batch_size,
+            optimizer=self.optimizer,
+            decode=self.decode,
+            loss_weights=self.loss_weights,
+            lr=self.lr,
+            fine_tune=self.fine_tune,
+            dropout=self.dropout,
+            input_dropout=self.input_dropout,
+            max_iter=10,
+            verbose=self.verbose,
+            device=self.device,
+            cycle=self.cycle,
+            seed=self.seed)
+
+        if len(sources) > 0:
+            seeds = check_random_state(self.seed).randint(0, 10000,
+                                                          size=self.n_splits)
+            rolled = Parallel(n_jobs=self.n_jobs)(delayed(eval_transferability)(
+                classifier, X, y, target, source, seed)
+                                                  for seed in seeds
+                                                  for source in [None] + sources)
+            transfer = []
+            rolled = iter(rolled)
+            for seed in seeds:
+                baseline_score = next(rolled)
+                for source in sources:
+                    score = next(rolled)
+                    transfer.append(dict(seed=seed, source=source,
+                                         score=score,
+                                         diff=score - baseline_score))
+            transfer = pd.DataFrame(transfer)
+            transfer = transfer.set_index(['source', 'seed'])
+            transfer = transfer.groupby('source').agg('mean')
+            print('Pair transfers:')
+            transfer = transfer.query('diff > 0').sort_values('diff',
+                                                              ascending=False)
+            transfer = transfer.iloc[:8]
+            positive = transfer.index.get_level_values('source').values.tolist()
+            print('Transfering datasets:', positive)
+            self.studies_ = [target] + positive
+            study_weights = {study: study_weights[study]
+                             for study in self.studies_}
+            reweights = transfer['diff']
+            reweights = reweights / reweights.sum()
+            study_weights = {study:
+                             study_weights[study] * reweights.loc[study]
+                             for study in positive}
+            study_weights[target] = 1
+        else:
+            self.studies_ = [target]
+        X = {study: X[study] for study in self.studies_}
+        y = {study: y[study] for study in self.studies_}
+        print(study_weights)
+        classifier.set_params(max_iter=self.max_iter)
+        self.classifier_ = classifier.fit(X, y, study_weights=study_weights)
+
+    def predict(self, X):
+        return self.classifier_.predict(X)
+
+
+def eval_transferability(classifier, X, y, target, source=None, seed=0,
+                         study_weights=None,
+                         callback=None):
+    train_data, val_data, train_targets, val_targets = \
+        train_test_split(X, y, random_state=seed)
+    y_val_true = val_targets[target]['contrast'].values
+    X_val = {target: val_data[target]}
+    if source is None:
+        train_data = {target: train_data[target]}
+        train_targets = {target: train_targets[target]}
+        study_weights = {target: 1}
+    else:
+        train_data = {target: train_data[target],
+                      source: train_data[source]}
+        train_targets = {target: train_targets[target],
+                         source: train_targets[source]}
+        if study_weights is not None:
+            study_weights = {target: study_weights[target],
+                             source: study_weights[source]}
+
+    classifier.fit(train_data, train_targets,
+                   study_weights=study_weights, callback=callback)
+    y_val_pred = classifier.predict(X_val)[target]['contrast'].values
+    return accuracy_score(y_val_true, y_val_pred)
 
 
 class FactoredClassifier(BaseEstimator):
@@ -263,6 +423,7 @@ class FactoredClassifier(BaseEstimator):
                  activation='linear',
                  shared_embedding='hard+adversarial',
                  batch_size=128, optimizer='sgd',
+                 decode=False,
                  loss_weights=None,
                  lr=0.001,
                  fine_tune=False,
@@ -277,6 +438,7 @@ class FactoredClassifier(BaseEstimator):
         self.shared_embedding_size = shared_embedding_size
         self.private_embedding_size = private_embedding_size
         self.activation = activation
+        self.decode = decode
 
         self.input_dropout = input_dropout
         self.dropout = dropout
@@ -304,8 +466,16 @@ class FactoredClassifier(BaseEstimator):
 
         if study_weights is None:
             study_weights = {study: 1. for study in X}
+        else:
+            print(study_weights)
+            sum_weight = sum(study_weights.values()) / len(study_weights)
+            study_weights = {study: weight / sum_weight for
+                             study, weight in study_weights.items()}
         if self.loss_weights is None:
-            loss_weights = {'contrast': 1, 'study': 1, 'penalty': 1}
+            loss_weights = {'contrast': 1, 'study': 1, 'penalty': 1,
+                            'decoding': 1}
+        else:
+            loss_weights = self.loss_weights
 
         data_loaders = {}
         target_sizes = {}
@@ -323,6 +493,7 @@ class FactoredClassifier(BaseEstimator):
         self.module_ = MultiTaskModule(
             in_features=in_features,
             activation=self.activation,
+            decode=self.decode,
             shared_embedding=self.shared_embedding,
             shared_embedding_size=shared_embedding_size,
             private_embedding_size=self.private_embedding_size,
@@ -444,6 +615,7 @@ class FactoredClassifier(BaseEstimator):
                                    tolerance_change=0,
                                    report_every=2)
             optimizer.step(closure)
+        return self
 
     def _check_cuda(self):
         if self.device > -1 and not torch.cuda.is_available():
@@ -480,7 +652,7 @@ class FactoredClassifier(BaseEstimator):
                     input = input.cuda(device=device)
                 input = Variable(input, volatile=True)
                 input = {study: input}
-                this_study_pred, this_pred, _ = self.module_(input)[study]
+                this_study_pred, this_pred, _, _ = self.module_(input)[study]
                 pred.append(this_pred)
                 if study_preds is not None:
                     study_pred.append(this_study_pred)

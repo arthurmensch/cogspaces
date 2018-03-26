@@ -173,6 +173,40 @@ def positive_transfer():
     data = dict(study_weight='target')
 
 
+def study_selection():
+    seed = 1
+    system = dict(
+        device=-1,
+        verbose=2,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
+        studies=['hcp'],
+        targe_study='hcp'
+    )
+    model = dict(
+        normalize=True,
+        estimator='factored_cv',
+        study_weight='study',
+        max_iter=300,
+    )
+    factored_cv = dict(
+        optimizer='adam',
+        shared_embedding_size=100,
+        private_embedding_size=0,
+        shared_embedding='hard',
+        skip_connection=False,
+        activation='linear',
+        cycle=True,
+        batch_size=128,
+        dropout=0.75,
+        n_jobs=30,
+        n_splits=5,
+        lr=1e-3,
+        input_dropout=0.25,
+    )
+
+
 def run_exp(output_dir, config_updates, _id, mock=False):
     """Boiler plate function that has to be put in every multiple
         experiment script, as exp does not pickle."""
@@ -374,10 +408,28 @@ if __name__ == '__main__':
                 config_updates.append({'data.studies': [studies_list[i]],
                                        'seed': seed})
 
+    elif grid == 'study_selection':
+        output_dir = join(get_output_dir(), 'study_selection')
+        exp.config(study_selection)
+        source_dir = join(get_data_dir(), 'reduced_512_lstsq')
+        data, target = load_data_from_dir(data_dir=source_dir)
+        studies_list = list(data.keys())
+        n_studies = len(studies_list)
+        config_updates = []
+        seeds = check_random_state(1).randint(0, 100000, size=1)
+        for seed in seeds:
+            for study in studies_list:
+                config_updates.append({'data.studies': 'all',
+                                       'data.target_study': study,
+                                       'seed': seed})
+                config_updates.append({'data.studies': [study],
+                                       'data.target_study': study,
+                                       'seed': seed})
+
     else:
         raise ValueError('Wrong argument')
     _id = get_id(output_dir)
-    Parallel(n_jobs=30, verbose=100)(delayed(run_exp)(output_dir,
+    Parallel(n_jobs=24, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       mock=False,
                                                       _id=_id + i)
