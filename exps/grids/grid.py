@@ -187,8 +187,8 @@ def study_selection():
     model = dict(
         normalize=True,
         estimator='factored_cv',
-        study_weight='sqrt_sample',
-        max_iter=200,
+        study_weight='study',
+        max_iter=1000,
     )
     factored_cv = dict(
         optimizer='adam',
@@ -406,17 +406,18 @@ if __name__ == '__main__':
                                        'seed': seed})
 
     elif grid == 'study_selection':
-        output_dir = join(get_output_dir(), 'study_selection')
+        output_dir = join(get_output_dir(), 'study_selection_2')
         exp.config(study_selection)
         source_dir = join(get_data_dir(), 'reduced_512_lstsq')
         data, target = load_data_from_dir(data_dir=source_dir)
         studies_list = list(data.keys())
         n_studies = len(studies_list)
         config_updates = []
-        seeds = check_random_state(1).randint(0, 100000, size=10)
+        seeds = check_random_state(1).randint(0,
+                                              np.iinfo('int32').max, size=40)
         for seed in seeds:
             for study in studies_list:
-                for study_weight in ['study', 'sqrt_sample']:
+                for study_weight in ['study']:
                     config_updates.append({'data.studies': 'all',
                                            'data.target_study': study,
                                            'model.study_weight': study_weight,

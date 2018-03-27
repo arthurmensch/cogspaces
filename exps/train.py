@@ -23,21 +23,21 @@ exp = Experiment('multi_studies')
 
 @exp.config
 def default():
-    seed = 1128
+    seed = 200
     system = dict(
         device=-1,
         verbose=0,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies='all',
+        studies=['hcp', 'la5c', 'archi'],
         target_study='archi'
     )
     model = dict(
         normalize=True,
         estimator='factored_cv',
         study_weight='sqrt_sample',
-        max_iter=1000,
+        max_iter=500,
     )
     factored = dict(
         optimizer='adam',
@@ -65,8 +65,8 @@ def default():
         cycle=True,
         batch_size=128,
         dropout=0.75,
-        n_jobs=30,
-        n_splits=5,
+        n_jobs=3,
+        n_splits=10,
         lr=1e-3,
         input_dropout=0.25)
     trace = dict(

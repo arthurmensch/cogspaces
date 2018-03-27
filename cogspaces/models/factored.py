@@ -304,6 +304,7 @@ class FactoredClassifier(BaseEstimator):
                  max_iter=10000, verbose=0,
                  device=-1,
                  cycle=True,
+                 averaging=False,
                  seed=None):
 
         self.skip_connection = skip_connection
@@ -323,6 +324,8 @@ class FactoredClassifier(BaseEstimator):
         self.device = device
         self.lr = lr
         self.cycle = cycle
+
+        self.averaging = averaging
 
         self.fine_tune = fine_tune
 
@@ -434,6 +437,9 @@ class FactoredClassifier(BaseEstimator):
                 report_every = ceil(self.max_iter / self.verbose)
             else:
                 report_every = None
+            best_state = {}
+            if self.averaging:
+                parameters = [parameters_to_vector(self.module_.parameters())]
             while self.n_iter_ < self.max_iter:
                 if self.scheduler_ is not None:
                     self.scheduler_.step(self.n_iter_)
@@ -459,6 +465,7 @@ class FactoredClassifier(BaseEstimator):
                     else:
                         no_improvement = 0
                         best_loss = epoch_loss
+                        best_state = self.module_.state_dict()
                     if report_every is not None and epoch % report_every == 0:
                         print('Epoch %.2f, train loss: % .4f'
                               % (epoch, epoch_loss))
@@ -467,7 +474,18 @@ class FactoredClassifier(BaseEstimator):
                     if no_improvement > 15:
                         print('Stopping at epoch %.2f' % epoch)
                         break
+                    if self.averaging:
+                        if len(parameters) >= 15:
+                            parameters = parameters[1:]
+                        parameters.append(parameters_to_vector(
+                            self.module_.parameters()))
                 old_epoch = epoch
+        if self.averaging:
+            parameters = torch.cat([parameter[None, :]
+                                    for parameter in parameters], dim=0)
+            parameters = torch.mean(parameters, dim=0)
+            vector_to_parameters(parameters, self.module_.parameters())
+        self.module_.load_state_dict(best_state)
 
         if self.fine_tune:
             print('Fine tuning')
@@ -694,7 +712,8 @@ class FactoredClassifierCV(BaseEstimator):
             seed=self.seed)
 
         if len(sources) > 0:
-            seeds = check_random_state(self.seed).randint(0, 10000,
+            seeds = check_random_state(self.seed).randint(0,
+                                                          np.iinfo('int32').max,
                                                           size=self.n_splits)
             rolled = Parallel(n_jobs=self.n_jobs)(
                 delayed(eval_transferability)(
@@ -715,26 +734,18 @@ class FactoredClassifierCV(BaseEstimator):
             transfer = transfer.set_index(['source', 'seed'])
             transfer = transfer.groupby('source').agg('mean')
             print('Pair transfers:')
-            transfer = transfer.query('diff > 0.01').sort_values(
-                'diff',
-                                                           ascending=False)
+            transfer = transfer.sort_values('diff', ascending=False)
             print(transfer)
+            transfer = transfer.query('diff > 0.01')
             positive = transfer.index.get_level_values(
                 'source').values.tolist()
             print('Transfering datasets:', positive)
             self.studies_ = [target] + positive
-            # Reweighting
-            # study_weights = {
-            #     study: study_weights[study] / study_weights[target]
-            #     for study in self.studies_}
-            # reweights = transfer['diff']
-            # reweights /= reweights.sum()
-            # reweights = reweights.to_dict()
-            # reweights[target] = 1
-            study_weights = {study: study_weights[study] /
-                                    study_weights[target] /
-                                    (len(self.studies_) - 1)
-                             for study in self.studies_}
+            if len(positive) > 1:
+                study_weights = {study: study_weights[study] /
+                                        study_weights[target] /
+                                        (len(self.studies_) - 1)
+                                 for study in self.studies_}
             study_weights[target] = 1
             print('New weights:', study_weights)
         else:
@@ -768,7 +779,6 @@ def eval_transferability(classifier, X, y, target, source=None, seed=0,
             study_weights = {target: 1,
                              source: study_weights[source]
                                      / study_weights[target]}
-
     classifier.fit(train_data, train_targets,
                    study_weights=study_weights, callback=callback)
     y_val_pred = classifier.predict(X_val)[target]['contrast'].values
