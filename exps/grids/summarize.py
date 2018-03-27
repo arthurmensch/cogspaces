@@ -2,6 +2,8 @@
 import json
 import os
 import re
+
+from matplotlib import gridspec
 from os.path import expanduser, join
 
 import matplotlib.pyplot as plt
@@ -141,7 +143,7 @@ def summarize_factored():
 
 
 def summarize_study_selection():
-    output_dir = [expanduser('~/output/cogspaces/study_selection_1'), ]
+    output_dir = [expanduser('~/output/cogspaces/study_selection'), ]
 
     regex = re.compile(r'[0-9]+$')
     res = []
@@ -161,6 +163,7 @@ def summarize_study_selection():
             this_res = dict(run=this_dir, seed=config['seed'])
             target_study = config['data']['target_study']
             this_res['target_study'] = target_study
+            this_res['study_weight'] = config['model']['study_weight']
             studies = config['data']['studies']
             if isinstance(studies, list):
                 studies = 'baseline'
@@ -171,16 +174,78 @@ def summarize_study_selection():
             this_res['score'] = test_scores[target_study]
             res.append(this_res)
     res = pd.DataFrame(res)
-    res.set_index(['studies', 'target_study', 'seed'], inplace=True)
+    res.set_index(['studies', 'target_study', 'seed', 'study_weight'],
+                  inplace=True)
     res = res.sort_index()
-    print(res.loc['baseline'])
-    print(res.loc['all'])
+    # print(res.query("target_study == 'archi'"))
 
-    res = res.loc['all'] - res.loc['baseline']
-    res = res.groupby('target_study').agg('mean')
-    print(res)
-    pd.to_pickle(res, join(expanduser('~/output/cogspaces'
-                                      '/study_selection.pkl')))
+    diff = res.loc['all', 'score'] - res.loc['baseline', 'score']
+    transfer = res.loc['all', 'score']
+    baseline = res.loc['baseline', 'score']
+    summary = pd.DataFrame(data=dict(diff=diff, transfer=transfer,
+                                     baseline=baseline))
+    summary = summary.groupby(['study_weight', 'target_study']).agg(
+        ['mean', 'std'])
+    # print(summary.loc['sqrt_sample'])
+    # print(summary.loc['study'])
+    pd.to_pickle(summary, join(expanduser('~/output/cogspaces'
+                                          '/study_selection.pkl')))
+
+
+def plot_study_selection():
+    output_dir = expanduser('~/output/cogspaces/')
+    data = pd.read_pickle(join(output_dir, 'study_selection.pkl'))
+    data = data.loc['sqrt_sample']
+    data = data.sort_values(('diff', 'mean'), ascending=False)
+    gs = gridspec.GridSpec(2, 1,
+                           height_ratios=[1, 2]
+                           )
+    gs.update(top=0.98, bottom=0.3, left=0.1, right=0.98)
+    fig = plt.figure(figsize=(10, 7))
+    ax2 = fig.add_subplot(gs[1])
+    ax1 = fig.add_subplot(gs[0], sharex=ax2)
+    n_study = data.shape[0]
+
+    ind = np.arange(n_study) * 2 + .5
+    width = 1.2
+    diff_color = plt.get_cmap('tab10').colors[2]
+    baseline_color = plt.get_cmap('tab10').colors[0]
+    transfer_color = plt.get_cmap('tab10').colors[1]
+    rects = ax1.bar(ind, data[('diff', 'mean')], width,
+                    color=diff_color, alpha=0.8)
+    errorbar = ax1.errorbar(ind, data[('diff', 'mean')],
+                            yerr=data[('diff', 'std')], elinewidth=1.5,
+                            capsize=2, linewidth=0, ecolor=diff_color,
+                            alpha=.8)
+    ax1.set_ylabel('Transfer gain')
+    ax1.spines['bottom'].set_position('zero')
+    plt.setp(ax1.get_xticklabels(), visible=False)
+
+    ind = np.arange(n_study) * 2
+
+    width = .8
+    rects1 = ax2.bar(ind, data[('baseline', 'mean')], width,
+                     color=baseline_color, alpha=.8)
+    errorbar = ax2.errorbar(ind, data[('baseline', 'mean')],
+                            yerr=data[('baseline', 'std')], elinewidth=1.5,
+                            capsize=2, linewidth=0, ecolor=baseline_color,
+                            alpha=.8)
+    rects2 = ax2.bar(ind + width, data[('transfer', 'mean')], width,
+                     color=transfer_color, alpha=.8)
+    errorbar = ax2.errorbar(ind + width, data[('transfer', 'mean')],
+                            yerr=data[('transfer', 'std')], elinewidth=1.5,
+                            capsize=2, linewidth=0, ecolor=transfer_color,
+                            alpha=.8)
+    ax2.set_ylabel('Test accuracy')
+    ax2.set_xticks(ind + width / 2)
+    ax2.set_xticklabels(data.index.values, rotation=60, ha='right',
+                        va='top')
+    ax2.set_ylim([0.1, 0.94])
+    ax1.legend((rects1[0], rects2[0], rects[0]),
+               ('Baseline', 'Transfer', 'Diff'))
+    sns.despine(fig)
+    plt.savefig(join(output_dir, 'comparison_sqrt_sample.pdf'))
+    # plt.show()
 
 
 def plot():
@@ -214,8 +279,10 @@ def plot():
     plt.savefig(join(output_dir, 'comparison.pdf'))
     plt.show()
 
+
 if __name__ == '__main__':
     # summarize_baseline()
     # summarize_factored()
-    summarize_study_selection()
+    # summarize_study_selection()
+    plot_study_selection()
     # plot()

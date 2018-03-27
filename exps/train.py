@@ -23,10 +23,10 @@ exp = Experiment('multi_studies')
 
 @exp.config
 def default():
-    seed = 1
+    seed = 1128
     system = dict(
         device=-1,
-        verbose=10,
+        verbose=0,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
@@ -37,23 +37,23 @@ def default():
         normalize=True,
         estimator='factored_cv',
         study_weight='sqrt_sample',
-        max_iter=4,
+        max_iter=1000,
     )
     factored = dict(
         optimizer='adam',
         shared_embedding_size=100,
         private_embedding_size=0,
-        shared_embedding='hard+adversarial',
+        shared_embedding='hard',
         skip_connection=False,
         activation='linear',
         decode=False,
         cycle=True,
         batch_size=128,
-        dropout=0.1,
+        dropout=0.75,
         loss_weights={'contrast': 1, 'study': 1, 'penalty': 1,
                       'decoding': 1},
         lr=1e-3,
-        input_dropout=0.1)
+        input_dropout=0.25)
     factored_cv = dict(
         optimizer='adam',
         shared_embedding_size=100,
@@ -173,6 +173,9 @@ def train(system, model, factored, factored_cv, trace, logistic,
     if model['estimator'] == 'factored_cv':
         target = list(test_data.keys())[0]
         test_data = {target: test_data[target]}
+
+    if hasattr(estimator, 'studies_'):
+        _run.info['studies'] = estimator.studies_
 
     test_preds = estimator.predict(test_data)
 

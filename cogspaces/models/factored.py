@@ -1,11 +1,12 @@
 import tempfile
 import warnings
-from math import ceil, floor, sqrt
+from math import ceil, floor
 from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn.functional as F
 from joblib import Parallel, delayed
 from sklearn.base import BaseEstimator
 from sklearn.metrics import accuracy_score
@@ -13,7 +14,6 @@ from sklearn.utils import check_random_state
 from torch import nn
 from torch.autograd import Variable, Function
 from torch.nn import Linear
-from torch.nn.functional import nll_loss
 from torch.optim import Adam, SGD
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
@@ -21,7 +21,8 @@ from torch.utils.data import DataLoader
 from cogspaces.data import NiftiTargetDataset, infinite_iter
 from cogspaces.model_selection import train_test_split
 from cogspaces.optim.lbfgs import LBFGSScipy
-import torch.nn.functional as F
+
+from torch.nn.utils import vector_to_parameters, parameters_to_vector
 
 
 class GradReverseFunc(Function):
@@ -286,152 +287,6 @@ def next_batches(data_loaders, cuda, device, cycle=True):
         yield inputs, targets, batch_sizes
 
 
-class FactoredClassifierCV(BaseEstimator):
-    def __init__(self,
-                 skip_connection=False,
-                 shared_embedding_size=30,
-                 private_embedding_size=5,
-                 activation='linear',
-                 shared_embedding='hard+adversarial',
-                 batch_size=128, optimizer='sgd',
-                 decode=False,
-                 loss_weights=None,
-                 lr=0.001,
-                 fine_tune=False,
-                 dropout=0.5, input_dropout=0.25,
-                 max_iter=10000, verbose=0,
-                 device=-1,
-                 cycle=True,
-                 n_jobs=1,
-                 n_splits=3,
-                 seed=None):
-        self.skip_connection = skip_connection
-        self.shared_embedding = shared_embedding
-        self.shared_embedding_size = shared_embedding_size
-        self.private_embedding_size = private_embedding_size
-        self.activation = activation
-        self.decode = decode
-        self.input_dropout = input_dropout
-        self.dropout = dropout
-        self.batch_size = batch_size
-        self.optimizer = optimizer
-        self.max_iter = max_iter
-        self.verbose = verbose
-        self.device = device
-        self.lr = lr
-        self.cycle = cycle
-        self.fine_tune = fine_tune
-        self.loss_weights = loss_weights
-        self.seed = seed
-
-        self.n_jobs = n_jobs
-        self.n_splits = n_splits
-
-    def fit(self, X, y, study_weights, callback=None):
-        studies = list(X.keys())
-        target, sources = studies[0], studies[1:]
-
-        classifier = FactoredClassifier(
-            skip_connection=self.skip_connection,
-            shared_embedding_size=self.shared_embedding_size,
-            private_embedding_size=self.private_embedding_size,
-            activation=self.activation,
-            shared_embedding=self.shared_embedding,
-            batch_size=self.batch_size,
-            optimizer=self.optimizer,
-            decode=self.decode,
-            loss_weights=self.loss_weights,
-            lr=self.lr,
-            fine_tune=self.fine_tune,
-            dropout=self.dropout,
-            input_dropout=self.input_dropout,
-            max_iter=self.max_iter // 2,
-            verbose=self.verbose,
-            device=self.device,
-            cycle=self.cycle,
-            seed=self.seed)
-
-        if len(sources) > 0:
-            seeds = check_random_state(self.seed).randint(0, 10000,
-                                                          size=self.n_splits)
-            rolled = Parallel(n_jobs=self.n_jobs)(
-                delayed(eval_transferability)(
-                    classifier, X, y, target, source, seed)
-                for seed in seeds
-                for source in [None] + sources)
-            transfer = []
-            rolled = iter(rolled)
-            for seed in seeds:
-                baseline_score = next(rolled)
-                for source in sources:
-                    score = next(rolled)
-                    transfer.append(dict(seed=seed, source=source,
-                                         score=score,
-                                         diff=score - baseline_score))
-            transfer = pd.DataFrame(transfer)
-            transfer = transfer.set_index(['source', 'seed'])
-            transfer = transfer.groupby('source').agg('mean')
-            print('Pair transfers:')
-            transfer = transfer.query('diff > 0').sort_values('diff',
-                                                              ascending=False)
-            positive = transfer.index.get_level_values(
-                'source').values.tolist()
-            print('Transfering datasets:', positive)
-            self.studies_ = [target] + positive
-            study_weights = {study: study_weights[study]
-                             for study in self.studies_}
-            reweights = transfer['diff']
-            reweights -= reweights.max()
-            reweights = reweights.apply(np.exp)
-            reweights /= reweights.sum()
-            reweights = reweights.to_dict()
-            reweights[target] = 1
-            study_weights = {study: study_weights[study] * reweights[study]
-                             for study in self.studies_}
-            sum_weights = sum(study_weights.values()) / len(study_weights)
-            study_weights = {study: study_weights[study] / sum_weights
-                             for study in study_weights}
-            self.studies_ = [study for study in self.studies_
-                             if study_weights[study] > 0.01 * len(study_weights)]
-            study_weights = {study: study_weights[study]
-                             for study in self.studies_}
-        else:
-            self.studies_ = [target]
-        X = {study: X[study] for study in self.studies_}
-        y = {study: y[study] for study in self.studies_}
-        classifier.set_params(max_iter=self.max_iter)
-        self.classifier_ = classifier.fit(X, y, study_weights=study_weights)
-
-    def predict(self, X):
-        return self.classifier_.predict(X)
-
-
-def eval_transferability(classifier, X, y, target, source=None, seed=0,
-                         study_weights=None,
-                         callback=None):
-    train_data, val_data, train_targets, val_targets = \
-        train_test_split(X, y, random_state=seed)
-    y_val_true = val_targets[target]['contrast'].values
-    X_val = {target: val_data[target]}
-    if source is None:
-        train_data = {target: train_data[target]}
-        train_targets = {target: train_targets[target]}
-        study_weights = {target: 1}
-    else:
-        train_data = {target: train_data[target],
-                      source: train_data[source]}
-        train_targets = {target: train_targets[target],
-                         source: train_targets[source]}
-        if study_weights is not None:
-            study_weights = {target: study_weights[target],
-                             source: study_weights[source]}
-
-    classifier.fit(train_data, train_targets,
-                   study_weights=study_weights, callback=callback)
-    y_val_pred = classifier.predict(X_val)[target]['contrast'].values
-    return accuracy_score(y_val_true, y_val_pred)
-
-
 class FactoredClassifier(BaseEstimator):
     def __init__(self,
                  skip_connection=False,
@@ -442,6 +297,7 @@ class FactoredClassifier(BaseEstimator):
                  batch_size=128, optimizer='sgd',
                  decode=False,
                  loss_weights=None,
+                 epoch_counting='all',
                  lr=0.001,
                  fine_tune=False,
                  dropout=0.5, input_dropout=0.25,
@@ -462,6 +318,7 @@ class FactoredClassifier(BaseEstimator):
         self.batch_size = batch_size
         self.optimizer = optimizer
         self.max_iter = max_iter
+        self.epoch_counting = epoch_counting
         self.verbose = verbose
         self.device = device
         self.lr = lr
@@ -479,14 +336,15 @@ class FactoredClassifier(BaseEstimator):
 
         cuda, device = self._check_cuda()
         in_features = next(iter(X.values())).shape[1]
-        n_samples = sum(len(this_X) for this_X in X.values())
+        if self.epoch_counting == 'all':
+            n_samples = sum(len(this_X) for this_X in X.values())
+        elif self.epoch_counting == 'target':
+            n_samples = len(next(iter(X.values()))) * len(X)
+        else:
+            raise ValueError
 
         if study_weights is None:
             study_weights = {study: 1. for study in X}
-        else:
-            sum_weight = sum(study_weights.values()) / len(study_weights)
-            study_weights = {study: weight / sum_weight for
-                             study, weight in study_weights.items()}
         if self.loss_weights is None:
             loss_weights = {'contrast': 1, 'study': 1, 'penalty': 1,
                             'decoding': 1}
@@ -569,7 +427,9 @@ class FactoredClassifier(BaseEstimator):
             old_epoch = -1
             seen_samples = 0
             epoch_loss = 0
+            best_loss = float('inf')
             epoch_seen_samples = 0
+            no_improvement = 0
             if self.verbose != 0:
                 report_every = ceil(self.max_iter / self.verbose)
             else:
@@ -592,15 +452,21 @@ class FactoredClassifier(BaseEstimator):
                     epoch_loss += this_true_loss.data[0] * batch_size
                 self.n_iter_ = seen_samples / n_samples
                 epoch = floor(self.n_iter_)
-                if report_every is not None and epoch > old_epoch \
-                        and epoch % report_every == 0:
+                if epoch > old_epoch:
                     epoch_loss /= epoch_seen_samples
-                    print('Epoch %.2f, train loss: % .4f'
-                          % (epoch, epoch_loss))
-                    epoch_loss = 0
-                    epoch_seen_samples = 0
-                    if callback is not None:
-                        callback(self.n_iter_)
+                    if epoch_loss > best_loss:
+                        no_improvement += 1
+                    else:
+                        no_improvement = 0
+                        best_loss = epoch_loss
+                    if report_every is not None and epoch % report_every == 0:
+                        print('Epoch %.2f, train loss: % .4f'
+                              % (epoch, epoch_loss))
+                        if callback is not None:
+                            callback(self.n_iter_)
+                    if no_improvement > 15:
+                        print('Stopping at epoch %.2f' % epoch)
+                        break
                 old_epoch = epoch
 
         if self.fine_tune:
@@ -758,3 +624,152 @@ class FactoredClassifier(BaseEstimator):
             state['device'] = -1
 
         self.__dict__.update(state)
+
+
+class FactoredClassifierCV(BaseEstimator):
+    def __init__(self,
+                 skip_connection=False,
+                 shared_embedding_size=30,
+                 private_embedding_size=5,
+                 activation='linear',
+                 shared_embedding='hard+adversarial',
+                 batch_size=128, optimizer='sgd',
+                 decode=False,
+                 loss_weights=None,
+                 lr=0.001,
+                 fine_tune=False,
+                 dropout=0.5, input_dropout=0.25,
+                 max_iter=10000, verbose=0,
+                 device=-1,
+                 cycle=True,
+                 n_jobs=1,
+                 n_splits=3,
+                 seed=None):
+        self.skip_connection = skip_connection
+        self.shared_embedding = shared_embedding
+        self.shared_embedding_size = shared_embedding_size
+        self.private_embedding_size = private_embedding_size
+        self.activation = activation
+        self.decode = decode
+        self.input_dropout = input_dropout
+        self.dropout = dropout
+        self.batch_size = batch_size
+        self.optimizer = optimizer
+        self.max_iter = max_iter
+        self.verbose = verbose
+        self.device = device
+        self.lr = lr
+        self.cycle = cycle
+        self.fine_tune = fine_tune
+        self.loss_weights = loss_weights
+        self.seed = seed
+
+        self.n_jobs = n_jobs
+        self.n_splits = n_splits
+
+    def fit(self, X, y, study_weights, callback=None):
+        studies = list(X.keys())
+        target, sources = studies[0], studies[1:]
+        print(study_weights)
+
+        classifier = FactoredClassifier(
+            skip_connection=self.skip_connection,
+            shared_embedding_size=self.shared_embedding_size,
+            private_embedding_size=self.private_embedding_size,
+            activation=self.activation,
+            shared_embedding=self.shared_embedding,
+            batch_size=self.batch_size,
+            optimizer=self.optimizer,
+            decode=self.decode,
+            loss_weights=self.loss_weights,
+            lr=self.lr,
+            epoch_counting='target',
+            fine_tune=self.fine_tune,
+            dropout=self.dropout,
+            input_dropout=self.input_dropout,
+            max_iter=self.max_iter,
+            verbose=self.verbose,
+            device=self.device,
+            cycle=self.cycle,
+            seed=self.seed)
+
+        if len(sources) > 0:
+            seeds = check_random_state(self.seed).randint(0, 10000,
+                                                          size=self.n_splits)
+            rolled = Parallel(n_jobs=self.n_jobs)(
+                delayed(eval_transferability)(
+                    classifier, X, y, target, source, seed,
+                    study_weights)
+                for seed in seeds
+                for source in [None] + sources)
+            transfer = []
+            rolled = iter(rolled)
+            for seed in seeds:
+                baseline_score = next(rolled)
+                for source in sources:
+                    score = next(rolled)
+                    transfer.append(dict(seed=seed, source=source,
+                                         score=score,
+                                         diff=score - baseline_score))
+            transfer = pd.DataFrame(transfer)
+            transfer = transfer.set_index(['source', 'seed'])
+            transfer = transfer.groupby('source').agg('mean')
+            print('Pair transfers:')
+            transfer = transfer.query('diff > 0.01').sort_values(
+                'diff',
+                                                           ascending=False)
+            print(transfer)
+            positive = transfer.index.get_level_values(
+                'source').values.tolist()
+            print('Transfering datasets:', positive)
+            self.studies_ = [target] + positive
+            # Reweighting
+            # study_weights = {
+            #     study: study_weights[study] / study_weights[target]
+            #     for study in self.studies_}
+            # reweights = transfer['diff']
+            # reweights /= reweights.sum()
+            # reweights = reweights.to_dict()
+            # reweights[target] = 1
+            study_weights = {study: study_weights[study] /
+                                    study_weights[target] /
+                                    (len(self.studies_) - 1)
+                             for study in self.studies_}
+            study_weights[target] = 1
+            print('New weights:', study_weights)
+        else:
+            self.studies_ = [target]
+        X = {study: X[study] for study in self.studies_}
+        y = {study: y[study] for study in self.studies_}
+        classifier.set_params(max_iter=self.max_iter)
+        self.classifier_ = classifier.fit(X, y, study_weights=study_weights)
+
+    def predict(self, X):
+        return self.classifier_.predict(X)
+
+
+def eval_transferability(classifier, X, y, target, source=None, seed=0,
+                         study_weights=None,
+                         callback=None):
+    train_data, val_data, train_targets, val_targets = \
+        train_test_split(X, y, random_state=seed)
+    y_val_true = val_targets[target]['contrast'].values
+    X_val = {target: val_data[target]}
+    if source is None:
+        train_data = {target: train_data[target]}
+        train_targets = {target: train_targets[target]}
+        study_weights = {target: 1}
+    else:
+        train_data = {target: train_data[target],
+                      source: train_data[source]}
+        train_targets = {target: train_targets[target],
+                         source: train_targets[source]}
+        if study_weights is not None:
+            study_weights = {target: 1,
+                             source: study_weights[source]
+                                     / study_weights[target]}
+
+    classifier.fit(train_data, train_targets,
+                   study_weights=study_weights, callback=callback)
+    y_val_pred = classifier.predict(X_val)[target]['contrast'].values
+    return accuracy_score(y_val_true, y_val_pred)
