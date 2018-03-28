@@ -26,18 +26,18 @@ def default():
     seed = 200
     system = dict(
         device=-1,
-        verbose=0,
+        verbose=10,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies=['hcp', 'la5c', 'archi'],
+        studies='all',
         target_study='archi'
     )
     model = dict(
         normalize=True,
         estimator='factored_cv',
-        study_weight='sqrt_sample',
-        max_iter=500,
+        study_weight='study',
+        max_iter=5,
     )
     factored = dict(
         optimizer='adam',
@@ -58,6 +58,7 @@ def default():
         optimizer='adam',
         shared_embedding_size=100,
         private_embedding_size=0,
+        averaging=False,
         shared_embedding='hard',
         skip_connection=False,
         activation='linear',
@@ -65,8 +66,8 @@ def default():
         cycle=True,
         batch_size=128,
         dropout=0.75,
-        n_jobs=3,
-        n_splits=10,
+        n_jobs=20,
+        n_splits=2,
         lr=1e-3,
         input_dropout=0.25)
     trace = dict(

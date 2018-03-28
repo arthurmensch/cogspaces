@@ -143,7 +143,7 @@ def summarize_factored():
 
 
 def summarize_study_selection():
-    output_dir = [expanduser('~/output/cogspaces/study_selection_2'), ]
+    output_dir = [expanduser('~/output/cogspaces/study_selection_3'), ]
 
     regex = re.compile(r'[0-9]+$')
     res = []
@@ -186,9 +186,9 @@ def summarize_study_selection():
                                      baseline=baseline))
     summary = summary.groupby(['study_weight', 'target_study']).agg(
         ['mean', 'std'])
-    # print(summary.loc['sqrt_sample'])
-    # print(summary.loc['study'])
-    print(summary)
+    print(summary.loc['sqrt_sample'])
+    print(summary.loc['study'])
+    # print(summary)
     pd.to_pickle(summary, join(expanduser('~/output/cogspaces'
                                           '/study_selection_2.pkl')))
 

@@ -437,9 +437,9 @@ class FactoredClassifier(BaseEstimator):
                 report_every = ceil(self.max_iter / self.verbose)
             else:
                 report_every = None
-            best_state = {}
-            if self.averaging:
-                parameters = [parameters_to_vector(self.module_.parameters())]
+            best_params = parameters_to_vector(
+                self.module_.parameters())
+            best_params_list = [best_params]
             while self.n_iter_ < self.max_iter:
                 if self.scheduler_ is not None:
                     self.scheduler_.step(self.n_iter_)
@@ -465,27 +465,27 @@ class FactoredClassifier(BaseEstimator):
                     else:
                         no_improvement = 0
                         best_loss = epoch_loss
-                        best_state = self.module_.state_dict()
+                        best_params = parameters_to_vector(
+                            self.module_.parameters())
+                        if self.averaging:
+                            if len(best_params_list) >= 5:
+                                best_params_list = best_params_list[1:]
+                            best_params_list.append(best_params)
                     if report_every is not None and epoch % report_every == 0:
                         print('Epoch %.2f, train loss: % .4f'
                               % (epoch, epoch_loss))
                         if callback is not None:
                             callback(self.n_iter_)
-                    if no_improvement > 15:
+                    if no_improvement > 5:
                         print('Stopping at epoch %.2f' % epoch)
                         break
-                    if self.averaging:
-                        if len(parameters) >= 15:
-                            parameters = parameters[1:]
-                        parameters.append(parameters_to_vector(
-                            self.module_.parameters()))
                 old_epoch = epoch
-        if self.averaging:
-            parameters = torch.cat([parameter[None, :]
-                                    for parameter in parameters], dim=0)
-            parameters = torch.mean(parameters, dim=0)
-            vector_to_parameters(parameters, self.module_.parameters())
-        self.module_.load_state_dict(best_state)
+            if self.averaging:
+                best_params = torch.cat([params[None, :]
+                                         for params in best_params_list],
+                                        dim=0)
+                best_params = torch.mean(best_params, dim=0)
+            vector_to_parameters(best_params, self.module_.parameters())
 
         if self.fine_tune:
             print('Fine tuning')
@@ -661,6 +661,7 @@ class FactoredClassifierCV(BaseEstimator):
                  device=-1,
                  cycle=True,
                  n_jobs=1,
+                 averaging=False,
                  n_splits=3,
                  seed=None):
         self.skip_connection = skip_connection
@@ -682,6 +683,8 @@ class FactoredClassifierCV(BaseEstimator):
         self.loss_weights = loss_weights
         self.seed = seed
 
+        self.averaging = averaging
+
         self.n_jobs = n_jobs
         self.n_splits = n_splits
 
@@ -702,6 +705,7 @@ class FactoredClassifierCV(BaseEstimator):
             loss_weights=self.loss_weights,
             lr=self.lr,
             epoch_counting='target',
+            averaging=self.averaging,
             fine_tune=self.fine_tune,
             dropout=self.dropout,
             input_dropout=self.input_dropout,
@@ -713,7 +717,8 @@ class FactoredClassifierCV(BaseEstimator):
 
         if len(sources) > 0:
             seeds = check_random_state(self.seed).randint(0,
-                                                          np.iinfo('int32').max,
+                                                          np.iinfo(
+                                                              'int32').max,
                                                           size=self.n_splits)
             rolled = Parallel(n_jobs=self.n_jobs)(
                 delayed(eval_transferability)(
@@ -736,16 +741,18 @@ class FactoredClassifierCV(BaseEstimator):
             print('Pair transfers:')
             transfer = transfer.sort_values('diff', ascending=False)
             print(transfer)
-            transfer = transfer.query('diff > 0.01')
+            transfer = transfer.query('diff > 0.005')
             positive = transfer.index.get_level_values(
                 'source').values.tolist()
+            weights = transfer['diff'] / transfer['diff'].sum()
+            weights = weights.to_dict()
+            print(weights)
             print('Transfering datasets:', positive)
             self.studies_ = [target] + positive
             if len(positive) > 1:
-                study_weights = {study: study_weights[study] /
-                                        study_weights[target] /
-                                        (len(self.studies_) - 1)
-                                 for study in self.studies_}
+                study_weights = {study: study_weights[study] * weights[study]
+                                        / study_weights[target]
+                                 for study in positive}
             study_weights[target] = 1
             print('New weights:', study_weights)
         else:

@@ -188,7 +188,7 @@ def study_selection():
         normalize=True,
         estimator='factored_cv',
         study_weight='study',
-        max_iter=1000,
+        max_iter=400,
     )
     factored_cv = dict(
         optimizer='adam',
@@ -198,6 +198,7 @@ def study_selection():
         skip_connection=False,
         activation='linear',
         cycle=True,
+        averaging=False,
         batch_size=128,
         dropout=0.75,
         n_jobs=1,
@@ -406,7 +407,9 @@ if __name__ == '__main__':
                                        'seed': seed})
 
     elif grid == 'study_selection':
-        output_dir = join(get_output_dir(), 'study_selection_2')
+        output_dir = join(get_output_dir(), 'study_selection_4')
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
         exp.config(study_selection)
         source_dir = join(get_data_dir(), 'reduced_512_lstsq')
         data, target = load_data_from_dir(data_dir=source_dir)
@@ -414,10 +417,10 @@ if __name__ == '__main__':
         n_studies = len(studies_list)
         config_updates = []
         seeds = check_random_state(1).randint(0,
-                                              np.iinfo('int32').max, size=40)
+                                              100000, size=10)
         for seed in seeds:
             for study in studies_list:
-                for study_weight in ['study']:
+                for study_weight in ['study', 'sqrt_sample']:
                     config_updates.append({'data.studies': 'all',
                                            'data.target_study': study,
                                            'model.study_weight': study_weight,
