@@ -203,6 +203,7 @@ def study_selection():
         dropout=0.75,
         n_jobs=1,
         n_splits=10,
+        n_runs=10,
         lr=1e-3,
         input_dropout=0.25,
     )
@@ -416,10 +417,31 @@ if __name__ == '__main__':
         studies_list = list(data.keys())
         n_studies = len(studies_list)
         config_updates = []
-        seeds = check_random_state(1).randint(0,
-                                              100000, size=10)
+        seeds = check_random_state(1).randint(0, 100000, size=10)
         for seed in seeds:
             for study in studies_list:
+                for study_weight in ['study', 'sqrt_sample']:
+                    config_updates.append({'data.studies': 'all',
+                                           'data.target_study': study,
+                                           'model.study_weight': study_weight,
+                                           'seed': seed})
+                    config_updates.append({'data.studies': [study],
+                                           'data.target_study': study,
+                                           'model.study_weight': study_weight,
+                                           'seed': seed})
+    elif grid == 'study_selection_5':
+        output_dir = join(get_output_dir(), 'study_selection_5')
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        exp.config(study_selection)
+        source_dir = join(get_data_dir(), 'reduced_512_lstsq')
+        data, target = load_data_from_dir(data_dir=source_dir)
+        studies_list = list(data.keys())
+        n_studies = len(studies_list)
+        config_updates = []
+        seeds = check_random_state(1).randint(0, 100000, size=10)
+        for seed in seeds:
+            for study in ['archi', 'ds105', 'ds001', 'brainomics', 'ds107B']:
                 for study_weight in ['study', 'sqrt_sample']:
                     config_updates.append({'data.studies': 'all',
                                            'data.target_study': study,
@@ -432,7 +454,7 @@ if __name__ == '__main__':
     else:
         raise ValueError('Wrong argument')
     _id = get_id(output_dir)
-    Parallel(n_jobs=44, verbose=100)(delayed(run_exp)(output_dir,
+    Parallel(n_jobs=60, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       mock=False,
                                                       _id=_id + i)

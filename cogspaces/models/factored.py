@@ -1,5 +1,6 @@
 import tempfile
 import warnings
+from collections import defaultdict
 from math import ceil, floor
 from typing import Dict, Tuple
 
@@ -8,7 +9,7 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 from joblib import Parallel, delayed
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, clone
 from sklearn.metrics import accuracy_score
 from sklearn.utils import check_random_state
 from torch import nn
@@ -287,6 +288,134 @@ def next_batches(data_loaders, cuda, device, cycle=True):
         yield inputs, targets, batch_sizes
 
 
+class EnsembleFactoredClassifier(BaseEstimator):
+    def __init__(self,
+                 skip_connection=False,
+                 shared_embedding_size=30,
+                 private_embedding_size=5,
+                 activation='linear',
+                 shared_embedding='hard+adversarial',
+                 batch_size=128, optimizer='sgd',
+                 decode=False,
+                 loss_weights=None,
+                 epoch_counting='all',
+                 lr=0.001,
+                 fine_tune=False,
+                 dropout=0.5, input_dropout=0.25,
+                 max_iter=10000, verbose=0,
+                 device=-1,
+                 cycle=True,
+                 averaging=False,
+                 seed=None,
+                 n_jobs=1,
+                 n_runs=1):
+        self.skip_connection = skip_connection
+        self.shared_embedding = shared_embedding
+        self.shared_embedding_size = shared_embedding_size
+        self.private_embedding_size = private_embedding_size
+        self.activation = activation
+        self.decode = decode
+        self.input_dropout = input_dropout
+        self.dropout = dropout
+        self.batch_size = batch_size
+        self.optimizer = optimizer
+        self.max_iter = max_iter
+        self.verbose = verbose
+        self.device = device
+        self.lr = lr
+        self.cycle = cycle
+        self.fine_tune = fine_tune
+        self.loss_weights = loss_weights
+        self.seed = seed
+
+        self.epoch_counting = epoch_counting
+
+        self.averaging = averaging
+
+        self.n_jobs = n_jobs
+        self.n_runs = n_runs
+
+    def fit(self, X, y, study_weights, callback=None):
+        estimator = FactoredClassifier(
+            skip_connection=self.skip_connection,
+            shared_embedding_size=self.shared_embedding_size,
+            private_embedding_size=self.private_embedding_size,
+            activation=self.activation,
+            shared_embedding=self.shared_embedding,
+            batch_size=self.batch_size,
+            optimizer=self.optimizer,
+            decode=self.decode,
+            loss_weights=self.loss_weights,
+            lr=self.lr,
+            epoch_counting='target',
+            averaging=self.averaging,
+            fine_tune=self.fine_tune,
+            dropout=self.dropout,
+            input_dropout=self.input_dropout,
+            max_iter=self.max_iter,
+            verbose=self.verbose,
+            device=self.device,
+            cycle=self.cycle,
+            seed=self.seed)
+
+        seeds = check_random_state(self.seed).randint(0, np.iinfo('int32').max,
+                                                      size=self.n_runs)
+        self.estimators = Parallel(n_jobs=self.n_jobs)(delayed(_fit)(
+            clone(estimator), X, y, study_weights, int(seed))
+            for seed in seeds)
+        return self
+
+    def predict_proba(self, X):
+        mean_preds = defaultdict(lambda: 0)
+        mean_study_preds = defaultdict(lambda: 0)
+        for estimator in self.estimators:
+            study_preds, preds = estimator.predict_proba(X)
+            for study in X:
+                mean_preds[study] += preds[study]
+                if study_preds is not None:
+                    mean_study_preds[study] += study_preds[study]
+        for study in X:
+            mean_preds[study] /= len(self.estimators)
+            if study_preds is not None:
+                mean_study_preds[study] /= len(self.estimators)
+        if not study_preds:
+            study_preds = None
+        return study_preds, preds
+
+    def predict(self, X):
+        """Shamelessly copied from FactoredClassifier"""
+        study_preds, preds = self.predict_proba(X)
+        if study_preds is not None:
+            study_preds = {study: np.argmax(study_pred, axis=1)
+                           for study, study_pred in study_preds.items()}
+        else:
+            study_preds = {study: 0 for study in preds}
+        preds = {study: np.argmax(pred, axis=1)
+                 for study, pred in preds.items()}
+        dfs = {}
+        for study in preds:
+            pred = preds[study]
+
+            study_pred = study_preds[study]
+            dfs[study] = pd.DataFrame(
+                dict(contrast=pred, study=study_pred, subject=0))
+        return dfs
+
+    @property
+    def coef_(self):
+        return self.estimator.coef_
+
+    @property
+    def intercept_(self):
+        return self.estimator.intercept_
+
+
+def _fit(estimator, X, y, study_weights, seed):
+    estimator.seed = seed
+    estimator.fit(X, y, study_weights)
+    return estimator
+
+
 class FactoredClassifier(BaseEstimator):
     def __init__(self,
                  skip_connection=False,
@@ -408,6 +537,7 @@ class FactoredClassifier(BaseEstimator):
                                    report_every=2)
             optimizer.step(closure)
         else:
+            self.module_.reset_parameters()
             for study in X:
                 data_loaders[study] = DataLoader(
                     NiftiTargetDataset(X[study], y[study]),
@@ -418,12 +548,14 @@ class FactoredClassifier(BaseEstimator):
                             data_loaders.items()}
 
             if self.optimizer == 'adam':
-                self.optimizer_ = Adam(self.module_.parameters(), lr=self.lr, )
-                self.scheduler_ = None
+                optimizer = Adam(self.module_.parameters(), lr=self.lr, )
+                scheduler = None
             elif self.optimizer == 'sgd':
-                self.optimizer_ = SGD(self.module_.parameters(), lr=self.lr, )
-                self.scheduler_ = CosineAnnealingLR(self.optimizer_, T_max=30,
+                optimizer = SGD(self.module_.parameters(), lr=self.lr, )
+                scheduler = CosineAnnealingLR(optimizer, T_max=30,
                                                     eta_min=1e-3 * self.lr)
+            else:
+                raise ValueError
 
             self.n_iter_ = 0
             # Logging logic
@@ -441,18 +573,18 @@ class FactoredClassifier(BaseEstimator):
                 self.module_.parameters())
             best_params_list = [best_params]
             while self.n_iter_ < self.max_iter:
-                if self.scheduler_ is not None:
-                    self.scheduler_.step(self.n_iter_)
+                if scheduler is not None:
+                    scheduler.step(self.n_iter_)
                 for inputs, targets, batch_size in next_batches(data_loaders,
                                                                 cuda=cuda,
                                                                 device=device,
                                                                 cycle=self.cycle):
                     self.module_.train()
-                    self.optimizer_.zero_grad()
+                    optimizer.zero_grad()
                     preds = self.module_(inputs)
                     this_loss, this_true_loss = self.loss_(preds, targets)
                     this_loss.backward()
-                    self.optimizer_.step()
+                    optimizer.step()
                     seen_samples += batch_size
                     epoch_seen_samples += batch_size
                     epoch_loss += this_true_loss.data[0] * batch_size
@@ -476,7 +608,7 @@ class FactoredClassifier(BaseEstimator):
                               % (epoch, epoch_loss))
                         if callback is not None:
                             callback(self.n_iter_)
-                    if no_improvement > 5:
+                    if no_improvement > 10:
                         print('Stopping at epoch %.2f' % epoch)
                         break
                 old_epoch = epoch
@@ -663,6 +795,7 @@ class FactoredClassifierCV(BaseEstimator):
                  n_jobs=1,
                  averaging=False,
                  n_splits=3,
+                 n_runs=10,
                  seed=None):
         self.skip_connection = skip_connection
         self.shared_embedding = shared_embedding
@@ -687,13 +820,14 @@ class FactoredClassifierCV(BaseEstimator):
 
         self.n_jobs = n_jobs
         self.n_splits = n_splits
+        self.n_runs = n_runs
 
     def fit(self, X, y, study_weights, callback=None):
         studies = list(X.keys())
         target, sources = studies[0], studies[1:]
         print(study_weights)
 
-        classifier = FactoredClassifier(
+        classifier = EnsembleFactoredClassifier(
             skip_connection=self.skip_connection,
             shared_embedding_size=self.shared_embedding_size,
             private_embedding_size=self.private_embedding_size,
@@ -704,6 +838,7 @@ class FactoredClassifierCV(BaseEstimator):
             decode=self.decode,
             loss_weights=self.loss_weights,
             lr=self.lr,
+            n_runs=1,
             epoch_counting='target',
             averaging=self.averaging,
             fine_tune=self.fine_tune,
@@ -759,8 +894,10 @@ class FactoredClassifierCV(BaseEstimator):
             self.studies_ = [target]
         X = {study: X[study] for study in self.studies_}
         y = {study: y[study] for study in self.studies_}
-        classifier.set_params(max_iter=self.max_iter)
+        classifier.set_params(max_iter=self.max_iter, n_runs=self.n_runs,
+                              n_jobs=self.n_jobs)
         self.classifier_ = classifier.fit(X, y, study_weights=study_weights)
+        return self
 
     def predict(self, X):
         return self.classifier_.predict(X)

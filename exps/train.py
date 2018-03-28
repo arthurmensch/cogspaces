@@ -12,7 +12,8 @@ from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.model_selection import train_test_split
 from cogspaces.models.baseline import MultiLogisticClassifier
-from cogspaces.models.factored import FactoredClassifier, FactoredClassifierCV
+from cogspaces.models.factored import FactoredClassifier, FactoredClassifierCV, \
+    EnsembleFactoredClassifier
 from cogspaces.models.trace import TraceClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
@@ -23,7 +24,7 @@ exp = Experiment('multi_studies')
 
 @exp.config
 def default():
-    seed = 200
+    seed = 100
     system = dict(
         device=-1,
         verbose=10,
@@ -37,7 +38,7 @@ def default():
         normalize=True,
         estimator='factored_cv',
         study_weight='study',
-        max_iter=5,
+        max_iter=400,
     )
     factored = dict(
         optimizer='adam',
@@ -46,6 +47,9 @@ def default():
         shared_embedding='hard',
         skip_connection=False,
         activation='linear',
+        epoch_counting='target',
+        n_jobs=25,
+        n_runs=50,
         decode=False,
         cycle=True,
         batch_size=128,
@@ -67,7 +71,8 @@ def default():
         batch_size=128,
         dropout=0.75,
         n_jobs=20,
-        n_splits=2,
+        n_splits=10,
+        n_runs=20,
         lr=1e-3,
         input_dropout=0.25)
     trace = dict(
@@ -133,11 +138,11 @@ def train(system, model, factored, factored_cv, trace, logistic,
     study_weights = get_study_weights(model['study_weight'], train_data)
 
     if model['estimator'] == 'factored':
-        estimator = FactoredClassifier(verbose=system['verbose'],
-                                       device=system['device'],
-                                       max_iter=model['max_iter'],
-                                       seed=_seed,
-                                       **factored)
+        estimator = EnsembleFactoredClassifier(verbose=system['verbose'],
+                                               device=system['device'],
+                                               max_iter=model['max_iter'],
+                                               seed=_seed,
+                                               **factored)
     elif model['estimator'] == 'factored_cv':
         estimator = FactoredClassifierCV(verbose=system['verbose'],
                                          device=system['device'],
