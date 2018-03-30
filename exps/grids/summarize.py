@@ -143,7 +143,7 @@ def summarize_factored():
 
 
 def summarize_study_selection():
-    output_dir = [expanduser('~/output/cogspaces/study_selection_3'), ]
+    output_dir = [expanduser('~/output/cogspaces/study_selection_5'), ]
 
     regex = re.compile(r'[0-9]+$')
     res = []
@@ -190,7 +190,7 @@ def summarize_study_selection():
     print(summary.loc['study'])
     # print(summary)
     pd.to_pickle(summary, join(expanduser('~/output/cogspaces'
-                                          '/study_selection_2.pkl')))
+                                          '/study_selection_5.pkl')))
 
 
 def plot_study_selection():

@@ -413,7 +413,7 @@ class EnsembleFactoredClassifier(BaseEstimator):
 def _fit(estimator, X, y, study_weights, seed):
     estimator.seed = seed
     estimator.fit(X, y, study_weights)
-    return estimator
+    return estimatorder
 
 
 class FactoredClassifier(BaseEstimator):
