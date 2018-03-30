@@ -24,40 +24,41 @@ exp = Experiment('multi_studies')
 
 @exp.config
 def default():
-    seed = 100
+    seed = 10
     system = dict(
         device=-1,
         verbose=10,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies='all',
+        studies=['archi', 'hcp'],
         target_study='archi'
     )
     model = dict(
         normalize=True,
-        estimator='factored_cv',
+        estimator='factored',
         study_weight='study',
-        max_iter=400,
+        max_iter=1000,
     )
     factored = dict(
         optimizer='adam',
+        adapt_size=0,
         shared_embedding_size=100,
         private_embedding_size=0,
         shared_embedding='hard',
         skip_connection=False,
         activation='linear',
         epoch_counting='target',
-        n_jobs=25,
-        n_runs=50,
+        # n_jobs=1,
+        # n_runs=1,
         decode=False,
-        cycle=True,
+        cycle=False,
         batch_size=128,
-        dropout=0.75,
+        dropout=0.,
         loss_weights={'contrast': 1, 'study': 1, 'penalty': 1,
-                      'decoding': 1},
+                      'decoding': 1, 'all_contrast': 1},
         lr=1e-3,
-        input_dropout=0.25)
+        input_dropout=0)
     factored_cv = dict(
         optimizer='adam',
         shared_embedding_size=100,
@@ -69,10 +70,10 @@ def default():
         decode=False,
         cycle=True,
         batch_size=128,
-        dropout=0.75,
+        dropout=0.,
         n_jobs=20,
         n_splits=10,
-        n_runs=20,
+        n_runs=1,
         lr=1e-3,
         input_dropout=0.25)
     trace = dict(
@@ -102,6 +103,9 @@ def save_output(target_encoder, standard_scaler, estimator,
 @exp.capture(prefix='data')
 def load_data(source_dir, studies, target_study):
     data, target = load_data_from_dir(data_dir=source_dir)
+    for study in target:
+        target[study]['all_contrast'] = target[study]['study'] \
+                                        + '_' + target[study]['contrast']
 
     if studies == 'all':
         studies = list(data.keys())
@@ -138,11 +142,11 @@ def train(system, model, factored, factored_cv, trace, logistic,
     study_weights = get_study_weights(model['study_weight'], train_data)
 
     if model['estimator'] == 'factored':
-        estimator = EnsembleFactoredClassifier(verbose=system['verbose'],
-                                               device=system['device'],
-                                               max_iter=model['max_iter'],
-                                               seed=_seed,
-                                               **factored)
+        estimator = FactoredClassifier(verbose=system['verbose'],
+                                       device=system['device'],
+                                       max_iter=model['max_iter'],
+                                       seed=_seed,
+                                       **factored)
     elif model['estimator'] == 'factored_cv':
         estimator = FactoredClassifierCV(verbose=system['verbose'],
                                          device=system['device'],
@@ -162,9 +166,9 @@ def train(system, model, factored, factored_cv, trace, logistic,
         return ValueError("Wrong value for parameter "
                           "`model.estimator`: got '%s'."
                           % model['estimator'])
-    test_callback = ScoreCallback(estimator, X=test_data, y=test_targets,
+    test_callback = ScoreCallback(X=test_data, y=test_targets,
                                   score_function=accuracy_score)
-    train_callback = ScoreCallback(estimator, X=train_data, y=train_targets,
+    train_callback = ScoreCallback(X=train_data, y=train_targets,
                                    score_function=accuracy_score)
     callback = MultiCallback({'train': train_callback,
                               'test': test_callback})
@@ -174,7 +178,8 @@ def train(system, model, factored, factored_cv, trace, logistic,
 
     estimator.fit(train_data, train_targets,
                   study_weights=study_weights,
-                  callback=callback)
+                  callback=callback
+                  )
 
     if model['estimator'] == 'factored_cv':
         target = list(test_data.keys())[0]

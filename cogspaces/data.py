@@ -17,11 +17,13 @@ class NiftiTargetDataset(Dataset):
     def __init__(self, data, targets=None):
         if targets is not None:
             assert data.shape[0] == targets.shape[0]
-            self.study_targets = targets['study'].values
-            self.targets = targets['contrast'].values
+            self.study = targets['study'].values
+            self.contrast = targets['contrast'].values
+            self.all_contrast = targets['all_contrast'].values
         else:
-            self.targets = None
-            self.study_targets = None
+            self.study = None
+            self.contrast = None
+            self.all_contrast = None
 
         self.data = data
 
@@ -29,20 +31,25 @@ class NiftiTargetDataset(Dataset):
         single = isinstance(index, int)
         data = self.data[index]
         data = torch.from_numpy(data).float()
-        if self.targets is None:
+        if self.study is None:
             if single:
-                study_targets = torch.LongTensor((1,)).fill_(0)
-                targets = torch.LongTensor((1,)).fill_(0)
+                study = torch.LongTensor((1,)).fill_(0)
+                contrast = torch.LongTensor((1,)).fill_(0)
+                all_contrast = torch.LongTensor((1,)).fill_(0)
             else:
-                study_targets = torch.LongTensor((data.shape[0], 1)).fill_(0)
-                targets = torch.LongTensor((data.shape[0], 1)).fill_(0)
+                study = torch.LongTensor((data.shape[0], 1)).fill_(0)
+                contrast = torch.LongTensor((data.shape[0], 1)).fill_(0)
+                all_contrast = torch.LongTensor((1,)).fill_(0)
         else:
-            targets = self.targets[index]
-            study_targets = self.study_targets[index]
+            contrast = self.contrast[index]
+            all_contrast = self.all_contrast[index]
+            study = self.study[index]
             if not single:
-                targets = torch.from_numpy(targets.values)
-                study_targets = torch.from_numpy(study_targets.values)
-        return data, study_targets, targets
+                contrast = torch.from_numpy(contrast.values)
+                all_contrast = torch.from_numpy(all_contrast.values)
+                study = torch.from_numpy(study.values)
+
+        return data, study, contrast, all_contrast
 
     def __len__(self):
         return self.data.shape[0]

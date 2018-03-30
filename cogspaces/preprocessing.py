@@ -52,20 +52,18 @@ class MultiTargetEncoder(BaseEstimator, TransformerMixin):
     def fit(self, targets):
         self.le_ = {}
 
-        for study, target in targets.items():
-            target['all_contrast'] = target['contrast'] + '_' + \
-                                     target['subject']
         all_contrasts = pd.concat([target['all_contrast']
                                    for target in targets.values()])
         studies = pd.concat([target['study'] for target in targets.values()])
-        le_all_contrast = LabelEncoder.fit(all_contrasts)
+        le_all_contrast = LabelEncoder().fit(all_contrasts)
         le_study = LabelEncoder().fit(studies)
         for study, target in targets.items():
             self.le_[study] = dict(
                 contrast=LabelEncoder().fit(target['contrast']),
                 subject=LabelEncoder().fit(target['subject']),
+                all_contrast=le_all_contrast,
                 study=le_study,
-                all_contrasts=le_all_contrast)
+                )
         return self
 
     def transform(self, targets):

@@ -57,8 +57,9 @@ class MultiTaskModule(nn.Module):
                  input_dropout=0.,
                  dropout=0.,
                  decode=False,
+                 adapt_size=1,
                  activation='linear',
-                 shared_embedding='hard+adversarial',
+                 shared_embedding='hard',
                  skip_connection=False):
         super().__init__()
 
@@ -79,13 +80,21 @@ class MultiTaskModule(nn.Module):
         self.skip_connection = skip_connection
         self.shared_embedding = shared_embedding
 
-        if private_embedding_size > 0:
-            self.private_embedders = {}
+        self.adapt_size = adapt_size
+
+        if self.adapt_size > 0:
+            self.adapters = {}
+
+            self.adapters = {study: Linear(in_features, adapt_size, bias=True)
+                                             for study in target_sizes}
+            for study in target_sizes:
+                self.add_module('adapters_%s' % study,
+                                self.adapters[study])
+        in_features = adapt_size
 
         if shared_embedding_size > 0:
-
             def get_shared_embedder():
-                return Linear(in_features, shared_embedding_size, bias=False)
+                return Linear(in_features, shared_embedding_size, bias=True)
 
             if 'hard' in shared_embedding:
                 shared_embedder = get_shared_embedder()
@@ -103,10 +112,14 @@ class MultiTaskModule(nn.Module):
         if self.decode:
             self.decoders = {}
 
+        if private_embedding_size > 0:
+            self.private_embedders = {}
+
         for study, size in target_sizes.items():
             if private_embedding_size > 0:
+
                 self.private_embedders[study] = \
-                    Linear(in_features, private_embedding_size, bias=False)
+                    Linear(in_features, private_embedding_size, bias=True)
                 self.add_module('private_embedder_%s' % study,
                                 self.private_embedders[study])
 
@@ -121,12 +134,17 @@ class MultiTaskModule(nn.Module):
                            + in_features * skip_connection, in_features)
                 self.add_module('decoder_%s' % study, self.classifiers[study])
 
-        if 'adversarial' in shared_embedding:
+        if 'adversarial_study' in shared_embedding:
             self.study_classifier = nn.Sequential(
                 Linear(shared_embedding_size, len(target_sizes), bias=True),
                 nn.ReLU(),
                 Linear(len(target_sizes), len(target_sizes), bias=True),
                 nn.LogSoftmax(dim=1))
+            self.gradient_reversal = GradientReversal()
+        if 'adversarial_contrast' in shared_embedding:
+            n_all_targets = sum(target_sizes.values())
+            self.all_contrast_classifier = nn.Linear(shared_embedding_size,
+                                                     n_all_targets, bias=True)
             self.gradient_reversal = GradientReversal()
         self.reset_parameters()
 
@@ -147,20 +165,31 @@ class MultiTaskModule(nn.Module):
 
             sub_input = self.input_dropout(sub_input)
 
+            if self.adapt_size > 0:
+                sub_input = self.dropout(self.adapters[study](sub_input))
+
             if self.shared_embedding_size > 0:
-                shared_embedding = self.shared_embedders[study](sub_input)
-                if 'adversarial' in self.shared_embedding:
+                shared_embedding = self.activation(self.dropout(
+                    self.shared_embedders[study](sub_input)))
+                if 'adversarial_study' in self.shared_embedding:
                     study_pred = self.study_classifier(
                         self.gradient_reversal(shared_embedding))
                 else:
                     study_pred = None
+                if 'adversarial_contrast' in self.shared_embedding:
+                    all_contrast_pred = F.log_softmax(self.all_contrast_classifier(
+                        self.gradient_reversal(shared_embedding)), dim=1)
+                else:
+                    all_contrast_pred = None
+
                 embedding.append(shared_embedding)
             else:
                 study_pred = None
                 shared_embedding = None
 
             if self.private_embedding_size > 0:
-                private_embedding = self.private_embedders[study](sub_input)
+                private_embedding = self.activation(self.dropout(
+                    self.private_embedders[study](sub_input)))
                 embedding.append(private_embedding)
             else:
                 private_embedding = None
@@ -179,7 +208,7 @@ class MultiTaskModule(nn.Module):
             else:
                 embedding = embedding[0]
 
-            latent = self.dropout(self.activation(embedding))
+            latent = embedding
             pred = F.log_softmax(self.classifiers[study](latent), dim=1)
 
             if self.decode:
@@ -187,7 +216,8 @@ class MultiTaskModule(nn.Module):
             else:
                 decoded = None
 
-            preds[study] = study_pred, pred, penalty, decoded
+            preds[study] = study_pred, pred, all_contrast_pred, \
+                           penalty, decoded
         return preds
 
     def coefs(self):
@@ -236,8 +266,9 @@ class MultiTaskLoss(nn.Module):
         loss = 0
         true_loss = 0
         for study in inputs:
-            study_pred, pred, penalty, decoded = inputs[study]
-            study_target, target, data = targets[study]
+            study_pred, pred, all_contrast_pred, penalty,\
+            decoded = inputs[study]
+            study_target, target, all_contrast_target, data = targets[study]
 
             this_loss = (F.nll_loss(pred, target, size_average=True)
                          * self.loss_weights['contrast'])
@@ -248,15 +279,21 @@ class MultiTaskLoss(nn.Module):
             if penalty is not None:
                 penalty /= pred.shape[0]
                 this_loss += penalty * self.loss_weights['penalty']
-
+            this_true_loss = this_loss
             if study_pred is not None:
                 study_loss = F.nll_loss(study_pred, study_target,
                                         size_average=True)
-                this_true_loss = this_loss - study_loss * self.loss_weights[
+                this_true_loss = this_true_loss - study_loss * self.loss_weights[
                     'study']
                 this_loss += study_loss * self.loss_weights['study']
-            else:
-                this_true_loss = this_loss
+
+            if all_contrast_pred is not None:
+                all_contrast = F.nll_loss(all_contrast_pred, all_contrast_target,
+                                        size_average=True)
+                this_true_loss = this_true_loss - all_contrast * self.loss_weights[
+                    'all_contrast']
+                this_loss += all_contrast * self.loss_weights['all_contrast']
+
             loss += this_loss * self.study_weights[study]
             true_loss += this_true_loss * self.study_weights[study]
         return loss, true_loss.detach()
@@ -268,21 +305,23 @@ def next_batches(data_loaders, cuda, device, cycle=True):
         targets = {}
         batch_sizes = 0
     for study, loader in data_loaders.items():
-        input, study_target, target = next(loader)
+        input, study_target, target, target_all_contrast = next(loader)
         batch_size = input.shape[0]
         if cuda:
             input = input.cuda(device=device)
             target = target.cuda(device=device)
+            target_all_contrast = target_all_contrast.cuda(device=device)
             study_target = study_target.cuda(device=device)
         input = Variable(input)
         target = Variable(target)
         study_target = Variable(study_target)
+        target_all_contrast = Variable(target_all_contrast)
         if cycle:
-            yield {study: input}, {study: (study_target, target,
+            yield {study: input}, {study: (study_target, target, target_all_contrast,
                                            input)}, batch_size
         else:
             inputs[study] = input
-            targets[study] = study_target, target, input
+            targets[study] = study_target, target, target_all_contrast, input
             batch_sizes += batch_size
     if not cycle:
         yield inputs, targets, batch_sizes
@@ -294,7 +333,7 @@ class EnsembleFactoredClassifier(BaseEstimator):
                  shared_embedding_size=30,
                  private_embedding_size=5,
                  activation='linear',
-                 shared_embedding='hard+adversarial',
+                 shared_embedding='hard',
                  batch_size=128, optimizer='sgd',
                  decode=False,
                  loss_weights=None,
@@ -361,45 +400,37 @@ class EnsembleFactoredClassifier(BaseEstimator):
         seeds = check_random_state(self.seed).randint(0, np.iinfo('int32').max,
                                                       size=self.n_runs)
         self.estimators = Parallel(n_jobs=self.n_jobs)(delayed(_fit)(
-            clone(estimator), X, y, study_weights, int(seed))
+            clone(estimator), X, y, study_weights, callback, int(seed))
             for seed in seeds)
         return self
 
     def predict_proba(self, X):
         mean_preds = defaultdict(lambda: 0)
         mean_study_preds = defaultdict(lambda: 0)
+        mean_all_contrast_preds = defaultdict(lambda: 0)
         for estimator in self.estimators:
-            study_preds, preds = estimator.predict_proba(X)
+            study_preds, preds, all_contrast_preds = estimator.predict_proba(X)
             for study in X:
                 mean_preds[study] += preds[study]
                 if study_preds is not None:
                     mean_study_preds[study] += study_preds[study]
+                if all_contrast_preds is not None:
+                    mean_all_contrast_preds[study] += all_contrast_preds[study]
         for study in X:
             mean_preds[study] /= len(self.estimators)
             if study_preds is not None:
                 mean_study_preds[study] /= len(self.estimators)
+            if all_contrast_preds is not None:
+                mean_all_contrast_preds[study] /= len(self.estimators)
         if not study_preds:
             study_preds = None
-        return study_preds, preds
+        if not mean_all_contrast_preds:
+            all_contrast_preds = None
+        return study_preds, preds, all_contrast_preds
 
     def predict(self, X):
-        """Shamelessly copied from FactoredClassifier"""
-        study_preds, preds = self.predict_proba(X)
-        if study_preds is not None:
-            study_preds = {study: np.argmax(study_pred, axis=1)
-                           for study, study_pred in study_preds.items()}
-        else:
-            study_preds = {study: 0 for study in preds}
-        preds = {study: np.argmax(pred, axis=1)
-                 for study, pred in preds.items()}
-        dfs = {}
-        for study in preds:
-            pred = preds[study]
-
-            study_pred = study_preds[study]
-            dfs[study] = pd.DataFrame(
-                dict(contrast=pred, study=study_pred, subject=0))
-        return dfs
+        # Totally scandalous
+        return FactoredClassifier.predict(self, X)
 
     @property
     def coef_(self):
@@ -410,19 +441,20 @@ class EnsembleFactoredClassifier(BaseEstimator):
         return self.estimator.intercept_
 
 
-def _fit(estimator, X, y, study_weights, seed):
+def _fit(estimator, X, y, study_weights, callback, seed):
     estimator.seed = seed
-    estimator.fit(X, y, study_weights)
-    return estimatorder
+    estimator.fit(X, y, study_weights, callback)
+    return estimator
 
 
 class FactoredClassifier(BaseEstimator):
     def __init__(self,
                  skip_connection=False,
+                 adapt_size=0,
                  shared_embedding_size=30,
                  private_embedding_size=5,
                  activation='linear',
-                 shared_embedding='hard+adversarial',
+                 shared_embedding='hard',
                  batch_size=128, optimizer='sgd',
                  decode=False,
                  loss_weights=None,
@@ -454,6 +486,8 @@ class FactoredClassifier(BaseEstimator):
         self.lr = lr
         self.cycle = cycle
 
+        self.adapt_size = adapt_size
+
         self.averaging = averaging
 
         self.fine_tune = fine_tune
@@ -463,9 +497,6 @@ class FactoredClassifier(BaseEstimator):
         self.seed = seed
 
     def fit(self, X, y, study_weights=None, callback=None):
-        assert (self.shared_embedding in ['hard', 'adversarial',
-                                          'hard+adversarial'])
-
         cuda, device = self._check_cuda()
         in_features = next(iter(X.values())).shape[1]
         if self.epoch_counting == 'all':
@@ -479,7 +510,7 @@ class FactoredClassifier(BaseEstimator):
             study_weights = {study: 1. for study in X}
         if self.loss_weights is None:
             loss_weights = {'contrast': 1, 'study': 1, 'penalty': 1,
-                            'decoding': 1}
+                            'decoding': 1, 'all_contrast': 1}
         else:
             loss_weights = self.loss_weights
 
@@ -607,10 +638,10 @@ class FactoredClassifier(BaseEstimator):
                         print('Epoch %.2f, train loss: % .4f'
                               % (epoch, epoch_loss))
                         if callback is not None:
-                            callback(self.n_iter_)
-                    if no_improvement > 10:
-                        print('Stopping at epoch %.2f' % epoch)
-                        break
+                            callback(self, self.n_iter_)
+                    # if no_improvement > 10:
+                    #     print('Stopping at epoch %.2f' % epoch)
+                    #     break
                 old_epoch = epoch
             if self.averaging:
                 best_params = torch.cat([params[None, :]
@@ -624,8 +655,11 @@ class FactoredClassifier(BaseEstimator):
             parameters = []
             for classifier in self.module_.classifiers.values():
                 parameters += list(classifier.parameters())
-            if 'adversarial' in self.shared_embedding:
+            if 'adversarial_study' in self.shared_embedding:
                 parameters += list(self.module_.study_classifier.parameters())
+            if 'adversarial_contrast' in self.shared_embedding:
+                parameters += list(self.module_.all_contrast_classifier.
+                                   parameters())
 
             for study in X:
                 data_loaders[study] = DataLoader(
@@ -674,50 +708,70 @@ class FactoredClassifier(BaseEstimator):
                                              shuffle=False,
                                              pin_memory=cuda)
         preds = {}
-        if 'adversarial' in self.shared_embedding:
+        if 'adversarial_study' in self.shared_embedding:
             study_preds = {}
         else:
             study_preds = None
+        if 'adversarial_contrast' in self.shared_embedding:
+            all_contrast_preds = {}
+        else:
+            all_contrast_preds = None
         self.module_.eval()
         for study, loader in data_loaders.items():
             if study_preds is not None:
                 study_pred = []
+            if all_contrast_preds is not None:
+                all_contrast_pred = []
             pred = []
-            for (input, _, _) in loader:
+            for (input, _, _, _) in loader:
                 if cuda:
                     input = input.cuda(device=device)
                 input = Variable(input, volatile=True)
                 input = {study: input}
-                this_study_pred, this_pred, _, _ = self.module_(input)[study]
+                this_study_pred, this_pred, this_all_contrast_pred,\
+                _, _ = self.module_(input)[study]
                 pred.append(this_pred)
                 if study_preds is not None:
                     study_pred.append(this_study_pred)
+                if all_contrast_preds is not None:
+                    all_contrast_pred.append(this_all_contrast_pred)
             preds[study] = torch.cat(pred)
             if study_preds is not None:
                 study_preds[study] = torch.cat(study_pred)
+            if all_contrast_preds is not None:
+                all_contrast_preds[study] = torch.cat(all_contrast_pred)
         preds = {study: pred.data.cpu().numpy()
                  for study, pred in preds.items()}
         if study_preds is not None:
             study_preds = {study: study_pred.data.cpu().numpy()
                            for study, study_pred in study_preds.items()}
-        return study_preds, preds
+        if all_contrast_preds is not None:
+            all_contrast_preds = {study: all_contrast_pred.data.cpu().numpy()
+                           for study, all_contrast_pred in all_contrast_preds.items()}
+        return study_preds, preds, all_contrast_preds
 
     def predict(self, X):
-        study_preds, preds = self.predict_proba(X)
+        study_preds, preds, all_contrast_preds = self.predict_proba(X)
         if study_preds is not None:
             study_preds = {study: np.argmax(study_pred, axis=1)
                            for study, study_pred in study_preds.items()}
         else:
             study_preds = {study: 0 for study in preds}
+        if all_contrast_preds is not None:
+            for study, all_contrast_pred in all_contrast_preds.items():
+                all_contrast_preds[study] = np.argmax(all_contrast_pred, axis=1)
+        else:
+            all_contrast_preds = {study: 0 for study in preds}
         preds = {study: np.argmax(pred, axis=1)
                  for study, pred in preds.items()}
         dfs = {}
         for study in preds:
             pred = preds[study]
-
             study_pred = study_preds[study]
+            all_contrast_pred = all_contrast_preds[study]
             dfs[study] = pd.DataFrame(
-                dict(contrast=pred, study=study_pred, subject=0))
+                dict(contrast=pred, study=study_pred, all_contrast=all_contrast_pred,
+                     subject=0))
         return dfs
 
     @property
@@ -782,7 +836,7 @@ class FactoredClassifierCV(BaseEstimator):
                  shared_embedding_size=30,
                  private_embedding_size=5,
                  activation='linear',
-                 shared_embedding='hard+adversarial',
+                 shared_embedding='hard',
                  batch_size=128, optimizer='sgd',
                  decode=False,
                  loss_weights=None,
