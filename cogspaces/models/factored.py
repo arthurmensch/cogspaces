@@ -57,7 +57,7 @@ class MultiTaskModule(nn.Module):
                  input_dropout=0.,
                  dropout=0.,
                  decode=False,
-                 adapt_size=1,
+                 adapt_size=0,
                  activation='linear',
                  shared_embedding='hard',
                  skip_connection=False):
@@ -84,13 +84,12 @@ class MultiTaskModule(nn.Module):
 
         if self.adapt_size > 0:
             self.adapters = {}
-
             self.adapters = {study: Linear(in_features, adapt_size, bias=True)
                                              for study in target_sizes}
             for study in target_sizes:
                 self.add_module('adapters_%s' % study,
                                 self.adapters[study])
-        in_features = adapt_size
+            in_features = adapt_size
 
         if shared_embedding_size > 0:
             def get_shared_embedder():
@@ -166,7 +165,7 @@ class MultiTaskModule(nn.Module):
             sub_input = self.input_dropout(sub_input)
 
             if self.adapt_size > 0:
-                sub_input = self.dropout(self.adapters[study](sub_input))
+                sub_input = self.activation(self.adapters[study](sub_input))
 
             if self.shared_embedding_size > 0:
                 shared_embedding = self.activation(self.dropout(
@@ -531,6 +530,7 @@ class FactoredClassifier(BaseEstimator):
             in_features=in_features,
             activation=self.activation,
             decode=self.decode,
+            adapt_size=self.adapt_size,
             shared_embedding=self.shared_embedding,
             shared_embedding_size=shared_embedding_size,
             private_embedding_size=self.private_embedding_size,

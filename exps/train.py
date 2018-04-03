@@ -31,7 +31,7 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies=['archi', 'hcp'],
+        studies=['archi', 'hcp', 'brainomics', 'la5c'],
         target_study='archi'
     )
     model = dict(
@@ -43,7 +43,7 @@ def default():
     factored = dict(
         optimizer='adam',
         adapt_size=0,
-        shared_embedding_size=100,
+        shared_embedding_size=1024,
         private_embedding_size=0,
         shared_embedding='hard',
         skip_connection=False,
@@ -54,11 +54,11 @@ def default():
         decode=False,
         cycle=False,
         batch_size=128,
-        dropout=0.,
+        dropout=0.9,
         loss_weights={'contrast': 1, 'study': 1, 'penalty': 1,
                       'decoding': 1, 'all_contrast': 1},
         lr=1e-3,
-        input_dropout=0)
+        input_dropout=.25)
     factored_cv = dict(
         optimizer='adam',
         shared_embedding_size=100,
