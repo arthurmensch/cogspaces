@@ -283,18 +283,16 @@ class MultiTaskLoss(nn.Module):
             if study_pred is not None:
                 study_loss = F.nll_loss(study_pred, study_target,
                                         size_average=True)
-                this_true_loss = this_true_loss - study_loss * \
-                                 self.loss_weights[
-                                     'study']
+                this_true_loss = (this_true_loss - study_loss *
+                                  self.loss_weights['study'])
                 this_loss += study_loss * self.loss_weights['study']
 
             if all_contrast_pred is not None:
                 all_contrast = F.nll_loss(all_contrast_pred,
                                           all_contrast_target,
                                           size_average=True)
-                this_true_loss = this_true_loss - all_contrast * \
-                                 self.loss_weights[
-                                     'all_contrast']
+                this_true_loss = (this_true_loss - all_contrast *
+                                  self.loss_weights['all_contrast'])
                 this_loss += all_contrast * self.loss_weights['all_contrast']
 
             loss += this_loss * self.study_weights[study]
@@ -308,7 +306,8 @@ def sampler(dictionary, seed=None):
     values /= np.sum(values)
     random_state = check_random_state(seed)
     while True:
-        yield random_state.choice(keys, p=values)
+        res = random_state.choice(keys, p=values)
+        yield res
 
 
 def next_batches(data_loaders, cuda, device, sampling='all',
@@ -330,7 +329,7 @@ def next_batches(data_loaders, cuda, device, sampling='all',
     for _ in outer:
         inputs = {}
         targets = {}
-        batch_sizes = {}
+        batch_sizes = 0
         for study in loaders_iter:
             loader = data_loaders[study]
             input, study_target, target, target_all_contrast = next(loader)
@@ -532,7 +531,13 @@ class FactoredClassifier(BaseEstimator):
         if self.epoch_counting == 'all':
             n_samples = sum(len(this_X) for this_X in X.values())
         elif self.epoch_counting == 'target':
-            n_samples = len(next(iter(X.values()))) * len(X)
+            if self.sampling == 'weighted_random':
+                multiplier = (sum(study_weights.values()) /
+                              next(iter(study_weights.values())))
+            else:
+                multiplier = len(X)
+            print(multiplier)
+            n_samples = len(next(iter(X.values()))) * multiplier
         else:
             raise ValueError
 
@@ -571,16 +576,13 @@ class FactoredClassifier(BaseEstimator):
             target_sizes=target_sizes)
 
         if self.sampling == 'weighted_random':
-            if self.optimizer == 'lbfgs':
-                raise ValueError
-            self.loss_ = MultiTaskLoss(
-                study_weights={study: 1. for study in X},
-                loss_weights=loss_weights)
+            loss_study_weights = {study: 1. for study in X}
         else:
-            if self.sampling == 'cycle' and self.optimizer == 'lbfgs':
-                raise ValueError
-            self.loss_ = MultiTaskLoss(study_weights=study_weights,
-                                       loss_weights=loss_weights)
+            loss_study_weights = study_weights
+
+        self.loss_ = MultiTaskLoss(
+            study_weights=loss_study_weights,
+            loss_weights=loss_weights)
 
         if self.optimizer == 'lbfgs':
             for study in X:
@@ -680,7 +682,7 @@ class FactoredClassifier(BaseEstimator):
                               % (epoch, epoch_loss))
                         if callback is not None:
                             callback(self, self.n_iter_)
-                    if no_improvement > 10:
+                    if no_improvement > 30:
                         print('Stopping at epoch %.2f' % epoch)
                         break
                     if epoch > self.max_iter:
