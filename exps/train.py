@@ -1,10 +1,10 @@
 # Load data
 from math import sqrt
-from os.path import join
 
 import numpy as np
 import pandas as pd
 from joblib import dump
+from os.path import join
 from sacred import Experiment
 from sklearn.metrics import accuracy_score
 
@@ -12,8 +12,7 @@ from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.model_selection import train_test_split
 from cogspaces.models.baseline import MultiLogisticClassifier
-from cogspaces.models.factored import FactoredClassifier, FactoredClassifierCV, \
-    EnsembleFactoredClassifier
+from cogspaces.models.factored import FactoredClassifier, FactoredClassifierCV
 from cogspaces.models.trace import TraceClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
@@ -31,7 +30,7 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies=['archi', 'hcp', 'brainomics', 'la5c'],
+        studies=['archi', 'hcp'],
         target_study='archi'
     )
     model = dict(
@@ -52,7 +51,7 @@ def default():
         # n_jobs=1,
         # n_runs=1,
         decode=False,
-        cycle=False,
+        sampling='weighted_random',
         batch_size=128,
         dropout=0.9,
         loss_weights={'contrast': 1, 'study': 1, 'penalty': 1,
@@ -68,7 +67,7 @@ def default():
         skip_connection=False,
         activation='linear',
         decode=False,
-        cycle=True,
+        sampling='weighted_random',
         batch_size=128,
         dropout=0.,
         n_jobs=20,

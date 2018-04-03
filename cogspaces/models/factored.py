@@ -1,6 +1,7 @@
 import tempfile
 import warnings
 from collections import defaultdict
+from itertools import count
 from math import ceil, floor
 from typing import Dict, Tuple
 
@@ -85,7 +86,7 @@ class MultiTaskModule(nn.Module):
         if self.adapt_size > 0:
             self.adapters = {}
             self.adapters = {study: Linear(in_features, adapt_size, bias=True)
-                                             for study in target_sizes}
+                             for study in target_sizes}
             for study in target_sizes:
                 self.add_module('adapters_%s' % study,
                                 self.adapters[study])
@@ -116,7 +117,6 @@ class MultiTaskModule(nn.Module):
 
         for study, size in target_sizes.items():
             if private_embedding_size > 0:
-
                 self.private_embedders[study] = \
                     Linear(in_features, private_embedding_size, bias=True)
                 self.add_module('private_embedder_%s' % study,
@@ -176,8 +176,9 @@ class MultiTaskModule(nn.Module):
                 else:
                     study_pred = None
                 if 'adversarial_contrast' in self.shared_embedding:
-                    all_contrast_pred = F.log_softmax(self.all_contrast_classifier(
-                        self.gradient_reversal(shared_embedding)), dim=1)
+                    all_contrast_pred = F.log_softmax(
+                        self.all_contrast_classifier(
+                            self.gradient_reversal(shared_embedding)), dim=1)
                 else:
                     all_contrast_pred = None
 
@@ -265,7 +266,7 @@ class MultiTaskLoss(nn.Module):
         loss = 0
         true_loss = 0
         for study in inputs:
-            study_pred, pred, all_contrast_pred, penalty,\
+            study_pred, pred, all_contrast_pred, penalty, \
             decoded = inputs[study]
             study_target, target, all_contrast_target, data = targets[study]
 
@@ -282,20 +283,24 @@ class MultiTaskLoss(nn.Module):
             if study_pred is not None:
                 study_loss = F.nll_loss(study_pred, study_target,
                                         size_average=True)
-                this_true_loss = this_true_loss - study_loss * self.loss_weights[
-                    'study']
+                this_true_loss = this_true_loss - study_loss * \
+                                 self.loss_weights[
+                                     'study']
                 this_loss += study_loss * self.loss_weights['study']
 
             if all_contrast_pred is not None:
-                all_contrast = F.nll_loss(all_contrast_pred, all_contrast_target,
-                                        size_average=True)
-                this_true_loss = this_true_loss - all_contrast * self.loss_weights[
-                    'all_contrast']
+                all_contrast = F.nll_loss(all_contrast_pred,
+                                          all_contrast_target,
+                                          size_average=True)
+                this_true_loss = this_true_loss - all_contrast * \
+                                 self.loss_weights[
+                                     'all_contrast']
                 this_loss += all_contrast * self.loss_weights['all_contrast']
 
             loss += this_loss * self.study_weights[study]
             true_loss += this_true_loss * self.study_weights[study]
         return loss, true_loss.detach()
+
 
 def sampler(dictionary, seed=None):
     keys, values = zip(*list(dictionary.items()))
@@ -305,44 +310,51 @@ def sampler(dictionary, seed=None):
     while True:
         yield random_state.choice(keys, p=values)
 
+
 def next_batches(data_loaders, cuda, device, sampling='all',
                  study_weights=None, seed=None):
     if sampling == 'all':
         inputs = {}
         targets = {}
         batch_sizes = 0
-        loaders_iter = infinite_iter(data_loaders.keys())
+        loaders_iter = data_loaders.keys()
+        outer = count(0, 1)
     else:
+        outer = range(0, 1)
         if sampling == 'cycle':
-            loaders_iter = data_loaders.items()
+            loaders_iter = infinite_iter(data_loaders.keys())
         elif sampling == 'weighted_random':
             loaders_iter = sampler(study_weights, seed=seed)
         else:
             raise ValueError
-
-    for study in data_loaders:
-        loader = data_loaders[study]
-        input, study_target, target, target_all_contrast = next(loader)
-        batch_size = input.shape[0]
-        if cuda:
-            input = input.cuda(device=device)
-            target = target.cuda(device=device)
-            target_all_contrast = target_all_contrast.cuda(device=device)
-            study_target = study_target.cuda(device=device)
-        input = Variable(input)
-        target = Variable(target)
-        study_target = Variable(study_target)
-        target_all_contrast = Variable(target_all_contrast)
+    for _ in outer:
+        inputs = {}
+        targets = {}
+        batch_sizes = {}
+        for study in loaders_iter:
+            loader = data_loaders[study]
+            input, study_target, target, target_all_contrast = next(loader)
+            batch_size = input.shape[0]
+            if cuda:
+                input = input.cuda(device=device)
+                target = target.cuda(device=device)
+                target_all_contrast = target_all_contrast.cuda(device=device)
+                study_target = study_target.cuda(device=device)
+            input = Variable(input)
+            target = Variable(target)
+            study_target = Variable(study_target)
+            target_all_contrast = Variable(target_all_contrast)
+            if sampling == 'all':
+                inputs[study] = input
+                targets[
+                    study] = study_target, target, target_all_contrast, input
+                batch_sizes += batch_size
+            else:
+                yield {study: input}, {
+                    study: (study_target, target, target_all_contrast,
+                            input)}, batch_size
         if sampling == 'all':
-            inputs[study] = input
-            targets[study] = study_target, target, target_all_contrast, input
-            batch_sizes += batch_size
-        else:
-            yield {study: input}, {
-                study: (study_target, target, target_all_contrast,
-                        input)}, batch_size
-    if sampling == 'all':
-        yield inputs, targets, batch_sizes
+            yield inputs, targets, batch_sizes
 
 
 class EnsembleFactoredClassifier(BaseEstimator):
@@ -419,7 +431,7 @@ class EnsembleFactoredClassifier(BaseEstimator):
                                                       size=self.n_runs)
         self.estimators = Parallel(n_jobs=self.n_jobs)(delayed(_fit)(
             clone(estimator), X, y, study_weights, callback, int(seed))
-            for seed in seeds)
+                                                       for seed in seeds)
         return self
 
     def predict_proba(self, X):
@@ -561,8 +573,9 @@ class FactoredClassifier(BaseEstimator):
         if self.sampling == 'weighted_random':
             if self.optimizer == 'lbfgs':
                 raise ValueError
-            self.loss_ = MultiTaskLoss(study_weights={study: 1. for study in X},
-                                       loss_weights=loss_weights)
+            self.loss_ = MultiTaskLoss(
+                study_weights={study: 1. for study in X},
+                loss_weights=loss_weights)
         else:
             if self.sampling == 'cycle' and self.optimizer == 'lbfgs':
                 raise ValueError
@@ -612,7 +625,7 @@ class FactoredClassifier(BaseEstimator):
             elif self.optimizer == 'sgd':
                 optimizer = SGD(self.module_.parameters(), lr=self.lr, )
                 scheduler = CosineAnnealingLR(optimizer, T_max=30,
-                                                    eta_min=1e-3 * self.lr)
+                                              eta_min=1e-3 * self.lr)
             else:
                 raise ValueError
 
@@ -631,12 +644,11 @@ class FactoredClassifier(BaseEstimator):
             best_params = parameters_to_vector(
                 self.module_.parameters())
             best_params_list = [best_params]
-            for inputs, targets, batch_size in next_batches(data_loaders,
-                                                            cuda=cuda,
-                                                            device=device,
-                                                            sampling=self.sampling,
-                                                            study_weights=study_weights,
-                                                            seed=self.seed):
+            for inputs, targets, batch_size in next_batches(
+                    data_loaders, cuda=cuda, device=device,
+                    sampling=self.sampling,
+                    study_weights=study_weights,
+                    seed=self.seed):
                 if scheduler is not None:
                     scheduler.step(self.n_iter_)
                 self.module_.train()
@@ -674,7 +686,7 @@ class FactoredClassifier(BaseEstimator):
                     if epoch > self.max_iter:
                         print('Hard stopping at epoch %.2f' % epoch)
                         break
-            old_epoch = epoch
+                old_epoch = epoch
         if self.averaging:
             best_params = torch.cat([params[None, :]
                                      for params in best_params_list],
@@ -760,7 +772,7 @@ class FactoredClassifier(BaseEstimator):
                     input = input.cuda(device=device)
                 input = Variable(input, volatile=True)
                 input = {study: input}
-                this_study_pred, this_pred, this_all_contrast_pred,\
+                this_study_pred, this_pred, this_all_contrast_pred, \
                 _, _ = self.module_(input)[study]
                 pred.append(this_pred)
                 if study_preds is not None:
@@ -779,7 +791,8 @@ class FactoredClassifier(BaseEstimator):
                            for study, study_pred in study_preds.items()}
         if all_contrast_preds is not None:
             all_contrast_preds = {study: all_contrast_pred.data.cpu().numpy()
-                           for study, all_contrast_pred in all_contrast_preds.items()}
+                                  for study, all_contrast_pred in
+                                  all_contrast_preds.items()}
         return study_preds, preds, all_contrast_preds
 
     def predict(self, X):
@@ -791,7 +804,8 @@ class FactoredClassifier(BaseEstimator):
             study_preds = {study: 0 for study in preds}
         if all_contrast_preds is not None:
             for study, all_contrast_pred in all_contrast_preds.items():
-                all_contrast_preds[study] = np.argmax(all_contrast_pred, axis=1)
+                all_contrast_preds[study] = np.argmax(all_contrast_pred,
+                                                      axis=1)
         else:
             all_contrast_preds = {study: 0 for study in preds}
         preds = {study: np.argmax(pred, axis=1)
@@ -802,7 +816,8 @@ class FactoredClassifier(BaseEstimator):
             study_pred = study_preds[study]
             all_contrast_pred = all_contrast_preds[study]
             dfs[study] = pd.DataFrame(
-                dict(contrast=pred, study=study_pred, all_contrast=all_contrast_pred,
+                dict(contrast=pred, study=study_pred,
+                     all_contrast=all_contrast_pred,
                      subject=0))
         return dfs
 
