@@ -297,13 +297,31 @@ class MultiTaskLoss(nn.Module):
             true_loss += this_true_loss * self.study_weights[study]
         return loss, true_loss.detach()
 
+def sampler(dictionary, seed=None):
+    keys, values = zip(*list(dictionary.items()))
+    values = np.array(values)
+    values /= np.sum(values)
+    random_state = check_random_state(seed)
+    while True:
+        yield random_state.choice(keys, p=values)
 
-def next_batches(data_loaders, cuda, device, cycle=True):
-    if not cycle:
+def next_batches(data_loaders, cuda, device, sampling='all',
+                 study_weights=None, seed=None):
+    if sampling == 'all':
         inputs = {}
         targets = {}
         batch_sizes = 0
-    for study, loader in data_loaders.items():
+        loaders_iter = infinite_iter(data_loaders.keys())
+    else:
+        if sampling == 'cycle':
+            loaders_iter = data_loaders.items()
+        elif sampling == 'weighted_random':
+            loaders_iter = sampler(study_weights, seed=seed)
+        else:
+            raise ValueError
+
+    for study in data_loaders:
+        loader = data_loaders[study]
         input, study_target, target, target_all_contrast = next(loader)
         batch_size = input.shape[0]
         if cuda:
@@ -315,14 +333,15 @@ def next_batches(data_loaders, cuda, device, cycle=True):
         target = Variable(target)
         study_target = Variable(study_target)
         target_all_contrast = Variable(target_all_contrast)
-        if cycle:
-            yield {study: input}, {study: (study_target, target, target_all_contrast,
-                                           input)}, batch_size
-        else:
+        if sampling == 'all':
             inputs[study] = input
             targets[study] = study_target, target, target_all_contrast, input
             batch_sizes += batch_size
-    if not cycle:
+        else:
+            yield {study: input}, {
+                study: (study_target, target, target_all_contrast,
+                        input)}, batch_size
+    if sampling == 'all':
         yield inputs, targets, batch_sizes
 
 
@@ -342,7 +361,7 @@ class EnsembleFactoredClassifier(BaseEstimator):
                  dropout=0.5, input_dropout=0.25,
                  max_iter=10000, verbose=0,
                  device=-1,
-                 cycle=True,
+                 sampling='cycle',
                  averaging=False,
                  seed=None,
                  n_jobs=1,
@@ -361,7 +380,7 @@ class EnsembleFactoredClassifier(BaseEstimator):
         self.verbose = verbose
         self.device = device
         self.lr = lr
-        self.cycle = cycle
+        self.sampling = sampling
         self.fine_tune = fine_tune
         self.loss_weights = loss_weights
         self.seed = seed
@@ -393,7 +412,7 @@ class EnsembleFactoredClassifier(BaseEstimator):
             max_iter=self.max_iter,
             verbose=self.verbose,
             device=self.device,
-            cycle=self.cycle,
+            sampling=self.sampling,
             seed=self.seed)
 
         seeds = check_random_state(self.seed).randint(0, np.iinfo('int32').max,
@@ -463,7 +482,7 @@ class FactoredClassifier(BaseEstimator):
                  dropout=0.5, input_dropout=0.25,
                  max_iter=10000, verbose=0,
                  device=-1,
-                 cycle=True,
+                 sampling='cycle',
                  averaging=False,
                  seed=None):
 
@@ -483,7 +502,7 @@ class FactoredClassifier(BaseEstimator):
         self.verbose = verbose
         self.device = device
         self.lr = lr
-        self.cycle = cycle
+        self.sampling = sampling
 
         self.adapt_size = adapt_size
 
@@ -538,8 +557,17 @@ class FactoredClassifier(BaseEstimator):
             input_dropout=self.input_dropout,
             dropout=self.dropout,
             target_sizes=target_sizes)
-        self.loss_ = MultiTaskLoss(study_weights=study_weights,
-                                   loss_weights=loss_weights)
+
+        if self.sampling == 'weighted_random':
+            if self.optimizer == 'lbfgs':
+                raise ValueError
+            self.loss_ = MultiTaskLoss(study_weights={study: 1. for study in X},
+                                       loss_weights=loss_weights)
+        else:
+            if self.sampling == 'cycle' and self.optimizer == 'lbfgs':
+                raise ValueError
+            self.loss_ = MultiTaskLoss(study_weights=study_weights,
+                                       loss_weights=loss_weights)
 
         if self.optimizer == 'lbfgs':
             for study in X:
@@ -603,22 +631,23 @@ class FactoredClassifier(BaseEstimator):
             best_params = parameters_to_vector(
                 self.module_.parameters())
             best_params_list = [best_params]
-            while self.n_iter_ < self.max_iter:
+            for inputs, targets, batch_size in next_batches(data_loaders,
+                                                            cuda=cuda,
+                                                            device=device,
+                                                            sampling=self.sampling,
+                                                            study_weights=study_weights,
+                                                            seed=self.seed):
                 if scheduler is not None:
                     scheduler.step(self.n_iter_)
-                for inputs, targets, batch_size in next_batches(data_loaders,
-                                                                cuda=cuda,
-                                                                device=device,
-                                                                cycle=self.cycle):
-                    self.module_.train()
-                    optimizer.zero_grad()
-                    preds = self.module_(inputs)
-                    this_loss, this_true_loss = self.loss_(preds, targets)
-                    this_loss.backward()
-                    optimizer.step()
-                    seen_samples += batch_size
-                    epoch_seen_samples += batch_size
-                    epoch_loss += this_true_loss.data[0] * batch_size
+                self.module_.train()
+                optimizer.zero_grad()
+                preds = self.module_(inputs)
+                this_loss, this_true_loss = self.loss_(preds, targets)
+                this_loss.backward()
+                optimizer.step()
+                seen_samples += batch_size
+                epoch_seen_samples += batch_size
+                epoch_loss += this_true_loss.data[0] * batch_size
                 self.n_iter_ = seen_samples / n_samples
                 epoch = floor(self.n_iter_)
                 if epoch > old_epoch:
@@ -639,16 +668,19 @@ class FactoredClassifier(BaseEstimator):
                               % (epoch, epoch_loss))
                         if callback is not None:
                             callback(self, self.n_iter_)
-                    # if no_improvement > 10:
-                    #     print('Stopping at epoch %.2f' % epoch)
-                    #     break
-                old_epoch = epoch
-            if self.averaging:
-                best_params = torch.cat([params[None, :]
-                                         for params in best_params_list],
-                                        dim=0)
-                best_params = torch.mean(best_params, dim=0)
-            vector_to_parameters(best_params, self.module_.parameters())
+                    if no_improvement > 10:
+                        print('Stopping at epoch %.2f' % epoch)
+                        break
+                    if epoch > self.max_iter:
+                        print('Hard stopping at epoch %.2f' % epoch)
+                        break
+            old_epoch = epoch
+        if self.averaging:
+            best_params = torch.cat([params[None, :]
+                                     for params in best_params_list],
+                                    dim=0)
+            best_params = torch.mean(best_params, dim=0)
+        vector_to_parameters(best_params, self.module_.parameters())
 
         if self.fine_tune:
             print('Fine tuning')
@@ -845,7 +877,7 @@ class FactoredClassifierCV(BaseEstimator):
                  dropout=0.5, input_dropout=0.25,
                  max_iter=10000, verbose=0,
                  device=-1,
-                 cycle=True,
+                 sampling='cycle',
                  n_jobs=1,
                  averaging=False,
                  n_splits=3,
@@ -865,7 +897,7 @@ class FactoredClassifierCV(BaseEstimator):
         self.verbose = verbose
         self.device = device
         self.lr = lr
-        self.cycle = cycle
+        self.sampling = sampling
         self.fine_tune = fine_tune
         self.loss_weights = loss_weights
         self.seed = seed
@@ -901,7 +933,7 @@ class FactoredClassifierCV(BaseEstimator):
             max_iter=self.max_iter,
             verbose=self.verbose,
             device=self.device,
-            cycle=self.cycle,
+            sampling=self.sampling,
             seed=self.seed)
 
         if len(sources) > 0:
