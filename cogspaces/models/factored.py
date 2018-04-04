@@ -52,21 +52,21 @@ class Identity(nn.Module):
 
 class MultiTaskModule(nn.Module):
     def __init__(self, in_features,
-                 shared_embedding_size,
-                 private_embedding_size,
+                 shared_latent_size,
+                 private_latent_size,
                  target_sizes,
                  input_dropout=0.,
                  dropout=0.,
                  decode=False,
                  adapt_size=0,
                  activation='linear',
-                 shared_embedding='hard',
+                 shared_latent='hard',
                  skip_connection=False):
         super().__init__()
 
         self.in_features = in_features
-        self.shared_embedding_size = shared_embedding_size
-        self.private_embedding_size = private_embedding_size
+        self.shared_latent_size = shared_latent_size
+        self.private_latent_size = private_latent_size
 
         self.decode = decode
 
@@ -79,7 +79,7 @@ class MultiTaskModule(nn.Module):
         self.input_dropout = nn.Dropout(p=input_dropout)
 
         self.skip_connection = skip_connection
-        self.shared_embedding = shared_embedding
+        self.shared_latent = shared_latent
 
         self.adapt_size = adapt_size
 
@@ -92,11 +92,11 @@ class MultiTaskModule(nn.Module):
                                 self.adapters[study])
             in_features = adapt_size
 
-        if shared_embedding_size > 0:
+        if shared_latent_size > 0:
             def get_shared_embedder():
-                return Linear(in_features, shared_embedding_size, bias=True)
+                return Linear(in_features, shared_latent_size, bias=True)
 
-            if 'hard' in shared_embedding:
+            if 'hard' in shared_latent:
                 shared_embedder = get_shared_embedder()
                 self.add_module('shared_embedder', shared_embedder)
                 self.shared_embedders = {study: shared_embedder
@@ -112,39 +112,38 @@ class MultiTaskModule(nn.Module):
         if self.decode:
             self.decoders = {}
 
-        if private_embedding_size > 0:
+        if private_latent_size > 0:
             self.private_embedders = {}
 
         for study, size in target_sizes.items():
-            if private_embedding_size > 0:
+            if private_latent_size > 0:
                 self.private_embedders[study] = \
-                    Linear(in_features, private_embedding_size, bias=True)
+                    Linear(in_features, private_latent_size, bias=True)
                 self.add_module('private_embedder_%s' % study,
                                 self.private_embedders[study])
 
             self.classifiers[study] = \
-                Linear(shared_embedding_size + private_embedding_size
+                Linear(shared_latent_size + private_latent_size
                        + in_features * skip_connection, size)
             self.add_module('classifier_%s' % study, self.classifiers[study])
 
             if self.decode:
                 self.decoders[study] = \
-                    Linear(shared_embedding_size + private_embedding_size
+                    Linear(shared_latent_size + private_latent_size
                            + in_features * skip_connection, in_features)
                 self.add_module('decoder_%s' % study, self.classifiers[study])
 
-        if 'adversarial_study' in shared_embedding:
+        if 'adversarial' in shared_latent:
+            self.gradient_reversal = GradientReversal()
+        if 'adversarial_study' in shared_latent:
             self.study_classifier = nn.Sequential(
-                Linear(shared_embedding_size, len(target_sizes), bias=True),
+                Linear(shared_latent_size, len(target_sizes), bias=True),
                 nn.ReLU(),
-                Linear(len(target_sizes), len(target_sizes), bias=True),
-                nn.LogSoftmax(dim=1))
-            self.gradient_reversal = GradientReversal()
-        if 'adversarial_contrast' in shared_embedding:
+                Linear(len(target_sizes), len(target_sizes), bias=True))
+        if 'adversarial_contrast' in shared_latent:
             n_all_targets = sum(target_sizes.values())
-            self.all_contrast_classifier = nn.Linear(shared_embedding_size,
+            self.all_contrast_classifier = nn.Linear(shared_latent_size,
                                                      n_all_targets, bias=True)
-            self.gradient_reversal = GradientReversal()
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -154,70 +153,77 @@ class MultiTaskModule(nn.Module):
             elif param.ndimension() == 1:
                 param.data.fill_(0.)
 
-    def forward(self, input):
-        preds = {}
-        for study, sub_input in input.items():
-            embedding = []
-
+    def get_latent(self, inputs):
+        shared_latents = {}
+        private_latents = {}
+        for study, sub_input in inputs.items():
+            latent = []
             if self.skip_connection:
-                embedding.append(sub_input)
+                latent.append(sub_input)
 
             sub_input = self.input_dropout(sub_input)
 
             if self.adapt_size > 0:
                 sub_input = self.activation(self.adapters[study](sub_input))
 
-            if self.shared_embedding_size > 0:
-                shared_embedding = self.activation(self.dropout(
+            if self.shared_latent_size > 0:
+                shared_latents[study] = self.activation(self.dropout(
                     self.shared_embedders[study](sub_input)))
-                if 'adversarial_study' in self.shared_embedding:
-                    study_pred = self.study_classifier(
-                        self.gradient_reversal(shared_embedding))
-                else:
-                    study_pred = None
-                if 'adversarial_contrast' in self.shared_embedding:
-                    all_contrast_pred = F.log_softmax(
-                        self.all_contrast_classifier(
-                            self.gradient_reversal(shared_embedding)), dim=1)
-                else:
-                    all_contrast_pred = None
-
-                embedding.append(shared_embedding)
             else:
-                study_pred = None
-                shared_embedding = None
+                shared_latents[study] = None
 
-            if self.private_embedding_size > 0:
-                private_embedding = self.activation(self.dropout(
+            if self.private_latent_size > 0:
+                private_latents[study] = self.activation(self.dropout(
                     self.private_embedders[study](sub_input)))
-                embedding.append(private_embedding)
             else:
-                private_embedding = None
+                private_latents[study] = None
 
-            if shared_embedding is not None and private_embedding is not None:
-                corr = torch.matmul(shared_embedding.transpose(0, 1),
-                                    private_embedding)
-                corr /= self.private_embedding_size * \
-                        self.shared_embedding_size
+        return shared_latents, private_latents
+
+    def forward(self, inputs):
+        shared_latents, private_latents = self.get_latent(inputs)
+
+        preds = {}
+
+        for study in shared_latents:
+            latent_list = []
+            shared_latent = shared_latents[study]
+            if shared_latent is not None:
+                latent_list.append(shared_latent)
+            private_latent = private_latents[study]
+            if private_latent is not None:
+                latent_list.append(shared_latent)
+            latent = torch.cat(latent_list, dim=1)
+
+            pred_contrast = F.log_softmax(self.classifiers[study](latent),
+                                          dim=1)
+
+            if 'adversarial_study' in self.shared_latent:
+                pred_study = F.log_softmax(self.study_classifier(
+                    self.gradient_reversal(shared_latent)), dim=1)
+            else:
+                pred_study = None
+            if 'adversarial_contrast' in self.shared_latent:
+                pred_all_contrast = F.log_softmax(
+                    self.all_contrast_classifier(
+                        self.gradient_reversal(shared_latent)), dim=1)
+            else:
+                pred_all_contrast = None
+            if (self.shared_latent_size > 0 and
+                    self.private_latent_size > 0 is not None):
+                corr = (torch.matmul(
+                    shared_latent.transpose(0, 1), private_latent) /
+                        self.private_latent_size /
+                        self.shared_latent_size)
                 penalty = torch.sum(torch.abs(corr))
             else:
                 penalty = None
-
-            if len(embedding) > 1:
-                embedding = torch.cat(embedding, dim=1)
-            else:
-                embedding = embedding[0]
-
-            latent = embedding
-            pred = F.log_softmax(self.classifiers[study](latent), dim=1)
-
             if self.decode:
                 decoded = self.decoders[study](latent)
             else:
                 decoded = None
-
-            preds[study] = study_pred, pred, all_contrast_pred, \
-                           penalty, decoded
+            preds[study] = (pred_study, pred_contrast, pred_all_contrast,
+                            penalty, decoded)
         return preds
 
     def coefs(self):
@@ -230,14 +236,14 @@ class MultiTaskModule(nn.Module):
                     coef = coef[:, self.in_features:]
             else:
                 skip_coef = 0
-            if self.shared_embedding_size > 0:
-                shared_coef = coef[:, :self.shared_embedding_size]
+            if self.shared_latent_size > 0:
+                shared_coef = coef[:, :self.shared_latent_size]
                 shared_embed = self.shared_embedders[study][0].weight.data
                 shared_coef = torch.matmul(shared_coef, shared_embed)
             else:
                 shared_coef = 0
-            if self.private_embedding_size > 0:
-                private_coef = coef[:, -self.private_embedding_size:]
+            if self.private_latent_size > 0:
+                private_coef = coef[:, -self.private_latent_size:]
                 private_embed = self.private_embedders[study][0].weight.data
                 private_coef = torch.matmul(private_coef, private_embed)
             else:
@@ -359,10 +365,10 @@ def next_batches(data_loaders, cuda, device, sampling='all',
 class EnsembleFactoredClassifier(BaseEstimator):
     def __init__(self,
                  skip_connection=False,
-                 shared_embedding_size=30,
-                 private_embedding_size=5,
+                 shared_latent_size=30,
+                 private_latent_size=5,
                  activation='linear',
-                 shared_embedding='hard',
+                 shared_latent='hard',
                  batch_size=128, optimizer='sgd',
                  decode=False,
                  loss_weights=None,
@@ -378,9 +384,9 @@ class EnsembleFactoredClassifier(BaseEstimator):
                  n_jobs=1,
                  n_runs=1):
         self.skip_connection = skip_connection
-        self.shared_embedding = shared_embedding
-        self.shared_embedding_size = shared_embedding_size
-        self.private_embedding_size = private_embedding_size
+        self.shared_latent = shared_latent
+        self.shared_latent_size = shared_latent_size
+        self.private_latent_size = private_latent_size
         self.activation = activation
         self.decode = decode
         self.input_dropout = input_dropout
@@ -406,10 +412,10 @@ class EnsembleFactoredClassifier(BaseEstimator):
     def fit(self, X, y, study_weights, callback=None):
         estimator = FactoredClassifier(
             skip_connection=self.skip_connection,
-            shared_embedding_size=self.shared_embedding_size,
-            private_embedding_size=self.private_embedding_size,
+            shared_latent_size=self.shared_latent_size,
+            private_latent_size=self.private_latent_size,
             activation=self.activation,
-            shared_embedding=self.shared_embedding,
+            shared_latent=self.shared_latent,
             batch_size=self.batch_size,
             optimizer=self.optimizer,
             decode=self.decode,
@@ -480,10 +486,10 @@ class FactoredClassifier(BaseEstimator):
     def __init__(self,
                  skip_connection=False,
                  adapt_size=0,
-                 shared_embedding_size=30,
-                 private_embedding_size=5,
+                 shared_latent_size=30,
+                 private_latent_size=5,
                  activation='linear',
-                 shared_embedding='hard',
+                 shared_latent='hard',
                  batch_size=128, optimizer='sgd',
                  decode=False,
                  loss_weights=None,
@@ -495,13 +501,13 @@ class FactoredClassifier(BaseEstimator):
                  device=-1,
                  sampling='cycle',
                  averaging=False,
-                 patience=10,
+                 patience=1000,
                  seed=None):
 
         self.skip_connection = skip_connection
-        self.shared_embedding = shared_embedding
-        self.shared_embedding_size = shared_embedding_size
-        self.private_embedding_size = private_embedding_size
+        self.shared_latent = shared_latent
+        self.shared_latent_size = shared_latent_size
+        self.private_latent_size = private_latent_size
         self.activation = activation
         self.decode = decode
 
@@ -560,19 +566,19 @@ class FactoredClassifier(BaseEstimator):
         for study in X:
             target_sizes[study] = int(y[study]['contrast'].max()) + 1
 
-        if self.shared_embedding_size == 'auto':
-            shared_embedding_size = sum(target_sizes.values())
+        if self.shared_latent_size == 'auto':
+            shared_latent_size = sum(target_sizes.values())
         else:
-            shared_embedding_size = self.shared_embedding_size
+            shared_latent_size = self.shared_latent_size
 
         self.module_ = MultiTaskModule(
             in_features=in_features,
             activation=self.activation,
             decode=self.decode,
             adapt_size=self.adapt_size,
-            shared_embedding=self.shared_embedding,
-            shared_embedding_size=shared_embedding_size,
-            private_embedding_size=self.private_embedding_size,
+            shared_latent=self.shared_latent,
+            shared_latent_size=shared_latent_size,
+            private_latent_size=self.private_latent_size,
             skip_connection=self.skip_connection,
             input_dropout=self.input_dropout,
             dropout=self.dropout,
@@ -624,116 +630,105 @@ class FactoredClassifier(BaseEstimator):
             data_loaders = {study: infinite_iter(loader) for study, loader in
                             data_loaders.items()}
 
-            if self.optimizer == 'adam':
-                optimizer = Adam(self.module_.parameters(), lr=self.lr, )
-                scheduler = None
-            elif self.optimizer == 'sgd':
-                optimizer = SGD(self.module_.parameters(), lr=self.lr, )
-                scheduler = CosineAnnealingLR(optimizer, T_max=30,
-                                              eta_min=1e-3 * self.lr)
-            else:
-                raise ValueError
-
             self.n_iter_ = 0
-            # Logging logic
             old_epoch = -1
             seen_samples = 0
-            epoch_loss = 0
-            best_loss = float('inf')
-            epoch_seen_samples = 0
-            no_improvement = 0
-            if self.verbose != 0:
-                report_every = ceil(self.max_iter / self.verbose)
-            else:
-                report_every = None
-            best_params = parameters_to_vector(
-                self.module_.parameters())
-            best_params_list = [best_params]
-            for inputs, targets, batch_size in next_batches(
-                    data_loaders, cuda=cuda, device=device,
-                    sampling=self.sampling,
-                    study_weights=study_weights,
-                    seed=self.seed):
-                if scheduler is not None:
-                    scheduler.step(self.n_iter_)
-                self.module_.train()
-                optimizer.zero_grad()
-                preds = self.module_(inputs)
-                this_loss, this_true_loss = self.loss_(preds, targets)
-                this_loss.backward()
-                optimizer.step()
-                seen_samples += batch_size
-                epoch_seen_samples += batch_size
-                epoch_loss += this_true_loss.data[0] * batch_size
-                self.n_iter_ = seen_samples / n_samples
-                epoch = floor(self.n_iter_)
-                if epoch > old_epoch:
-                    epoch_loss /= epoch_seen_samples
-                    if epoch_loss > best_loss:
-                        no_improvement += 1
-                    else:
-                        no_improvement = 0
-                        best_loss = epoch_loss
-                        best_params = parameters_to_vector(
-                            self.module_.parameters())
-                        if self.averaging:
-                            if len(best_params_list) >= 5:
-                                best_params_list = best_params_list[1:]
-                            best_params_list.append(best_params)
-                    if report_every is not None and epoch % report_every == 0:
-                        print('Epoch %.2f, train loss: % .4f'
-                              % (epoch, epoch_loss))
-                        if callback is not None:
-                            callback(self, self.n_iter_)
-                    if no_improvement > self.patience:
-                        print('Stopping at epoch %.2f' % epoch)
-                        break
-                    if epoch > self.max_iter:
-                        print('Hard stopping at epoch %.2f' % epoch)
-                        break
-                old_epoch = epoch
-        if self.averaging:
-            best_params = torch.cat([params[None, :]
-                                     for params in best_params_list],
-                                    dim=0)
-            best_params = torch.mean(best_params, dim=0)
-        vector_to_parameters(best_params, self.module_.parameters())
+            if self.fine_tune:
+                phases = ['joined', 'fine_tune']
+            for phase in phases:
+                if phase == 'joined':
+                    params = self.module_.parameters()
+                    max_iter = self.max_iter
+                    weight_decay = 0
+                else:
+                    params = []
+                    for classifier in self.module_.classifiers.values():
+                        params += list(classifier.parameters())
+                    shared_embedder = next(iter(
+                        self.module_.shared_embedders.values()))
+                    weight = shared_embedder.weight.data
+                    d = weight.shape[0]
+                    rot = weight.new(d, d)
+                    nn.init.orthogonal(rot)
+                    # shared_embedder.weight.data = rot @ weight
+                    # self.module_.dropout.p = 0.
+                    # self.module_.input_dropout.p = 0.
+                    max_iter = old_epoch + 100
+                    weight_decay = 0
+                if self.optimizer == 'adam':
+                    optimizer = Adam(params, lr=self.lr,
+                                     weight_decay=weight_decay)
+                    scheduler = None
+                elif self.optimizer == 'sgd':
+                    optimizer = SGD(params, lr=self.lr,
+                                    weight_decay=weight_decay)
+                    scheduler = CosineAnnealingLR(optimizer, T_max=30,
+                                                  eta_min=1e-3 * self.lr)
+                else:
+                    raise ValueError
 
-        if self.fine_tune:
-            print('Fine tuning')
-            parameters = []
-            for classifier in self.module_.classifiers.values():
-                parameters += list(classifier.parameters())
-            if 'adversarial_study' in self.shared_embedding:
-                parameters += list(self.module_.study_classifier.parameters())
-            if 'adversarial_contrast' in self.shared_embedding:
-                parameters += list(self.module_.all_contrast_classifier.
-                                   parameters())
-
-            for study in X:
-                data_loaders[study] = DataLoader(
-                    NiftiTargetDataset(X[study], y[study]),
-                    len(X[study]), shuffle=False, pin_memory=cuda)
-
-            # Desactivate dropout
-            def closure():
-                data_loaders_iter = {study: iter(data_loader_) for study,
-                                                                   data_loader_
-                                     in data_loaders.items()}
-                inputs_, targets_, _ = next_batches(data_loaders_iter,
-                                                    cuda=cuda,
-                                                    device=device)
-                self.module_.eval()
-                preds_ = self.module_(inputs_)
-                return self.loss_(preds_, targets_)
-
-            optimizer = LBFGSScipy(parameters,
-                                   callback=callback,
-                                   max_iter=self.max_iter,
-                                   tolerance_grad=0,
-                                   tolerance_change=0,
-                                   report_every=2)
-            optimizer.step(closure)
+                # Logging logic
+                best_loss = float('inf')
+                epoch_loss = 0
+                epoch_seen_samples = 0
+                no_improvement = 0
+                if self.verbose != 0:
+                    report_every = ceil(self.max_iter / self.verbose)
+                else:
+                    report_every = None
+                best_params = parameters_to_vector(
+                    self.module_.parameters())
+                best_params_list = [best_params]
+                for inputs, targets, batch_size in next_batches(
+                        data_loaders, cuda=cuda, device=device,
+                        sampling=self.sampling,
+                        study_weights=study_weights,
+                        seed=self.seed):
+                    if scheduler is not None:
+                        scheduler.step(self.n_iter_)
+                    self.module_.train()
+                    optimizer.zero_grad()
+                    preds = self.module_(inputs)
+                    this_loss, this_true_loss = self.loss_(preds, targets)
+                    this_loss.backward()
+                    optimizer.step()
+                    seen_samples += batch_size
+                    epoch_seen_samples += batch_size
+                    epoch_loss += this_true_loss.data[0] * batch_size
+                    self.n_iter_ = seen_samples / n_samples
+                    epoch = floor(self.n_iter_)
+                    if epoch > old_epoch:
+                        epoch_loss /= epoch_seen_samples
+                        if epoch_loss > best_loss:
+                            no_improvement += 1
+                        else:
+                            no_improvement = 0
+                            best_loss = epoch_loss
+                            best_params = parameters_to_vector(
+                                self.module_.parameters())
+                            if self.averaging:
+                                if len(best_params_list) >= 5:
+                                    best_params_list = best_params_list[1:]
+                                best_params_list.append(best_params)
+                        if report_every is not None and epoch % report_every == 0:
+                            print('Epoch %.2f, train loss: % .4f'
+                                  % (epoch, epoch_loss))
+                            if callback is not None:
+                                callback(self, self.n_iter_)
+                        if no_improvement > self.patience:
+                            print('Stopping at epoch %.2f' % epoch)
+                            break
+                        if epoch >= max_iter:
+                            print('Hard stopping at epoch %.2f' % epoch)
+                            break
+                    old_epoch = epoch
+        if 'adversarial' not in self.shared_latent:
+            if self.averaging:
+                best_params = torch.cat([params[None, :]
+                                         for params in best_params_list],
+                                        dim=0)
+                best_params = torch.mean(best_params, dim=0)
+                vector_to_parameters(best_params, self.module_.parameters())
         return self
 
     def _check_cuda(self):
@@ -747,6 +742,28 @@ class FactoredClassifier(BaseEstimator):
             cuda = device > -1
         return cuda, device
 
+    def predict_latent(self, X):
+        cuda, device = self._check_cuda()
+        data_loaders = {}
+        for study, this_X in X.items():
+            data_loaders[study] = DataLoader(NiftiTargetDataset(this_X),
+                                             batch_size=len(this_X),
+                                             shuffle=False,
+                                             pin_memory=cuda)
+        self.module_.eval()
+        latents = {}
+        for study, loader in data_loaders.items():
+            latent = []
+            for (input, _, _, _) in loader:
+                if cuda:
+                    input = input.cuda(device=device)
+                input = Variable(input, volatile=True)
+                input = {study: input}
+                this_latent, _ = self.module_.get_latent(input)
+                latent.append(this_latent[study])
+            latents[study] = torch.cat(latent, dim=0).data.cpu().numpy()
+        return latents
+
     def predict_proba(self, X):
         cuda, device = self._check_cuda()
 
@@ -757,11 +774,11 @@ class FactoredClassifier(BaseEstimator):
                                              shuffle=False,
                                              pin_memory=cuda)
         preds = {}
-        if 'adversarial_study' in self.shared_embedding:
+        if 'adversarial_study' in self.shared_latent:
             study_preds = {}
         else:
             study_preds = None
-        if 'adversarial_contrast' in self.shared_embedding:
+        if 'adversarial_contrast' in self.shared_latent:
             all_contrast_preds = {}
         else:
             all_contrast_preds = None
@@ -885,10 +902,10 @@ class FactoredClassifier(BaseEstimator):
 class FactoredClassifierCV(BaseEstimator):
     def __init__(self,
                  skip_connection=False,
-                 shared_embedding_size=30,
-                 private_embedding_size=5,
+                 shared_latent_size=30,
+                 private_latent_size=5,
                  activation='linear',
-                 shared_embedding='hard',
+                 shared_latent='hard',
                  batch_size=128, optimizer='sgd',
                  decode=False,
                  loss_weights=None,
@@ -904,9 +921,9 @@ class FactoredClassifierCV(BaseEstimator):
                  n_runs=10,
                  seed=None):
         self.skip_connection = skip_connection
-        self.shared_embedding = shared_embedding
-        self.shared_embedding_size = shared_embedding_size
-        self.private_embedding_size = private_embedding_size
+        self.shared_latent = shared_latent
+        self.shared_latent_size = shared_latent_size
+        self.private_latent_size = private_latent_size
         self.activation = activation
         self.decode = decode
         self.input_dropout = input_dropout
@@ -935,10 +952,10 @@ class FactoredClassifierCV(BaseEstimator):
 
         classifier = EnsembleFactoredClassifier(
             skip_connection=self.skip_connection,
-            shared_embedding_size=self.shared_embedding_size,
-            private_embedding_size=self.private_embedding_size,
+            shared_latent_size=self.shared_latent_size,
+            private_latent_size=self.private_latent_size,
             activation=self.activation,
-            shared_embedding=self.shared_embedding,
+            shared_latent=self.shared_latent,
             batch_size=self.batch_size,
             optimizer=self.optimizer,
             decode=self.decode,

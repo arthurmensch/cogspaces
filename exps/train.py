@@ -25,45 +25,46 @@ exp = Experiment('multi_studies')
 def default():
     seed = 10
     system = dict(
-        device=0,
+        device=-1,
         verbose=10,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies='all',
+        studies=['archi'],
         target_study='archi'
     )
     model = dict(
         normalize=True,
         estimator='factored',
-        study_weight='sqrt_sample',
-        max_iter=500,
+        study_weight='study',
+        max_iter=1000,
     )
     factored = dict(
         optimizer='adam',
-        adapt_size=100,
-        shared_embedding_size=100,
-        private_embedding_size=0,
-        shared_embedding='hard',
+        adapt_size=0,
+        shared_latent_size=128,
+        private_latent_size=0,
+        shared_latent='hard',
         skip_connection=False,
-        activation='relu',
+        activation='linear',
         epoch_counting='all',
-        sampling='weighted_random',
+        sampling='cycle',
         # n_jobs=1,
         # n_runs=1,
-        decode=False,
+        fine_tune=False,
+        decode=True,
         batch_size=128,
         dropout=0.75,
-        loss_weights={'contrast': 1, 'study': 1, 'penalty': 1,
+        loss_weights={'contrast': 0, 'study': 1, 'penalty': 1,
                       'decoding': 1, 'all_contrast': 1},
         lr=1e-3,
-        input_dropout=.25)
+        input_dropout=0.)
     factored_cv = dict(
         optimizer='adam',
-        shared_embedding_size=1024,
-        private_embedding_size=0,
+        shared_latent_size=10,
+        private_latent_size=0,
         averaging=False,
-        shared_embedding='hard',
+        shared_latent='hard',
         skip_connection=False,
         activation='linear',
         decode=False,
@@ -85,7 +86,7 @@ def default():
 
 @exp.capture
 def save_output(target_encoder, standard_scaler, estimator,
-                test_preds, _run):
+                test_preds, test_latents, train_latents, _run):
     if not _run.unobserved:
         try:
             observer = next(filter(lambda x:
@@ -97,6 +98,8 @@ def save_output(target_encoder, standard_scaler, estimator,
         dump(standard_scaler, join(observer.dir, 'standard_scaler.pkl'))
         dump(estimator, join(observer.dir, 'estimator.pkl'))
         dump(test_preds, join(observer.dir, 'test_preds.pkl'))
+        dump(test_latents, join(observer.dir, 'test_latents.pkl'))
+        dump(train_latents, join(observer.dir, 'train_latents.pkl'))
 
 
 @exp.capture(prefix='data')
@@ -189,6 +192,9 @@ def train(system, model, factored, factored_cv, trace, logistic,
 
     test_preds = estimator.predict(test_data)
 
+    test_latents = estimator.predict_latent(test_data)
+    train_latents = estimator.predict_latent(train_data)
+
     test_scores = {}
     for study in test_preds:
         test_scores[study] = accuracy_score(test_preds[study]['contrast'],
@@ -200,7 +206,8 @@ def train(system, model, factored, factored_cv, trace, logistic,
         test_preds[study] = pd.concat([test_preds[study], test_targets[study]],
                                       axis=1,
                                       keys=['pred', 'true'], names=['target'])
-    save_output(target_encoder, standard_scaler, estimator, test_preds)
+    save_output(target_encoder, standard_scaler, estimator, test_preds,
+                test_latents, train_latents)
     return test_scores
 
 
