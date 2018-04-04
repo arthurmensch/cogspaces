@@ -187,7 +187,7 @@ def study_selection():
     model = dict(
         normalize=True,
         estimator='factored_cv',
-        study_weight='study',
+        study_weight='sqrt_sample',
         max_iter=400,
     )
     factored_cv = dict(
@@ -197,13 +197,14 @@ def study_selection():
         shared_embedding='hard',
         skip_connection=False,
         activation='linear',
-        cycle=True,
+        sampling='weighted_sample',
+        epoch_counting='target',
         averaging=False,
         batch_size=128,
         dropout=0.75,
         n_jobs=1,
         n_splits=10,
-        n_runs=10,
+        n_runs=3,
         lr=1e-3,
         input_dropout=0.25,
     )
@@ -408,7 +409,7 @@ if __name__ == '__main__':
                                        'seed': seed})
 
     elif grid == 'study_selection':
-        output_dir = join(get_output_dir(), 'study_selection_4')
+        output_dir = join(get_output_dir(), 'study_selection_6')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         exp.config(study_selection)
@@ -419,8 +420,8 @@ if __name__ == '__main__':
         config_updates = []
         seeds = check_random_state(1).randint(0, 100000, size=10)
         for seed in seeds:
-            for study in studies_list:
-                for study_weight in ['study', 'sqrt_sample']:
+            for study in ['archi', 'ds105', 'ds001', 'brainomics', 'ds107B']:
+                for study_weight in ['sqrt_sample']:
                     config_updates.append({'data.studies': 'all',
                                            'data.target_study': study,
                                            'model.study_weight': study_weight,
@@ -454,7 +455,7 @@ if __name__ == '__main__':
     else:
         raise ValueError('Wrong argument')
     _id = get_id(output_dir)
-    Parallel(n_jobs=60, verbose=100)(delayed(run_exp)(output_dir,
+    Parallel(n_jobs=24, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       mock=False,
                                                       _id=_id + i)

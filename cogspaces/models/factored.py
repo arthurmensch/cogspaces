@@ -495,6 +495,7 @@ class FactoredClassifier(BaseEstimator):
                  device=-1,
                  sampling='cycle',
                  averaging=False,
+                 patience=10,
                  seed=None):
 
         self.skip_connection = skip_connection
@@ -524,6 +525,8 @@ class FactoredClassifier(BaseEstimator):
         self.loss_weights = loss_weights
 
         self.seed = seed
+
+        self.patience = patience
 
     def fit(self, X, y, study_weights=None, callback=None):
         cuda, device = self._check_cuda()
@@ -682,7 +685,7 @@ class FactoredClassifier(BaseEstimator):
                               % (epoch, epoch_loss))
                         if callback is not None:
                             callback(self, self.n_iter_)
-                    if no_improvement > 30:
+                    if no_improvement > self.patience:
                         print('Stopping at epoch %.2f' % epoch)
                         break
                     if epoch > self.max_iter:

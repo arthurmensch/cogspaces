@@ -25,8 +25,8 @@ exp = Experiment('multi_studies')
 def default():
     seed = 10
     system = dict(
-        device=-1,
-        verbose=100,
+        device=0,
+        verbose=10,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
@@ -41,26 +41,26 @@ def default():
     )
     factored = dict(
         optimizer='adam',
-        adapt_size=0,
-        shared_embedding_size=1024,
+        adapt_size=100,
+        shared_embedding_size=100,
         private_embedding_size=0,
         shared_embedding='hard',
         skip_connection=False,
-        activation='linear',
+        activation='relu',
         epoch_counting='all',
+        sampling='weighted_random',
         # n_jobs=1,
         # n_runs=1,
         decode=False,
-        sampling='all',
         batch_size=128,
-        dropout=0.875,
+        dropout=0.75,
         loss_weights={'contrast': 1, 'study': 1, 'penalty': 1,
                       'decoding': 1, 'all_contrast': 1},
         lr=1e-3,
         input_dropout=.25)
     factored_cv = dict(
         optimizer='adam',
-        shared_embedding_size=100,
+        shared_embedding_size=1024,
         private_embedding_size=0,
         averaging=False,
         shared_embedding='hard',
