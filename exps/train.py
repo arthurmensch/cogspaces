@@ -13,6 +13,7 @@ from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.model_selection import train_test_split
 from cogspaces.models.baseline import MultiLogisticClassifier
 from cogspaces.models.factored import FactoredClassifier, FactoredClassifierCV
+from cogspaces.models.factored_fast import MultiStudyClassifier
 from cogspaces.models.trace import TraceClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
@@ -30,15 +31,26 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies=['archi', 'la5c'],
+        studies='all',
         target_study='archi'
     )
     model = dict(
         normalize=False,
-        estimator='factored',
-        study_weight='study',
+        estimator='factored_fast',
+        study_weight='sqrt_sample',
         max_iter=500,
     )
+    factored_fast = dict(
+        optimizer='adam',
+        latent_size=128,
+        activation='linear',
+        epoch_counting='all',
+        sampling='random',
+        batch_size=128,
+        dropout=0.75,
+        lr=1e-3,
+        input_dropout=0.25)
+
     factored = dict(
         optimizer='adam',
         adapt_size=0,
@@ -123,6 +135,7 @@ def load_data(source_dir, studies, target_study):
 
 @exp.main
 def train(system, model, factored, factored_cv, trace, logistic,
+          factored_fast,
           _run, _seed):
     print(_seed)
     data, target = load_data()
@@ -154,6 +167,12 @@ def train(system, model, factored, factored_cv, trace, logistic,
                                          max_iter=model['max_iter'],
                                          seed=_seed,
                                          **factored_cv)
+    elif model['estimator'] == 'factored_fast':
+        estimator = MultiStudyClassifier(verbose=system['verbose'],
+                                         device=system['device'],
+                                         max_iter=model['max_iter'],
+                                         seed=_seed,
+                                         **factored_fast)
     elif model['estimator'] == 'trace':
         estimator = TraceClassifier(verbose=system['verbose'],
                                     max_iter=model['max_iter'],

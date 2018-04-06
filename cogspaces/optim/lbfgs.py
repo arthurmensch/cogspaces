@@ -158,7 +158,7 @@ class LBFGSScipy(Optimizer):
                       maxfun=max_eval,
 
                       factr=tolerance_change / eps, pgtol=tolerance_grad,
-                      # disp=100,
+                      disp=100,
                       epsilon=0,
                       m=history_size,
                       callback=callback if self.callback is not None else None)
