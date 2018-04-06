@@ -28,25 +28,46 @@ def plot_components(components, names, output_dir):
             plt.close(fig)
 
 
-def compute_components(output_dir, lstsq):
+def compute_latent(output_dir, lstsq):
     estimator = load(join(output_dir, 'estimator.pkl'))
     target_encoder = load(join(output_dir, 'target_encoder.pkl'))
     standard_scaler = load(join(output_dir, 'standard_scaler.pkl'))
 
     modl_atlas = fetch_atlas_modl()
     dictionary = modl_atlas['components512']
-    components, names = maps_from_model(estimator, dictionary,
-                                        target_encoder,
-                                        standard_scaler,
-                                        lstsq=lstsq)
-    plot_dir = join(output_dir, 'plot')
-    if not os.path.exists(plot_dir):
-        os.makedirs(plot_dir)
-    dump(names, join(plot_dir, 'names.pkl'))
-    for study, this_components in components.items():
-        this_components.to_filename(join(plot_dir,
-                                         'components_%s.nii.gz' % study))
-        plot_components(components, names, plot_dir)
+    mask = fetch_mask()['hcp']
+    masker = NiftiMasker(mask_img=mask).fit()
+    dictionary = masker.transform(dictionary)
+    if lstsq:
+        gram = dictionary.dot(dictionary.T)
+        dictionary = np.linalg.inv(gram).dot(dictionary)
+
+    module = estimator.module_
+    embedder = module.shared_embedder
+    latent_weight = embedder.weight.data.cpu().numpy()
+    projector = dictionary.dot(latent_weight)
+
+    print(projector)
+
+#
+#
+# def compute_components(output_dir, lstsq):
+#     estimator = load(join(output_dir, 'estimator.pkl'))
+#     target_encoder = load(join(output_dir, 'target_encoder.pkl'))
+#     standard_scaler = load(join(output_dir, 'standard_scaler.pkl'))
+#
+#     modl_atlas = fetch_atlas_modl()
+#     dictionary = modl_atlas['components512']
+#     plot_dir = join(output_dir, 'plot')
+#     if not os.path.exists(plot_dir):
+#         os.makedirs(plot_dir)
+#     dump(names, join(plot_dir, 'names.pkl'))
+#     for study, this_components in components.items():
+#         this_components.to_filename(join(plot_dir,
+#                                          'components_%s.nii.gz' % study))
+#         plot_components(components, names, plot_dir)
+#
+#
 
 def plot_activation(output_dir):
     test_latents = load(join(output_dir, 'test_latents.pkl'))
@@ -97,7 +118,7 @@ def plot_activation(output_dir):
 
 
 if __name__ == '__main__':
-    compute_components(join(get_output_dir(), 'multi_studies', '954'), True)
+    compute_components(join(get_output_dir(), 'multi_studies', '298'), True)
     # compute_components(join(get_output_dir(), 'multi_studies', '107'),
     #                    lstsq=True)
     # plot_activation(join(get_output_dir(), 'multi_studies', '922'))

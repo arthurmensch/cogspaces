@@ -97,23 +97,34 @@ class MultiTaskModule(nn.Module):
             def get_shared_embedder():
                 return Linear(in_features, shared_latent_size, bias=True)
 
+            def get_batch_norm():
+                if batch_norm:
+                    return BatchNorm1d(
+                        num_features=(shared_latent_size + private_latent_size
+                                      + in_features * skip_connection))
+                else:
+                    return Identity()
+
             if 'hard' in shared_latent:
                 shared_embedder = get_shared_embedder()
                 self.add_module('shared_embedder', shared_embedder)
                 self.shared_embedders = {study: shared_embedder
                                          for study in target_sizes}
-                if batch_norm:
-                    self.shared_batch_norm = BatchNorm1d(
-                        num_features=shared_latent_size + private_latent_size + in_features * skip_connection)
-                else:
-                    self.shared_batch_norm = Identity()
+                # shared_batch_norm = get_batch_norm()
+                # self.add_module('shared_batch_norm', shared_batch_norm)
+                # self.shared_batch_norms = {study: shared_batch_norm
+                #                           for study in target_sizes}
             else:
                 self.shared_embedders = {study: get_shared_embedder()
                                          for study in target_sizes}
                 for study in target_sizes:
                     self.add_module('shared_embedder_%s' % study,
                                     self.shared_embedders[study])
-
+        self.shared_batch_norms = {study: get_batch_norm()
+                                 for study in target_sizes}
+        for study in target_sizes:
+            self.add_module('shared_batch_norm_%s' % study,
+                            self.shared_batch_norms[study])
         self.classifiers = {}
         if self.decode:
             self.decoders = {}
@@ -167,6 +178,13 @@ class MultiTaskModule(nn.Module):
             elif param.ndimension() == 1:
                 param.data.fill_(0.)
 
+    def train(self, mode=True, freeze_batch_norm=False):
+        super().train(mode)
+        if freeze_batch_norm:
+            for study, batch_norm in self.shared_batch_norms.items():
+                batch_norm.eval()
+
+
     def get_latent(self, inputs):
         shared_latents = {}
         private_latents = {}
@@ -182,14 +200,14 @@ class MultiTaskModule(nn.Module):
 
             if self.shared_latent_size > 0:
                 shared_latents[study] = self.dropout(
-                    self.activation(self.shared_batch_norm(
+                    self.shared_batch_norms[study](self.activation(
                         self.shared_embedders[study](sub_input))))
             else:
                 shared_latents[study] = None
 
             if self.private_latent_size > 0:
                 private_latents[study] = self.dropout(
-                    self.activation(self.private_batch_norm[study](
+                    self.private_batch_norms[study](self.activation(
                         self.private_embedders[study](sub_input))))
             else:
                 private_latents[study] = None
@@ -241,6 +259,11 @@ class MultiTaskModule(nn.Module):
             preds[study] = (pred_study, pred_contrast, pred_all_contrast,
                             penalty, decoded)
         return preds
+
+    def latent(self):
+        return {study: shared_embedder.weight.data for study, shared_embedder
+                in self.shared_embedders.items()}
+
 
     def coefs(self):
         coefs = {}
@@ -331,6 +354,18 @@ def sampler(dictionary, seed=None):
         res = random_state.choice(keys, p=values)
         yield res
 
+def printnorm(self, input, output):
+    # input is a tuple of packed inputs
+    # output is a Variable. output.data is the Tensor we are interested
+    print('Inside ' + self.__class__.__name__ + ' forward')
+    print('')
+    print('input: ', type(input))
+    print('input[0]: ', type(input[0]))
+    print('output: ', type(output))
+    print('')
+    print('input size:', input[0].size())
+    print('output size:', output.data.size())
+    print('output norm:', output.data.norm())
 
 def next_batches(data_loaders, cuda, device, sampling='all',
                  study_weights=None, seed=None):
@@ -670,11 +705,12 @@ class FactoredClassifier(BaseEstimator):
                 if phase == 'joined':
                     max_iter = self.max_iter
                 else:
-                    shared_embedder = next(iter(
-                        self.module_.shared_embedders.values()))
-                    shared_embedder.weight.requires_grad = False
-                    shared_embedder.bias.requires_grad = False
-                    # optimizer.param_groups[0]['lr'] *= .1
+                    self.module_.input_dropout.p = 0.
+                    # self.module_.dropout.p = 0.75
+                    for study in X:
+                        self.module_.shared_embedders[study].weight.requires_grad = False
+                        self.module_.shared_embedders[study].bias.requires_grad = False
+                    optimizer.param_groups[0]['lr'] *= .1
                     # d = weight.shape[0]
                     # rot = weight.new(d, d)
                     # nn.init.orthogonal(rot)
@@ -705,7 +741,9 @@ class FactoredClassifier(BaseEstimator):
                         seed=self.seed):
                     if scheduler is not None:
                         scheduler.step(self.n_iter_)
-                    self.module_.train()
+                    self.module_.train(
+                        # freeze_batch_norm=phase == 'fine_tune'
+                    )
                     optimizer.zero_grad()
                     preds = self.module_(inputs)
                     this_loss, this_true_loss = self.loss_(preds, targets)

@@ -26,15 +26,15 @@ def default():
     seed = 10
     system = dict(
         device=-1,
-        verbose=10,
+        verbose=5,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies='all',
+        studies=['archi', 'la5c'],
         target_study='archi'
     )
     model = dict(
-        normalize=True,
+        normalize=False,
         estimator='factored',
         study_weight='study',
         max_iter=500,
@@ -42,7 +42,7 @@ def default():
     factored = dict(
         optimizer='adam',
         adapt_size=0,
-        shared_latent_size=1024,
+        shared_latent_size=64,
         private_latent_size=0,
         shared_latent='hard',
         skip_connection=False,

@@ -10,8 +10,19 @@ from cogspaces.datasets.utils import fetch_mask
 
 def maps_from_model(estimator, dictionary, target_encoder, standard_scaler,
                     lstsq=False):
-    coef, names = coefs_from_model(estimator, target_encoder,
-                                   standard_scaler)
+    coef, names =     coef = estimator.coef_
+    scale = standard_scaler.scale_
+    classes = target_encoder.classes_
+
+    names = {}
+    for study in coef:
+        this_scale = scale[study]
+        this_coef = coef[study]
+        these_names = classes[study]
+        this_coef = this_coef / this_scale[:, None]
+        coef[study] = this_coef
+        names[study] = these_names
+
     mask = fetch_mask()['hcp']
     masker = NiftiMasker(mask_img=mask).fit()
     # components.shape = (n_components, n_voxels)
@@ -28,17 +39,6 @@ def maps_from_model(estimator, dictionary, target_encoder, standard_scaler,
 
 
 def coefs_from_model(estimator, target_encoder, standard_scaler):
-    coef = estimator.coef_
-    scale = standard_scaler.scale_
-    classes = target_encoder.classes_
 
-    names = {}
-    for study in coef:
-        this_scale = scale[study]
-        this_coef = coef[study]
-        these_names = classes[study]
-        this_coef = this_coef / this_scale[:, None]
-        coef[study] = this_coef
-        names[study] = these_names
 
     return coef, names
