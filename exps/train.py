@@ -30,35 +30,34 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies=['archi'],
+        studies='all',
         target_study='archi'
     )
     model = dict(
         normalize=True,
         estimator='factored',
         study_weight='study',
-        max_iter=1000,
+        max_iter=500,
     )
     factored = dict(
         optimizer='adam',
         adapt_size=0,
-        shared_latent_size=128,
+        shared_latent_size=1024,
         private_latent_size=0,
         shared_latent='hard',
         skip_connection=False,
         activation='linear',
         epoch_counting='all',
         sampling='cycle',
-        # n_jobs=1,
-        # n_runs=1,
-        fine_tune=False,
-        decode=True,
+        fine_tune=True,
+        decode=False,
         batch_size=128,
         dropout=0.75,
-        loss_weights={'contrast': 0, 'study': 1, 'penalty': 1,
+        loss_weights={'contrast': 1, 'study': 1, 'penalty': 1,
                       'decoding': 1, 'all_contrast': 1},
         lr=1e-3,
-        input_dropout=0.)
+        batch_norm=True,
+        input_dropout=0.25)
     factored_cv = dict(
         optimizer='adam',
         shared_latent_size=10,

@@ -69,7 +69,7 @@ def reduce_all(masked_dir, output_dir, n_jobs=1, lstsq=False,
 
     modl_atlas = fetch_atlas_modl()
     mask = fetch_mask()[mask]
-    dictionary = modl_atlas['components512_gm']
+    dictionary = modl_atlas['components512']
     masker = NiftiMasker(mask_img=mask).fit()
     components = masker.transform(dictionary)
 

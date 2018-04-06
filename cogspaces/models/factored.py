@@ -15,7 +15,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.utils import check_random_state
 from torch import nn
 from torch.autograd import Variable, Function
-from torch.nn import Linear
+from torch.nn import Linear, BatchNorm1d
 from torch.optim import Adam, SGD
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
@@ -59,6 +59,7 @@ class MultiTaskModule(nn.Module):
                  dropout=0.,
                  decode=False,
                  adapt_size=0,
+                 batch_norm=False,
                  activation='linear',
                  shared_latent='hard',
                  skip_connection=False):
@@ -101,6 +102,11 @@ class MultiTaskModule(nn.Module):
                 self.add_module('shared_embedder', shared_embedder)
                 self.shared_embedders = {study: shared_embedder
                                          for study in target_sizes}
+                if batch_norm:
+                    self.shared_batch_norm = BatchNorm1d(
+                        num_features=shared_latent_size + private_latent_size + in_features * skip_connection)
+                else:
+                    self.shared_batch_norm = Identity()
             else:
                 self.shared_embedders = {study: get_shared_embedder()
                                          for study in target_sizes}
@@ -121,6 +127,13 @@ class MultiTaskModule(nn.Module):
                     Linear(in_features, private_latent_size, bias=True)
                 self.add_module('private_embedder_%s' % study,
                                 self.private_embedders[study])
+                self.private_batch_norm = {
+                    study: BatchNorm1d(num_features=in_features)
+                    if batch_norm else Identity()
+                    for study in target_sizes}
+                for study in target_sizes:
+                    self.add_module('private_batch_norm_%s' % study,
+                                    self.private_batch_norm[study])
 
             self.classifiers[study] = \
                 Linear(shared_latent_size + private_latent_size
@@ -144,6 +157,7 @@ class MultiTaskModule(nn.Module):
             n_all_targets = sum(target_sizes.values())
             self.all_contrast_classifier = nn.Linear(shared_latent_size,
                                                      n_all_targets, bias=True)
+
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -167,14 +181,16 @@ class MultiTaskModule(nn.Module):
                 sub_input = self.activation(self.adapters[study](sub_input))
 
             if self.shared_latent_size > 0:
-                shared_latents[study] = self.activation(self.dropout(
-                    self.shared_embedders[study](sub_input)))
+                shared_latents[study] = self.dropout(
+                    self.activation(self.shared_batch_norm(
+                        self.shared_embedders[study](sub_input))))
             else:
                 shared_latents[study] = None
 
             if self.private_latent_size > 0:
-                private_latents[study] = self.activation(self.dropout(
-                    self.private_embedders[study](sub_input)))
+                private_latents[study] = self.dropout(
+                    self.activation(self.private_batch_norm[study](
+                        self.private_embedders[study](sub_input))))
             else:
                 private_latents[study] = None
 
@@ -229,7 +245,7 @@ class MultiTaskModule(nn.Module):
     def coefs(self):
         coefs = {}
         for study in self.classifiers:
-            coef = self.classifiers[study][0].weight.data
+            coef = self.classifiers[study].weight.data
             if self.skip_connection:
                 skip_coef = coef[:, :self.in_features]
                 if self.in_features < coef.shape[1]:
@@ -238,13 +254,13 @@ class MultiTaskModule(nn.Module):
                 skip_coef = 0
             if self.shared_latent_size > 0:
                 shared_coef = coef[:, :self.shared_latent_size]
-                shared_embed = self.shared_embedders[study][0].weight.data
+                shared_embed = self.shared_embedders[study].weight.data
                 shared_coef = torch.matmul(shared_coef, shared_embed)
             else:
                 shared_coef = 0
             if self.private_latent_size > 0:
                 private_coef = coef[:, -self.private_latent_size:]
-                private_embed = self.private_embedders[study][0].weight.data
+                private_embed = self.private_embedders[study].weight.data
                 private_coef = torch.matmul(private_coef, private_embed)
             else:
                 private_coef = 0
@@ -500,8 +516,9 @@ class FactoredClassifier(BaseEstimator):
                  max_iter=10000, verbose=0,
                  device=-1,
                  sampling='cycle',
+                 batch_norm=False,
                  averaging=False,
-                 patience=1000,
+                 patience=100,
                  seed=None):
 
         self.skip_connection = skip_connection
@@ -531,6 +548,8 @@ class FactoredClassifier(BaseEstimator):
         self.loss_weights = loss_weights
 
         self.seed = seed
+
+        self.batch_norm = batch_norm
 
         self.patience = patience
 
@@ -575,6 +594,7 @@ class FactoredClassifier(BaseEstimator):
             in_features=in_features,
             activation=self.activation,
             decode=self.decode,
+            batch_norm=self.batch_norm,
             adapt_size=self.adapt_size,
             shared_latent=self.shared_latent,
             shared_latent_size=shared_latent_size,
@@ -627,46 +647,45 @@ class FactoredClassifier(BaseEstimator):
                     shuffle=True,
                     batch_size=self.batch_size, pin_memory=cuda)
 
-            data_loaders = {study: infinite_iter(loader) for study, loader in
-                            data_loaders.items()}
-
             self.n_iter_ = 0
             old_epoch = -1
             seen_samples = 0
             if self.fine_tune:
                 phases = ['joined', 'fine_tune']
+            else:
+                phases = ['joined']
+
+            params = self.module_.parameters()
+            if self.optimizer == 'adam':
+                optimizer = Adam(params, lr=self.lr)
+                scheduler = None
+            elif self.optimizer == 'sgd':
+                optimizer = SGD(params, lr=self.lr,)
+                scheduler = CosineAnnealingLR(optimizer, T_max=30,
+                                              eta_min=1e-3 * self.lr)
+            else:
+                raise ValueError
+
             for phase in phases:
                 if phase == 'joined':
-                    params = self.module_.parameters()
                     max_iter = self.max_iter
-                    weight_decay = 0
                 else:
-                    params = []
-                    for classifier in self.module_.classifiers.values():
-                        params += list(classifier.parameters())
                     shared_embedder = next(iter(
                         self.module_.shared_embedders.values()))
-                    weight = shared_embedder.weight.data
-                    d = weight.shape[0]
-                    rot = weight.new(d, d)
-                    nn.init.orthogonal(rot)
+                    shared_embedder.weight.requires_grad = False
+                    shared_embedder.bias.requires_grad = False
+                    # optimizer.param_groups[0]['lr'] *= .1
+                    # d = weight.shape[0]
+                    # rot = weight.new(d, d)
+                    # nn.init.orthogonal(rot)
                     # shared_embedder.weight.data = rot @ weight
                     # self.module_.dropout.p = 0.
                     # self.module_.input_dropout.p = 0.
-                    max_iter = old_epoch + 100
-                    weight_decay = 0
-                if self.optimizer == 'adam':
-                    optimizer = Adam(params, lr=self.lr,
-                                     weight_decay=weight_decay)
-                    scheduler = None
-                elif self.optimizer == 'sgd':
-                    optimizer = SGD(params, lr=self.lr,
-                                    weight_decay=weight_decay)
-                    scheduler = CosineAnnealingLR(optimizer, T_max=30,
-                                                  eta_min=1e-3 * self.lr)
-                else:
-                    raise ValueError
+                    max_iter = old_epoch + self.max_iter
 
+                infinite_data_loaders = {study: infinite_iter(loader) for
+                                          study, loader in
+                                          data_loaders.items()}
                 # Logging logic
                 best_loss = float('inf')
                 epoch_loss = 0
@@ -680,7 +699,7 @@ class FactoredClassifier(BaseEstimator):
                     self.module_.parameters())
                 best_params_list = [best_params]
                 for inputs, targets, batch_size in next_batches(
-                        data_loaders, cuda=cuda, device=device,
+                        infinite_data_loaders, cuda=cuda, device=device,
                         sampling=self.sampling,
                         study_weights=study_weights,
                         seed=self.seed):
@@ -698,7 +717,9 @@ class FactoredClassifier(BaseEstimator):
                     self.n_iter_ = seen_samples / n_samples
                     epoch = floor(self.n_iter_)
                     if epoch > old_epoch:
+                        old_epoch = epoch
                         epoch_loss /= epoch_seen_samples
+                        epoch_seen_samples = 0
                         if epoch_loss > best_loss:
                             no_improvement += 1
                         else:
@@ -710,18 +731,27 @@ class FactoredClassifier(BaseEstimator):
                                 if len(best_params_list) >= 5:
                                     best_params_list = best_params_list[1:]
                                 best_params_list.append(best_params)
-                        if report_every is not None and epoch % report_every == 0:
-                            print('Epoch %.2f, train loss: % .4f'
+                        if (report_every is not None
+                                and epoch % report_every == 0
+                                or no_improvement > self.patience
+                                or epoch >= max_iter):
+                            print('Epoch %.2f, train loss: %.4f'
                                   % (epoch, epoch_loss))
                             if callback is not None:
                                 callback(self, self.n_iter_)
                         if no_improvement > self.patience:
-                            print('Stopping at epoch %.2f' % epoch)
+                            print('Stopping at epoch %.2f, best train loss'
+                                  ' %.4f' % (epoch, best_loss))
+                            if phase == 'joined' and len(phases) == 2:
+                                print('Fine tuning...')
                             break
                         if epoch >= max_iter:
-                            print('Hard stopping at epoch %.2f' % epoch)
+                            print('Hard stopping at epoch %.2f,'
+                                  ' best train loss %.4f'
+                                  % (epoch, best_loss))
+                            if phase == 'joined' and len(phases) == 2:
+                                print('Fine tuning...')
                             break
-                    old_epoch = epoch
         if 'adversarial' not in self.shared_latent:
             if self.averaging:
                 best_params = torch.cat([params[None, :]
