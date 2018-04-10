@@ -31,7 +31,7 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies='all',
+        studies=['archi', 'brainomics'],
         target_study='archi'
     )
     model = dict(
@@ -198,7 +198,7 @@ def train(system, model, factored, factored_cv, trace, logistic,
 
     estimator.fit(train_data, train_targets,
                   study_weights=study_weights,
-                  callback=callback
+                  # callback=callback
                   )
 
     if model['estimator'] == 'factored_cv':

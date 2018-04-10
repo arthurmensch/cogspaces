@@ -1,18 +1,18 @@
-import os
-
-from nilearn.input_data import NiftiMasker
-from os.path import join
-
 import matplotlib.pyplot as plt
-from joblib import load, dump
-from nilearn.image import index_img
+import numpy as np
+from joblib import load
+from nilearn.decomposition import CanICA
+from nilearn.image import index_img, iter_img
+from nilearn.input_data import NiftiMasker
 from nilearn.plotting import plot_stat_map
+from os.path import join, expanduser
 from scipy.linalg import svd
+from sklearn.decomposition import PCA, FastICA, fastica
+from sklearn.utils.extmath import randomized_svd
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import get_output_dir, fetch_mask
-from cogspaces.introspect.maps import maps_from_model
-import numpy as np
+from cogspaces.datasets.utils import fetch_mask, get_data_dir
+from exps.train import load_data
 
 
 def plot_components(components, names, output_dir):
@@ -30,8 +30,6 @@ def plot_components(components, names, output_dir):
 
 def compute_latent(output_dir, lstsq):
     estimator = load(join(output_dir, 'estimator.pkl'))
-    target_encoder = load(join(output_dir, 'target_encoder.pkl'))
-    standard_scaler = load(join(output_dir, 'standard_scaler.pkl'))
 
     modl_atlas = fetch_atlas_modl()
     dictionary = modl_atlas['components512']
@@ -40,14 +38,47 @@ def compute_latent(output_dir, lstsq):
     dictionary = masker.transform(dictionary)
     if lstsq:
         gram = dictionary.dot(dictionary.T)
-        dictionary = np.linalg.inv(gram).dot(dictionary)
+        dict_proj = np.linalg.inv(gram).dot(dictionary)
+    else:
+        dict_proj = dictionary
+    sup_proj = estimator.module_.embedder.linear.weight.data.numpy()
+    proj = sup_proj @ dict_proj
+    gram = proj @ proj.T
+    back_proj = np.linalg.inv(gram) @ proj
+    print(back_proj)
+    print(back_proj.shape)
 
-    module = estimator.module_
-    embedder = module.shared_embedder
-    latent_weight = embedder.weight.data.cpu().numpy()
-    projector = dictionary.dot(latent_weight)
+    # module = estimator.module_
+    # latent_weight = module.embedder.linear.weight.data.cpu().numpy()
+    # projector = latent_weight.dot(dictionary)
+    #
+    # components, variance, _ = randomized_svd(projector.T, n_components=30)
+    # _, _, sources = fastica(components, whiten=True, fun='cube')
+    # img = masker.inverse_transform(sources.T)
+    # # for i, this_img in enumerate(iter_img(img)):
+    # #     fig, ax = plt.subplots(1, 1)
+    # #     plot_stat_map(this_img, fig=fig, ax=ax)
+    # #     plt.close(fig)
+    # #     plt.savefig(expanduser('~/components_%i.nii.gz' % i))
+    # img.to_filename(expanduser('~/components_orth.nii.gz'))
 
-    print(projector)
+    source_dir = join(get_data_dir(), 'reduced_512_lstsq')
+    data, target = load_data(source_dir, 'all', 'archi')
+    data = {'archi': data['archi']}
+    latents = estimator.predict_latent(data)['archi']
+    rec = latents.dot(back_proj)
+    print(data)
+    print(rec)
+
+
+
+
+    # print(projector.shape)
+    # fast_ica = FastICA(whiten=False, algorithm='deflation')
+    # fast_ica.fit(projector)
+    # projector = fast_ica.components_
+    # img = masker.inverse_transform(projector)
+    # img.to_filename(expanduser('~/components.nii.gz'))
 
 #
 #
@@ -118,7 +149,7 @@ def plot_activation(output_dir):
 
 
 if __name__ == '__main__':
-    compute_components(join(get_output_dir(), 'multi_studies', '298'), True)
+    compute_latent(expanduser('~/322'), True)
     # compute_components(join(get_output_dir(), 'multi_studies', '107'),
     #                    lstsq=True)
     # plot_activation(join(get_output_dir(), 'multi_studies', '922'))

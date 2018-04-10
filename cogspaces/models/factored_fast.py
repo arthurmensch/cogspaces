@@ -9,9 +9,6 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 from sklearn.base import BaseEstimator
-from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
 from sklearn.utils import check_random_state
 from torch import nn
 from torch.autograd import Variable
@@ -19,7 +16,6 @@ from torch.optim import Adam, SGD
 from torch.utils.data import DataLoader, TensorDataset
 
 from cogspaces.models.factored import Identity
-from cogspaces.optim.lbfgs import LBFGSScipy
 
 
 def infinite_iter(iterable):
@@ -45,6 +41,9 @@ class Embedder(nn.Module):
     def forward(self, input):
         return self.activation(self.linear(self.input_dropout(input)))
 
+    def reset_parameters(self):
+        self.linear.reset_parameters()
+
 
 class LatentClassifier(nn.Module):
     def __init__(self, latent_size, target_size, dropout):
@@ -57,6 +56,10 @@ class LatentClassifier(nn.Module):
     def forward(self, input):
         return F.log_softmax(
             self.linear(self.dropout(self.batch_norm(input))), dim=1)
+
+    def reset_parameters(self):
+        self.linear.reset_parameters()
+        self.batch_norm.reset_parameters()
 
 
 class MultiStudyModule(nn.Module):
@@ -73,42 +76,28 @@ class MultiStudyModule(nn.Module):
 
         self.classifiers = {study: LatentClassifier(latent_size, target_size,
                                                     dropout)
-                            for study, target_size in target_sizes}
+                            for study, target_size in target_sizes.items()}
         for study, classifier in self.classifiers.items():
             self.add_module('classifier_%s' % study, classifier)
         self.reset_parameters()
 
     def reset_parameters(self):
-        for param in self.parameters():
-            if param.ndimension() == 2:
-                nn.init.xavier_uniform(param)
-            elif param.ndimension() == 1:
-                param.data.fill_(0.)
+        self.embedder.reset_parameters()
+        for classifier in self.classifiers.values():
+            classifier.reset_parameters()
+
+
+        # for param in self.parameters():
+        #     if param.ndimension() == 2:
+        #         nn.init.xavier_uniform(param)
+        #     elif param.ndimension() == 1:
+        #         param.data.fill_(0.)
 
     def forward(self, inputs):  # return_penalty=False):
         preds = {}
         for study, input in inputs.items():
             preds[study] = self.classifiers[study](self.embedder(input))
         return preds
-        # if return_penalty:
-        #     penalty = torch.sum(exp_pred[:, None, :] * (1 - exp_pred[:, None, :])
-        #                         * latent[:, :, None] ** 2
-        #                         * self.classifiers[study].weight.transpose(0, 1)[None, :, :] ** 2)
-        #     penalty *= .5 * self.dropout.p / (1 - self.dropout.p) / latent.shape[0]
-        #     penalties[study] = penalty
-    #
-    # def use_batch_norm(self, mode=True):
-    #     # Foireux
-    #     self._use_batch_norm = mode
-    #     if not self._use_batch_norm:
-    #         for batch_norm in self.batch_norms.values():
-    #             batch_norm.eval()
-
-    # def train(self, mode=True):
-    #     super().train(mode)
-    #     if not self._use_batch_norm:
-    #         for batch_norm in self.batch_norms.values():
-    #             batch_norm.eval()
 
 
 class MultiStudyLoss(nn.Module):
@@ -217,7 +206,7 @@ class MultiStudyClassifier(BaseEstimator):
                  max_iter=10000, verbose=0,
                  device=-1,
                  sampling='cycle',
-                 patience=100,
+                 patience=30,
                  seed=None):
 
         self.latent_size = latent_size
@@ -258,9 +247,10 @@ class MultiStudyClassifier(BaseEstimator):
                                        study_weights=study_weights,
                                        cuda=cuda, device=device)
         # Model
-        target_sizes = {study: int(this_y['contrast'].max()) + 1
+        target_sizes = {study: int(this_y.max()) + 1
                         for study, this_y in y.items()}
         in_features = next(iter(X.values())).shape[1]
+
 
         self.module_ = MultiStudyModule(
             in_features=in_features,
@@ -306,31 +296,29 @@ class MultiStudyClassifier(BaseEstimator):
 
         old_epoch = -1
         seen_samples = 0
-        epoch_seen_samples = 0
         epoch_loss = 0
+        epoch_batch = 0
         best_loss = float('inf')
         no_improvement = 0
         for inputs, targets in data_loader:
             batch_size = sum(input.shape[0] for input in inputs.values())
-
+            seen_samples += batch_size
             self.module_.train()
             optimizer.zero_grad()
 
             preds = self.module_(inputs)
-            loss, study_losses = loss_function(preds, targets)
+            loss = loss_function(preds, targets)
             loss.backward()
             optimizer.step()
 
-            seen_samples += batch_size
-            epoch_seen_samples += batch_size
-
-            epoch_loss += this_loss.data[0] * batch_size
+            epoch_batch += 1
+            epoch_loss *= (1 - 1 / epoch_batch)
+            epoch_loss = loss.data[0] / epoch_batch
 
             epoch = floor(seen_samples / n_samples)
             if epoch > old_epoch:
                 old_epoch = epoch
-                epoch_loss /= epoch_seen_samples
-                epoch_seen_samples = 0
+                epoch_batch = 0
 
                 if (report_every is not None
                         and epoch % report_every == 0):
@@ -353,11 +341,20 @@ class MultiStudyClassifier(BaseEstimator):
                           ' %.4f' % (epoch, best_loss))
                     self.module_.load_state_dict(best_state)
                     break
+        # W = self.module_.embedder.linear.weight.data.transpose(0, 1)
+        # Q, R = torch.qr(W)
+        # self.module_.embedder.linear.weight.data = Q.transpose(0, 1)
+        # for classifier in self.module_.classifiers.values():
+        #     classifier.reset_parameters()
+            # C = classifier.linear.weight.data
+            # classifier.linear.weight.data = C @ R
+            # classifier.batch_norm.reset_parameters()
+
         X_red = {}
+        # Remove input dropout
         self.module_.embedder.eval()
         for study, this_X in X.items():
             print('Fine tuning %s' % study)
-
             if cuda:
                 this_X = this_X.cuda(device=device)
             this_X = Variable(this_X, volatile=True)
@@ -370,118 +367,53 @@ class MultiStudyClassifier(BaseEstimator):
             optimizer = Adam(module.parameters(), lr=self.lr)
             loss_function = F.nll_loss
 
-            old_epoch = -1
             seen_samples = 0
-            epoch_seen_samples = 0
-            epoch_loss = 0
             best_loss = float('inf')
             no_improvement = 0
-            for input, target in data_loader:
-                batch_size = input.shape[0]
-                if cuda:
-                    input = input.cuda(device=device)
-                    target = target.cuda(device=device)
-                input = Variable(input)
-                target = Variable(target)
+            epoch = 0
+            for epoch in range(self.max_iter):
+                epoch_batch = 0
+                epoch_loss = 0
+                for input, target in data_loader:
+                    batch_size = input.shape[0]
+                    if cuda:
+                        input = input.cuda(device=device)
+                        target = target.cuda(device=device)
+                    input = Variable(input)
+                    target = Variable(target)
 
-                module.train()
-                optimizer.zero_grad()
-                pred = module(input)
-                this_loss = loss_function(pred, target)
-                this_loss.backward()
-                optimizer.step()
+                    module.train()
+                    # module.batch_norm.eval()
+                    optimizer.zero_grad()
+                    pred = module(input)
+                    loss = loss_function(pred, target)
+                    loss.backward()
+                    optimizer.step()
 
-                seen_samples += batch_size
-                epoch_seen_samples += batch_size
+                    seen_samples += batch_size
+                    epoch_batch += 1
+                    epoch_loss *= (1 - 1 / epoch_batch)
+                    epoch_loss = loss.data[0] / epoch_batch
 
-                epoch_loss += this_loss.data[0] * batch_size
+                if (report_every is not None
+                        and epoch % report_every == 0):
+                    print('Epoch %.2f, train loss: %.4f'
+                          % (epoch, epoch_loss))
+                    if callback is not None:
+                        callback(self, epoch)
 
-                epoch = floor(seen_samples / n_samples)
+                if epoch_loss > best_loss:
+                    no_improvement += 1
+                else:
+                    no_improvement = 0
+                    best_loss = epoch_loss
+                    best_state = module.state_dict()
 
-                if epoch > old_epoch:
-                    old_epoch = epoch
-                    epoch_loss /= epoch_seen_samples
-                    epoch_seen_samples = 0
-
-                    if (report_every is not None
-                            and epoch % report_every == 0):
-                        print('Epoch %.2f, train loss: %.4f'
-                              % (epoch, epoch_loss))
-                        if callback is not None:
-                            callback(self, epoch)
-
-                    if epoch_loss > best_loss:
-                        no_improvement += 1
-                    else:
-                        no_improvement = 0
-                        best_loss = epoch_loss
-                        best_state = module.state_dict()
-                    epoch_loss = 0
-
-                    if (no_improvement > self.patience
-                            or epoch > self.max_iter):
-                        print('Stopping at epoch %.2f, best train loss'
-                              ' %.4f' % (epoch, best_loss))
-                        module.load_state_dict(best_state)
-                        break
-
-
-
-        # Fine tune with lbfgs
-        # self.module_.eval()
-        # loss_function = MultiStudyLoss(
-        #     study_weights={study: 1. for study in X})
-        # for study in X:
-        #     this_X = torch.from_numpy(X[study]).float()
-        #     this_target = torch.from_numpy(
-        #         y[study]['contrast'].values).long()
-        #     if cuda:
-        #         this_X = this_X.cuda(device=device)
-        #         this_target = this_target.cuda(device=device)
-        #     this_X = {study: Variable(this_X)}
-        #     this_target = {study: Variable(this_target)}
-        #
-        #     params = list(self.module_.classifiers[study].parameters())
-        #
-        #     optimizer = LBFGSScipy(params,
-        #                            max_iter=100,
-        #                            tolerance_grad=0,
-        #                            tolerance_change=0,
-        #                            report_every=2)
-        #
-        #     def closure():
-        #         this_pred, this_penalty = self.module_(this_X,
-        #                                                return_penalty=True)
-        #         loss = loss_function(this_pred, this_target)
-        #         loss += this_penalty[study]
-        #         return loss
-        #
-        #     optimizer.step(closure)
-
-        # Fine tune with scikit learn
-        # for study in X:
-        #     this_y = y[study]['contrast'].values
-        #     this_X = self.predict_latent({study: X[study]})[study]
-        #     scaler = StandardScaler()
-        #     this_X = scaler.fit_transform(this_X)
-        #     classifier = LogisticRegressionCV(solver='lbfgs',
-        #                                       multi_class='multinomial',
-        #                                       n_jobs=3,
-        #                                       )
-        #     classifier.fit(this_X, this_y)
-        #
-        #     # Assign to pytorch module
-        #     self.module_.classifiers[study].weight.data \
-        #         = torch.from_numpy(classifier.coef_).float()
-        #     self.module_.classifiers[study].weight.bias \
-        #         = torch.from_numpy(classifier.intercept_).float()
-        #     self.module_.batch_norms[study] = Identity()
-        #     self.module_.batch_norms[study].running_mean \
-        #         = torch.from_numpy(scaler.mean_).float()
-        #     self.module_.batch_norms[study].running_var \
-        #         = torch.from_numpy(scaler.var_).float()
-        callback(self, self.n_iter_)
-
+                if no_improvement > self.patience:
+                    break
+            print('Stopping at epoch %.2f, best train loss'
+                  ' %.4f' % (epoch, best_loss))
+            module.load_state_dict(best_state)
         return self
 
     def _check_cuda(self):
@@ -518,8 +450,26 @@ class MultiStudyClassifier(BaseEstimator):
                 this_X = this_X.cuda(device=device)
             this_X = Variable(this_X, volatile=True)
             latent = self.module_.embedder(this_X)
+            # latent = self.module_.classifiers[study].batch_norm(latent)
             latents[study] = latent.data.cpu().numpy()
         return latents
+
+    def predict_rec(self, X):
+        cuda, device = self._check_cuda()
+        self.module_.eval()
+        recs = {}
+        W = self.module_.embedder.linear.weight
+        Ginv = torch.inverse(torch.matmul(W, W.transpose(0, 1)))
+        back_proj = torch.matmul(Ginv, W)
+        for study, this_X in X.items():
+            this_X = torch.from_numpy(this_X).float()
+            if cuda:
+                this_X = this_X.cuda(device=device)
+            this_X = Variable(this_X, volatile=True)
+            latent = self.module_.embedder(this_X)
+            rec = torch.matmul(latent, back_proj)
+            recs[study] = rec.data.cpu().numpy()
+        return recs
 
     def predict(self, X):
         preds = self.predict_log_proba(X)
