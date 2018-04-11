@@ -1,13 +1,16 @@
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
-from joblib import load
+from joblib import load, Memory
+from nilearn._utils import check_niimg
 from nilearn.decomposition import CanICA
 from nilearn.image import index_img, iter_img
 from nilearn.input_data import NiftiMasker
-from nilearn.plotting import plot_stat_map
+from nilearn.plotting import plot_stat_map, plot_prob_atlas
 from os.path import join, expanduser
 from scipy.linalg import svd
-from sklearn.decomposition import PCA, FastICA, fastica
+from sklearn.decomposition import PCA, FastICA, fastica, dict_learning_online
 from sklearn.utils.extmath import randomized_svd
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
@@ -43,35 +46,44 @@ def compute_latent(output_dir, lstsq):
         dict_proj = dictionary
     sup_proj = estimator.module_.embedder.linear.weight.data.numpy()
     proj = sup_proj @ dict_proj
+
+    memory = Memory(cachedir=expanduser('~/cache'))
+
+    components, variance, _ = memory.cache(randomized_svd)(proj.T,
+                                                           n_components=128)
+    _, _, sources = memory.cache(fastica)(components, whiten=True, fun='cube')
+    dict_init, _, _, _ = memory.cache(np.linalg.lstsq)(sources, proj.T)
+
+    code, dictionary = memory.cache(dict_learning_online)(proj.T,
+                                                          n_components=128,
+                                                          alpha=.1,
+                                                          batch_size=32,
+                                                          dict_init=dict_init,
+                                                          return_code=True,
+                                                          method='cd',
+                                                          verbose=10,
+                                                          n_iter=proj.shape[
+                                                                     1] // 32)
+    S = code.sum(axis=0) < 0
+    code[:, S] *= -1
+    img = masker.inverse_transform(code.T)
+    img.to_filename(expanduser('~/components_orth.nii.gz'))
+
     gram = proj @ proj.T
     back_proj = np.linalg.inv(gram) @ proj
-    print(back_proj)
-    print(back_proj.shape)
 
-    # module = estimator.module_
-    # latent_weight = module.embedder.linear.weight.data.cpu().numpy()
-    # projector = latent_weight.dot(dictionary)
-    #
-    # components, variance, _ = randomized_svd(projector.T, n_components=30)
+    # components, variance, _ = randomized_svd(proj.T, n_components=128)
     # _, _, sources = fastica(components, whiten=True, fun='cube')
     # img = masker.inverse_transform(sources.T)
-    # # for i, this_img in enumerate(iter_img(img)):
-    # #     fig, ax = plt.subplots(1, 1)
-    # #     plot_stat_map(this_img, fig=fig, ax=ax)
-    # #     plt.close(fig)
-    # #     plt.savefig(expanduser('~/components_%i.nii.gz' % i))
     # img.to_filename(expanduser('~/components_orth.nii.gz'))
 
-    source_dir = join(get_data_dir(), 'reduced_512_lstsq')
-    data, target = load_data(source_dir, 'all', 'archi')
-    data = {'archi': data['archi']}
-    latents = estimator.predict_latent(data)['archi']
-    rec = latents.dot(back_proj)
-    print(data)
-    print(rec)
-
-
-
+    # source_dir = join(get_data_dir(), 'reduced_512_lstsq')
+    # data, target = load_data(source_dir, 'all', 'archi')
+    # data = {'archi': data['archi']}
+    # latents = estimator.predict_latent(data)['archi']
+    # rec = latents.dot(back_proj)
+    # print(data)
+    # print(rec)
 
     # print(projector.shape)
     # fast_ica = FastICA(whiten=False, algorithm='deflation')
@@ -79,6 +91,7 @@ def compute_latent(output_dir, lstsq):
     # projector = fast_ica.components_
     # img = masker.inverse_transform(projector)
     # img.to_filename(expanduser('~/components.nii.gz'))
+
 
 #
 #
@@ -99,6 +112,21 @@ def compute_latent(output_dir, lstsq):
 #         plot_components(components, names, plot_dir)
 #
 #
+
+
+def plot_components():
+    img = check_niimg(expanduser('~/components_orth.nii.gz'))
+    output_dir = expanduser('~/components_orth')
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    plot_prob_atlas(img)
+    plt.savefig(join(output_dir, 'atlas.png'))
+    plt.close()
+    for i in range(128):
+        plot_stat_map(index_img(img, i))
+        plt.savefig(join(output_dir, 'components_%i.png' % i))
+        plt.close()
+
 
 def plot_activation(output_dir):
     test_latents = load(join(output_dir, 'test_latents.pkl'))
@@ -150,6 +178,7 @@ def plot_activation(output_dir):
 
 if __name__ == '__main__':
     compute_latent(expanduser('~/322'), True)
+    plot_components()
     # compute_components(join(get_output_dir(), 'multi_studies', '107'),
     #                    lstsq=True)
     # plot_activation(join(get_output_dir(), 'multi_studies', '922'))
