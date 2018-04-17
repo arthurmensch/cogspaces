@@ -1,4 +1,5 @@
 import itertools
+import math
 import tempfile
 import warnings
 from math import ceil, floor
@@ -12,7 +13,7 @@ from sklearn.base import BaseEstimator
 from sklearn.utils import check_random_state
 from torch import nn
 from torch.autograd import Variable
-from torch.optim import Adam, SGD
+from torch.optim import Adam, SGD, Optimizer
 from torch.utils.data import DataLoader, TensorDataset
 
 from cogspaces.models.factored import Identity
@@ -22,6 +23,100 @@ def infinite_iter(iterable):
     while True:
         for elem in iterable:
             yield elem
+
+
+class ProxAdam(Optimizer):
+    """Implements Adam algorithm.
+
+    It has been proposed in `Adam: A Method for Stochastic Optimization`_.
+
+    Arguments:
+        params (iterable): iterable of parameters to optimize or dicts defining
+            parameter groups
+        lr (float, optional): learning rate (default: 1e-3)
+        betas (Tuple[float, float], optional): coefficients used for computing
+            running averages of gradient and its square (default: (0.9, 0.999))
+        eps (float, optional): term added to the denominator to improve
+            numerical stability (default: 1e-8)
+        weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
+
+    .. _Adam\: A Method for Stochastic Optimization:
+        https://arxiv.org/abs/1412.6980
+    """
+
+    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8,
+                 clip='none',
+                 soft_thresholding=0, weight_decay=0):
+        defaults = dict(lr=lr, betas=betas, eps=eps,
+                        soft_thresholding=soft_thresholding,
+                        clip=clip,
+                        weight_decay=weight_decay)
+        super(ProxAdam, self).__init__(params, defaults)
+
+    def step(self, closure=None):
+        """Performs a single optimization step.
+
+        Arguments:
+            closure (callable, optional): A closure that reevaluates the model
+                and returns the loss.
+        """
+        loss = None
+        if closure is not None:
+            loss = closure()
+
+        for group in self.param_groups:
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                grad = p.grad.data
+                if grad.is_sparse:
+                    raise RuntimeError(
+                        'Adam does not support sparse gradients, please consider SparseAdam instead')
+
+                state = self.state[p]
+
+                # State initialization
+                if len(state) == 0:
+                    state['step'] = 0
+                    # Exponential moving average of gradient values
+                    state['exp_avg'] = torch.zeros_like(p.data)
+                    # Exponential moving average of squared gradient values
+                    state['exp_avg_sq'] = torch.zeros_like(p.data)
+
+                exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
+                beta1, beta2 = group['betas']
+
+                state['step'] += 1
+
+                if group['weight_decay'] != 0:
+                    grad = grad.add(group['weight_decay'], p.data)
+
+                # Decay the first and second moment running average coefficient
+                exp_avg.mul_(beta1).add_(1 - beta1, grad)
+                exp_avg_sq.mul_(beta2).addcmul_(1 - beta2, grad, grad)
+
+                denom = exp_avg_sq.sqrt().add_(group['eps'])
+
+                bias_correction1 = 1 - beta1 ** state['step']
+                bias_correction2 = 1 - beta2 ** state['step']
+                step_size = group['lr'] * math.sqrt(
+                    bias_correction2) / bias_correction1
+
+                if group['clip'] == 'cross':
+                    old_sgn = torch.sign(p.data)
+
+                p.data.addcdiv_(-step_size, exp_avg, denom)
+
+                if group['soft_thresholding'] != 0:
+                    p.data = soft_thresh(p.data, group['soft_thresholding'] * step_size)
+
+                if group['clip'] == 'cross':
+                    sgn = torch.sign(p.data)
+                    p.data[old_sgn != sgn] = 0
+                elif group['clip'] == 'positive':
+                    p.data[p.data < 0] = 0.
+
+        return loss
 
 
 class Embedder(nn.Module):
@@ -85,7 +180,6 @@ class MultiStudyModule(nn.Module):
         self.embedder.reset_parameters()
         for classifier in self.classifiers.values():
             classifier.reset_parameters()
-
 
         # for param in self.parameters():
         #     if param.ndimension() == 2:
@@ -194,6 +288,15 @@ class MultiStudyLoader:
         return MultiStudyLoaderIter(self)
 
 
+def soft_thresh(input: torch.Tensor, value: float) -> torch.Tensor:
+    sgn = torch.sign(input)
+    input *= sgn
+    input -= value
+    input[input < 0] = 0
+    input *= sgn
+    return input
+
+
 class MultiStudyClassifier(BaseEstimator):
     def __init__(self,
                  latent_size=30,
@@ -205,8 +308,9 @@ class MultiStudyClassifier(BaseEstimator):
                  dropout=0.5, input_dropout=0.25,
                  max_iter=10000, verbose=0,
                  device=-1,
+                 regularization=1e-3,
                  sampling='cycle',
-                 patience=30,
+                 patience=50,
                  seed=None):
 
         self.latent_size = latent_size
@@ -221,6 +325,8 @@ class MultiStudyClassifier(BaseEstimator):
         self.lr = lr
 
         self.fine_tune = fine_tune
+
+        self.regularization = regularization
 
         self.epoch_counting = epoch_counting
         self.patience = patience
@@ -251,7 +357,6 @@ class MultiStudyClassifier(BaseEstimator):
                         for study, this_y in y.items()}
         in_features = next(iter(X.values())).shape[1]
 
-
         self.module_ = MultiStudyModule(
             in_features=in_features,
             activation=self.activation,
@@ -266,9 +371,19 @@ class MultiStudyClassifier(BaseEstimator):
             study_weights = {study: 1. for study in X}
         loss_function = MultiStudyLoss(study_weights)
         # Optimizers
-        params = self.module_.parameters()
+        embedder_weight = self.module_.embedder.linear.weight
+        params = []
+        for name, param in self.module_.named_parameters():
+            if name != 'embedder.linear.weight':
+                params.append(param)
+
         if self.optimizer == 'adam':
-            optimizer = Adam(params, lr=self.lr)
+            optimizer = ProxAdam([dict(params=params),
+                                  dict(params=embedder_weight,
+                                       # soft_thresholding=self.regularization,
+                                       clip='cross',
+                                       )],
+                                 lr=self.lr)
         elif self.optimizer == 'sgd':
             optimizer = SGD(params, lr=self.lr, )
         else:
@@ -308,6 +423,9 @@ class MultiStudyClassifier(BaseEstimator):
 
             preds = self.module_(inputs)
             loss = loss_function(preds, targets)
+            embedder_weight = self.module_.embedder.linear.weight
+            loss += self.regularization * torch.sum(
+                torch.abs(embedder_weight))
             loss.backward()
             optimizer.step()
 
@@ -324,6 +442,10 @@ class MultiStudyClassifier(BaseEstimator):
                         and epoch % report_every == 0):
                     print('Epoch %.2f, train loss: %.4f'
                           % (epoch, epoch_loss))
+                    weight = self.module_.embedder.linear.weight.data
+                    density = (torch.sum(weight != 0)
+                               / weight.shape[0] / weight.shape[1])
+                    print('Sparsity: %.4f' % (1 - density))
                     if callback is not None:
                         callback(self, epoch)
 
@@ -346,10 +468,9 @@ class MultiStudyClassifier(BaseEstimator):
         # self.module_.embedder.linear.weight.data = Q.transpose(0, 1)
         # for classifier in self.module_.classifiers.values():
         #     classifier.reset_parameters()
-            # C = classifier.linear.weight.data
-            # classifier.linear.weight.data = C @ R
-            # classifier.batch_norm.reset_parameters()
-
+        # C = classifier.linear.weight.data
+        # classifier.linear.weight.data = C @ R
+        print(self.module_.embedder.linear.weight.data)
         X_red = {}
         # Remove input dropout
         self.module_.embedder.eval()

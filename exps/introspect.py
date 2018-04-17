@@ -1,3 +1,4 @@
+import json
 import os
 
 import matplotlib.pyplot as plt
@@ -14,7 +15,7 @@ from sklearn.decomposition import PCA, FastICA, fastica, dict_learning_online
 from sklearn.utils.extmath import randomized_svd
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask, get_data_dir
+from cogspaces.datasets.utils import fetch_mask, get_data_dir, get_output_dir
 from exps.train import load_data
 
 
@@ -31,8 +32,14 @@ def plot_components(components, names, output_dir):
             plt.close(fig)
 
 
-def compute_latent(output_dir, lstsq):
+def compute_latent(output_dir):
+    introspect_dir = join(output_dir, 'introspect')
+    if not os.path.exists(introspect_dir):
+        os.makedirs(introspect_dir)
     estimator = load(join(output_dir, 'estimator.pkl'))
+
+    config = json.load(open(join(output_dir, 'config.json'), 'r'))
+    lstsq = config['data']['source_dir'] == 'reduced_512_lstsq'
 
     modl_atlas = fetch_atlas_modl()
     dictionary = modl_atlas['components512']
@@ -47,30 +54,33 @@ def compute_latent(output_dir, lstsq):
     sup_proj = estimator.module_.embedder.linear.weight.data.numpy()
     proj = sup_proj @ dict_proj
 
-    memory = Memory(cachedir=expanduser('~/cache'))
-
-    components, variance, _ = memory.cache(randomized_svd)(proj.T,
-                                                           n_components=128)
-    _, _, sources = memory.cache(fastica)(components, whiten=True, fun='cube')
-    dict_init, _, _, _ = memory.cache(np.linalg.lstsq)(sources, proj.T)
-
-    code, dictionary = memory.cache(dict_learning_online)(proj.T,
-                                                          n_components=128,
-                                                          alpha=.1,
-                                                          batch_size=32,
-                                                          dict_init=dict_init,
-                                                          return_code=True,
-                                                          method='cd',
-                                                          verbose=10,
-                                                          n_iter=proj.shape[
-                                                                     1] // 32)
-    S = code.sum(axis=0) < 0
-    code[:, S] *= -1
-    img = masker.inverse_transform(code.T)
-    img.to_filename(expanduser('~/components_orth.nii.gz'))
-
-    gram = proj @ proj.T
-    back_proj = np.linalg.inv(gram) @ proj
+    img = masker.inverse_transform(proj)
+    img.to_filename(join(introspect_dir, 'components.nii.gz'))
+    #
+    # memory = Memory(cachedir=expanduser('~/cache'))
+    #
+    # components, variance, _ = memory.cache(randomized_svd)(proj.T,
+    #                                                        n_components=128)
+    # _, _, sources = memory.cache(fastica)(components, whiten=True, fun='cube')
+    # dict_init, _, _, _ = memory.cache(np.linalg.lstsq)(sources, proj.T)
+    #
+    # code, dictionary = memory.cache(dict_learning_online)(proj.T,
+    #                                                       n_components=128,
+    #                                                       alpha=.1,
+    #                                                       batch_size=32,
+    #                                                       dict_init=dict_init,
+    #                                                       return_code=True,
+    #                                                       method='cd',
+    #                                                       verbose=10,
+    #                                                       n_iter=proj.shape[
+    #                                                                  1] // 32)
+    # S = code.sum(axis=0) < 0
+    # code[:, S] *= -1
+    # img = masker.inverse_transform(code.T)
+    # img.to_filename(join(introspect_dir, '~/components_sparse.nii.gz'))
+    #
+    # gram = proj @ proj.T
+    # back_proj = np.linalg.inv(gram) @ proj
 
     # components, variance, _ = randomized_svd(proj.T, n_components=128)
     # _, _, sources = fastica(components, whiten=True, fun='cube')
@@ -113,18 +123,18 @@ def compute_latent(output_dir, lstsq):
 #
 #
 
-
-def plot_components():
-    img = check_niimg(expanduser('~/components_orth.nii.gz'))
-    output_dir = expanduser('~/components_orth')
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+def plot_components(output_dir):
+    introspect_dir = join(output_dir, 'introspect')
+    plot_dir = join(introspect_dir, 'plot')
+    if not os.path.exists(plot_dir):
+        os.makedirs(plot_dir)
+    img = check_niimg(join(introspect_dir, 'components.nii.gz'))
     plot_prob_atlas(img)
-    plt.savefig(join(output_dir, 'atlas.png'))
+    plt.savefig(join(plot_dir, 'components.png'))
     plt.close()
-    for i in range(128):
-        plot_stat_map(index_img(img, i))
-        plt.savefig(join(output_dir, 'components_%i.png' % i))
+    for i, this_img in enumerate(iter_img(img)):
+        plot_stat_map(this_img)
+        plt.savefig(join(plot_dir, 'components_%i.png' % i))
         plt.close()
 
 
@@ -177,8 +187,9 @@ def plot_activation(output_dir):
 
 
 if __name__ == '__main__':
-    compute_latent(expanduser('~/322'), True)
-    plot_components()
+    # compute_latent(expanduser('~/322'), True)
+    compute_latent(join(get_output_dir(), 'multi_studies', '1235'))
+    plot_components(join(get_output_dir(), 'multi_studies', '1235'))
     # compute_components(join(get_output_dir(), 'multi_studies', '107'),
     #                    lstsq=True)
     # plot_activation(join(get_output_dir(), 'multi_studies', '922'))

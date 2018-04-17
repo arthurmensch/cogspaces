@@ -27,11 +27,11 @@ def default():
     seed = 10
     system = dict(
         device=-1,
-        verbose=5,
+        verbose=10,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
-        studies=['archi', 'brainomics'],
+        source_dir=join(get_data_dir(), 'reduced_512'),
+        studies='all',
         target_study='archi'
     )
     model = dict(
@@ -47,9 +47,10 @@ def default():
         epoch_counting='all',
         sampling='random',
         batch_size=128,
-        dropout=0.75,
+        regularization=1e-3,
+        dropout=0.5,
         lr=1e-3,
-        input_dropout=0.25)
+        input_dropout=0.)
 
     factored = dict(
         optimizer='adam',
