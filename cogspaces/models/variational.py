@@ -70,8 +70,9 @@ class VarLinear(nn.Module):
             eps = Variable(torch.randn(*output.shape))
             return output + eps * std
         else:
-            log_alpha = self.clip(self.log_sigma2 - torch.log(self.weight ** 2 + 1e-8))
-            mask = log_alpha > 3
+            log_alpha = self.clip(self.log_sigma2 - torch.log(self.weight ** 2
+                                                              + 1e-8))
+            mask = log_alpha > 2
             print(mask.float().mean().data[0])
             output = F.linear(input, self.weight.masked_fill(mask, 0),
                               self.bias)

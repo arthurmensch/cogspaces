@@ -147,7 +147,7 @@ def load_data(source_dir, studies, target_study):
 
 @exp.main
 def train(system, model, factored, factored_cv, trace, logistic,
-          factored_fast,
+          factored_fast, factored_variational,
           _run, _seed):
     print(_seed)
     data, target = load_data()
@@ -190,7 +190,7 @@ def train(system, model, factored, factored_cv, trace, logistic,
                                             device=system['device'],
                                             max_iter=model['max_iter'],
                                             seed=_seed,
-                                            **factored_fast)
+                                            **factored_variational)
     elif model['estimator'] == 'trace':
         estimator = TraceClassifier(verbose=system['verbose'],
                                     max_iter=model['max_iter'],
