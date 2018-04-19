@@ -15,6 +15,7 @@ from cogspaces.models.baseline import MultiLogisticClassifier
 from cogspaces.models.factored import FactoredClassifier, FactoredClassifierCV
 from cogspaces.models.factored_fast import MultiStudyClassifier
 from cogspaces.models.trace import TraceClassifier
+from cogspaces.models.variational import VarMultiStudyClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
@@ -27,7 +28,7 @@ def default():
     seed = 10
     system = dict(
         device=-1,
-        verbose=10,
+        verbose=3,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
@@ -36,9 +37,9 @@ def default():
     )
     model = dict(
         normalize=False,
-        estimator='factored_fast',
+        estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter=500,
+        max_iter=300,
     )
     factored_fast = dict(
         optimizer='adam',
@@ -47,10 +48,20 @@ def default():
         epoch_counting='all',
         sampling='random',
         batch_size=128,
-        regularization=1e-3,
-        dropout=0.5,
+        regularization=0,
+        dropout=0.75,
         lr=1e-3,
-        input_dropout=0.)
+        input_dropout=0.25)
+    factored_variational = dict(
+        optimizer='adam',
+        latent_size=128,
+        activation='linear',
+        epoch_counting='all',
+        sampling='random',
+        batch_size=128,
+        dropout=0.75,
+        lr=1e-3,
+        input_dropout=0.25)
 
     factored = dict(
         optimizer='adam',
@@ -170,10 +181,16 @@ def train(system, model, factored, factored_cv, trace, logistic,
                                          **factored_cv)
     elif model['estimator'] == 'factored_fast':
         estimator = MultiStudyClassifier(verbose=system['verbose'],
-                                         device=system['device'],
-                                         max_iter=model['max_iter'],
-                                         seed=_seed,
-                                         **factored_fast)
+                                            device=system['device'],
+                                            max_iter=model['max_iter'],
+                                            seed=_seed,
+                                            **factored_fast)
+    elif model['estimator'] == 'factored_variational':
+        estimator = VarMultiStudyClassifier(verbose=system['verbose'],
+                                            device=system['device'],
+                                            max_iter=model['max_iter'],
+                                            seed=_seed,
+                                            **factored_fast)
     elif model['estimator'] == 'trace':
         estimator = TraceClassifier(verbose=system['verbose'],
                                     max_iter=model['max_iter'],
@@ -191,7 +208,7 @@ def train(system, model, factored, factored_cv, trace, logistic,
                                   score_function=accuracy_score)
     train_callback = ScoreCallback(X=train_data, y=train_targets,
                                    score_function=accuracy_score)
-    callback = MultiCallback({'train': train_callback,
+    callback = MultiCallback({# 'train': train_callback,
                               'test': test_callback})
     _run.info['n_iter'] = train_callback.n_iter_
     _run.info['train_scores'] = train_callback.scores_
@@ -199,7 +216,7 @@ def train(system, model, factored, factored_cv, trace, logistic,
 
     estimator.fit(train_data, train_targets,
                   study_weights=study_weights,
-                  # callback=callback
+                  callback=callback
                   )
 
     if model['estimator'] == 'factored_cv':

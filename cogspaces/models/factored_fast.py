@@ -25,7 +25,7 @@ def infinite_iter(iterable):
             yield elem
 
 
-class ProxAdam(Optimizer):
+class OurAdam(Optimizer):
     """Implements Adam algorithm.
 
     It has been proposed in `Adam: A Method for Stochastic Optimization`_.
@@ -51,7 +51,7 @@ class ProxAdam(Optimizer):
                         soft_thresholding=soft_thresholding,
                         clip=clip,
                         weight_decay=weight_decay)
-        super(ProxAdam, self).__init__(params, defaults)
+        super(OurAdam, self).__init__(params, defaults)
 
     def step(self, closure=None):
         """Performs a single optimization step.
@@ -66,12 +66,15 @@ class ProxAdam(Optimizer):
 
         for group in self.param_groups:
             for p in group['params']:
+                if not p.requires_grad:
+                    continue
                 if p.grad is None:
                     continue
                 grad = p.grad.data
                 if grad.is_sparse:
                     raise RuntimeError(
-                        'Adam does not support sparse gradients, please consider SparseAdam instead')
+                        'Adam does not support sparse gradients, '
+                        'please consider SparseAdam instead')
 
                 state = self.state[p]
 
@@ -108,7 +111,9 @@ class ProxAdam(Optimizer):
                 p.data.addcdiv_(-step_size, exp_avg, denom)
 
                 if group['soft_thresholding'] != 0:
-                    p.data = soft_thresh(p.data, group['soft_thresholding'] * step_size)
+                    p.data = soft_thresh(p.data,
+                                         group['soft_thresholding']
+                                         * step_size)
 
                 if group['clip'] == 'cross':
                     sgn = torch.sign(p.data)
@@ -121,12 +126,13 @@ class ProxAdam(Optimizer):
 
 class Embedder(nn.Module):
     def __init__(self, in_features, latent_size, input_dropout=0.,
+                 regularization=0.,
                  activation='linear'):
         super().__init__()
 
         self.input_dropout = nn.Dropout(p=input_dropout)
-
         self.linear = nn.Linear(in_features, latent_size, bias=True)
+        self.regularization = regularization
 
         if activation == 'linear':
             self.activation = Identity()
@@ -139,22 +145,35 @@ class Embedder(nn.Module):
     def reset_parameters(self):
         self.linear.reset_parameters()
 
+    def penalty(self):
+        if self.regularization != 0:
+            return self.regularization * torch.sum(
+                torch.abs(self.linear.weight))
+        else:
+            return 0
+
 
 class LatentClassifier(nn.Module):
-    def __init__(self, latent_size, target_size, dropout):
+    def __init__(self, latent_size, target_size, dropout=0.,
+                 ):
         super().__init__()
 
-        self.dropout = nn.Dropout(dropout)
         self.batch_norm = nn.BatchNorm1d(latent_size)
+
+        self.dropout = nn.Dropout(dropout)
         self.linear = nn.Linear(latent_size, target_size, bias=True)
 
     def forward(self, input):
-        return F.log_softmax(
-            self.linear(self.dropout(self.batch_norm(input))), dim=1)
+        input = self.batch_norm(input)
+        input = self.dropout(input)
+        return F.log_softmax(self.linear(input), dim=1)
 
     def reset_parameters(self):
         self.linear.reset_parameters()
         self.batch_norm.reset_parameters()
+
+    def penalty(self):
+        return 0
 
 
 class MultiStudyModule(nn.Module):
@@ -163,14 +182,18 @@ class MultiStudyModule(nn.Module):
                  target_sizes,
                  input_dropout=0.,
                  dropout=0.,
+                 regularization=0.,
                  activation='linear'):
         super().__init__()
 
-        self.embedder = Embedder(in_features, latent_size, input_dropout,
-                                 activation)
+        self.embedder = Embedder(in_features, latent_size,
+                                 input_dropout=input_dropout,
+                                 activation=activation,
+                                 regularization=regularization,
+                                 )
 
         self.classifiers = {study: LatentClassifier(latent_size, target_size,
-                                                    dropout)
+                                                    dropout=dropout)
                             for study, target_size in target_sizes.items()}
         for study, classifier in self.classifiers.items():
             self.add_module('classifier_%s' % study, classifier)
@@ -181,17 +204,18 @@ class MultiStudyModule(nn.Module):
         for classifier in self.classifiers.values():
             classifier.reset_parameters()
 
-        # for param in self.parameters():
-        #     if param.ndimension() == 2:
-        #         nn.init.xavier_uniform(param)
-        #     elif param.ndimension() == 1:
-        #         param.data.fill_(0.)
-
-    def forward(self, inputs):  # return_penalty=False):
+    def forward(self, inputs):
         preds = {}
         for study, input in inputs.items():
             preds[study] = self.classifiers[study](self.embedder(input))
         return preds
+
+    def penalty(self, studies=None):
+        penalty = self.embedder.penalty()
+        if studies is not None:
+            for study in studies:
+                penalty += self.classifiers[study].penalty()
+        return penalty
 
 
 class MultiStudyLoss(nn.Module):
@@ -362,6 +386,7 @@ class MultiStudyClassifier(BaseEstimator):
             activation=self.activation,
             latent_size=self.latent_size,
             input_dropout=self.input_dropout,
+            regularization=self.regularization,
             dropout=self.dropout,
             target_sizes=target_sizes)
         self.module_.reset_parameters()
@@ -378,14 +403,11 @@ class MultiStudyClassifier(BaseEstimator):
                 params.append(param)
 
         if self.optimizer == 'adam':
-            optimizer = ProxAdam([dict(params=params),
-                                  dict(params=embedder_weight,
-                                       # soft_thresholding=self.regularization,
-                                       clip='cross',
-                                       )],
-                                 lr=self.lr)
+            optimizer = OurAdam([dict(params=params),
+                                 dict(params=embedder_weight,
+                                      clip='cross')], lr=self.lr)
         elif self.optimizer == 'sgd':
-            optimizer = SGD(params, lr=self.lr, )
+            optimizer = SGD(self.module_.parameters(), lr=self.lr, )
         else:
             raise ValueError
 
@@ -423,9 +445,7 @@ class MultiStudyClassifier(BaseEstimator):
 
             preds = self.module_(inputs)
             loss = loss_function(preds, targets)
-            embedder_weight = self.module_.embedder.linear.weight
-            loss += self.regularization * torch.sum(
-                torch.abs(embedder_weight))
+            loss += self.module_.penalty(inputs.keys())
             loss.backward()
             optimizer.step()
 
@@ -463,14 +483,6 @@ class MultiStudyClassifier(BaseEstimator):
                           ' %.4f' % (epoch, best_loss))
                     self.module_.load_state_dict(best_state)
                     break
-        # W = self.module_.embedder.linear.weight.data.transpose(0, 1)
-        # Q, R = torch.qr(W)
-        # self.module_.embedder.linear.weight.data = Q.transpose(0, 1)
-        # for classifier in self.module_.classifiers.values():
-        #     classifier.reset_parameters()
-        # C = classifier.linear.weight.data
-        # classifier.linear.weight.data = C @ R
-        print(self.module_.embedder.linear.weight.data)
         X_red = {}
         # Remove input dropout
         self.module_.embedder.eval()
