@@ -108,6 +108,7 @@ class AdaptiveDropoutLinear(nn.Linear):
         self.p = p
         self.log_sigma2 = Parameter(torch.Tensor(out_features, in_features))
         self.reset_log_sigma2()
+        self.mask_training = False
 
     def reset_parameters(self):
         super().reset_parameters()
@@ -116,23 +117,31 @@ class AdaptiveDropoutLinear(nn.Linear):
 
     def reset_log_sigma2(self):
         p = max(self.p, 1e-8)
-        log_alpha = math.log(self.p) - math.log(1 - self.p)
+        log_alpha = math.log(p) - math.log(1 - p)
         self.log_sigma2.data = log_alpha + torch.log(self.weight.data ** 2
                                                      + 1e-8)
 
     def forward(self, input):
-        log_alpha = self.log_sigma2 - torch.log(self.weight ** 2 + 1e-8)
-        mask = log_alpha > 3
+
         if self.training:
-            output = F.linear(input, self.weight.masked_fill(mask, 0),
-                              self.bias)
-            # Local reparemtrization trick: gaussian dropout noise on input
+            if self.mask_training:
+                log_alpha = self.log_sigma2 - torch.log(
+                    self.weight ** 2 + 1e-8)
+                mask = log_alpha > 3
+                weight = self.weight.masked_fill(mask, 0)
+                var_weight = torch.exp(self.log_sigma2).masked_fill(mask, 0)
+            else:
+                weight = self.weight
+                var_weight = torch.exp(self.log_sigma2)
+            # Local reparametrization trick: gaussian dropout noise on input
             # <-> gaussian noise on output
-            std_weight = torch.exp(self.log_sigma2).masked_fill(mask, 0)
-            std = torch.sqrt(F.linear(input ** 2, std_weight, None) + 1e-8)
+            output = F.linear(input, weight, self.bias)
+            std = torch.sqrt(F.linear(input ** 2, var_weight, None) + 1e-8)
             eps = Variable(torch.randn(*output.shape))
             return output + eps * std
         else:
+            log_alpha = self.log_sigma2 - torch.log(self.weight ** 2 + 1e-8)
+            mask = log_alpha > 3
             output = F.linear(input, self.weight.masked_fill(mask, 0),
                               self.bias)
             return output
