@@ -1,6 +1,3 @@
-import numpy as np
-
-
 class ScoreCallback:
     def __init__(self, X, y, score_function):
         self.X = X
@@ -31,12 +28,12 @@ class ScoreCallback:
         scores_str = ' '.join('%s: %.3f' % (study, score)
                               for study, score in scores.items())
         scores_str = 'Score: ' + scores_str
-        print(scores_str)
+        return scores_str
         #
-        scores_str = ' '.join('%s: %.3f' % (study, score)
-                              for study, score in study_scores.items())
-        scores_str = 'Study score: ' + scores_str
-        print(scores_str)
+        # scores_str = ' '.join('%s: %.3f' % (study, score)
+        #                       for study, score in study_scores.items())
+        # scores_str = 'Study score: ' + scores_str
+        # print(scores_str)
         #
         # scores_str = ' '.join('%s: %.3f' % (study, score)
         #                       for study, score in all_contrast_scores.items())
@@ -52,5 +49,5 @@ class MultiCallback:
 
     def __call__(self, *args, **kwargs):
         for name, callback in self.callbacks.items():
-            print('[callback %s]' % name)
-            callback(*args, **kwargs)
+            output = callback(*args, **kwargs)
+            print('[%s] %s' % (name, output))

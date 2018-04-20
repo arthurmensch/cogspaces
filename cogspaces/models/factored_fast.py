@@ -146,11 +146,8 @@ class Embedder(nn.Module):
         self.linear.reset_parameters()
 
     def penalty(self):
-        if self.regularization != 0:
-            return self.regularization * torch.sum(
-                torch.abs(self.linear.weight))
-        else:
-            return 0
+        return torch.sum(
+            torch.abs(self.linear.weight))
 
 
 class LatentClassifier(nn.Module):
@@ -210,16 +207,15 @@ class MultiStudyModule(nn.Module):
             preds[study] = self.classifiers[study](self.embedder(input))
         return preds
 
-    def penalty(self, studies=None):
-        penalty = self.embedder.penalty()
-        if studies is not None:
-            for study in studies:
-                penalty += self.classifiers[study].penalty()
-        return penalty
+    def penalty(self, studies):
+        return {study:
+                    self.embedder.penalty() + self.classifiers[study].penalty()
+                for study in studies}
 
 
 class MultiStudyLoss(nn.Module):
-    def __init__(self, study_weights: Dict[str, float], ) -> None:
+    def __init__(self, study_weights: Dict[str, float],
+                 ) -> None:
         super().__init__()
         self.study_weights = study_weights
 
@@ -230,8 +226,8 @@ class MultiStudyLoss(nn.Module):
         for study in preds:
             pred = preds[study]
             target = targets[study]
-            loss += (F.nll_loss(pred, target, size_average=True)
-                     * self.study_weights[study])
+            this_loss = F.nll_loss(pred, target, size_average=True)
+            loss += this_loss * self.study_weights[study]
         return loss
 
 
@@ -371,6 +367,7 @@ class MultiStudyClassifier(BaseEstimator):
         y = {study: torch.from_numpy(this_y['contrast'].values).long()
              for study, this_y in y.items()}
         data = {study: TensorDataset(X[study], y[study]) for study in X}
+        lengths = {study: len(this_data) for study, this_data in data.items()}
         data_loader = MultiStudyLoader(data, sampling=self.sampling,
                                        batch_size=self.batch_size,
                                        seed=self.seed,
@@ -394,7 +391,8 @@ class MultiStudyClassifier(BaseEstimator):
         # Loss function
         if study_weights is None or self.sampling == 'random':
             study_weights = {study: 1. for study in X}
-        loss_function = MultiStudyLoss(study_weights)
+        loss_function = MultiStudyLoss(study_weights,
+                                       regularization=self.regularization)
         # Optimizers
         embedder_weight = self.module_.embedder.linear.weight
         params = []
@@ -444,8 +442,8 @@ class MultiStudyClassifier(BaseEstimator):
             optimizer.zero_grad()
 
             preds = self.module_(inputs)
-            loss = loss_function(preds, targets)
-            loss += self.module_.penalty(inputs.keys())
+            penalties = self.module_.penalty(inputs)
+            loss = loss_function(preds, targets, penalties)
             loss.backward()
             optimizer.step()
 

@@ -28,18 +28,18 @@ def default():
     seed = 10
     system = dict(
         device=-1,
-        verbose=3,
+        verbose=2,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies='all',
+        studies=['archi', 'brainomics'],
         target_study='archi'
     )
     model = dict(
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter=300,
+        max_iter=100,
     )
     factored_fast = dict(
         optimizer='adam',
@@ -52,6 +52,7 @@ def default():
         dropout=0.75,
         lr=1e-3,
         input_dropout=0.25)
+
     factored_variational = dict(
         optimizer='adam',
         latent_size=128,
@@ -59,6 +60,7 @@ def default():
         epoch_counting='all',
         sampling='random',
         batch_size=128,
+        regularization=.1,
         dropout=0.75,
         lr=1e-3,
         input_dropout=0.25)
@@ -208,7 +210,7 @@ def train(system, model, factored, factored_cv, trace, logistic,
                                   score_function=accuracy_score)
     train_callback = ScoreCallback(X=train_data, y=train_targets,
                                    score_function=accuracy_score)
-    callback = MultiCallback({# 'train': train_callback,
+    callback = MultiCallback({'train': train_callback,
                               'test': test_callback})
     _run.info['n_iter'] = train_callback.n_iter_
     _run.info['train_scores'] = train_callback.scores_
