@@ -44,7 +44,7 @@ class DropoutLinear(nn.Linear):
         self.p = p
 
     def forward(self, input):
-        input = gaussian_dropout(input, p=self.p, training=self.training)
+        input = F.dropout(input, p=self.p, training=self.training)
         return super().forward(input)
 
     def penalty(self):
@@ -458,7 +458,7 @@ class VarMultiStudyClassifier(BaseEstimator):
             modules['adaptative'].embedder.linear.sparse_weight.data
         modules['fixed'].embedder.linear.p = 0.
         self.module_ = modules['fixed']
-        lr = self.lr
+        lr = self.lr * 0.05
 
         nnz = self.module_.embedder.linear.weight != 0
         density = nnz.float().mean().data[0]
@@ -512,8 +512,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                     print('Epoch %.2f, train loss: %.4f, penalty: %.4f'
                           % (epoch, epoch_loss,
                              module.penalty()))
-                    if callback is not None:
-                        callback(self, epoch)
 
                 if epoch_loss > best_loss:
                     no_improvement += 1
@@ -526,7 +524,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                     break
             print('Stopping at epoch %.2f, best train loss'
                   ' %.4f' % (epoch, best_loss))
-            callback(self, epoch)
             print('-----------------------------------')
 
         module.load_state_dict(best_state)

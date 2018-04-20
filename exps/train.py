@@ -28,18 +28,18 @@ def default():
     seed = 10
     system = dict(
         device=-1,
-        verbose=2,
+        verbose=10,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'brainomics'],
+        studies='all',
         target_study='archi'
     )
     model = dict(
         normalize=False,
-        estimator='factored_variational',
+        estimator='factored_fast',
         study_weight='sqrt_sample',
-        max_iter=300,
+        max_iter=200,
     )
     factored_fast = dict(
         optimizer='adam',
@@ -48,7 +48,7 @@ def default():
         epoch_counting='all',
         sampling='random',
         batch_size=128,
-        regularization=0,
+        regularization=1e-4,
         dropout=0.75,
         lr=1e-3,
         input_dropout=0.25)
@@ -60,7 +60,7 @@ def default():
         epoch_counting='all',
         sampling='random',
         batch_size=128,
-        regularization=.1,
+        regularization=.05,
         dropout=0.75,
         lr=1e-3,
         input_dropout=0.25)

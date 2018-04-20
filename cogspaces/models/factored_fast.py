@@ -85,6 +85,8 @@ class OurAdam(Optimizer):
                     state['exp_avg'] = torch.zeros_like(p.data)
                     # Exponential moving average of squared gradient values
                     state['exp_avg_sq'] = torch.zeros_like(p.data)
+                    if group['clip'] == 'cross':
+                        state['cross_count'] = torch.zeros_like(p.data).long()
 
                 exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
                 beta1, beta2 = group['betas']
@@ -117,7 +119,8 @@ class OurAdam(Optimizer):
 
                 if group['clip'] == 'cross':
                     sgn = torch.sign(p.data)
-                    p.data[old_sgn != sgn] = 0
+                    state['cross_count'] += (old_sgn * sgn == -1).long()
+                    p.data[state['cross_count'] > 10] = 0
                 elif group['clip'] == 'positive':
                     p.data[p.data < 0] = 0.
 
@@ -330,7 +333,7 @@ class MultiStudyClassifier(BaseEstimator):
                  device=-1,
                  regularization=1e-3,
                  sampling='cycle',
-                 patience=50,
+                 patience=2000,
                  seed=None):
 
         self.latent_size = latent_size
@@ -367,7 +370,6 @@ class MultiStudyClassifier(BaseEstimator):
         y = {study: torch.from_numpy(this_y['contrast'].values).long()
              for study, this_y in y.items()}
         data = {study: TensorDataset(X[study], y[study]) for study in X}
-        lengths = {study: len(this_data) for study, this_data in data.items()}
         data_loader = MultiStudyLoader(data, sampling=self.sampling,
                                        batch_size=self.batch_size,
                                        seed=self.seed,
@@ -391,19 +393,19 @@ class MultiStudyClassifier(BaseEstimator):
         # Loss function
         if study_weights is None or self.sampling == 'random':
             study_weights = {study: 1. for study in X}
-        loss_function = MultiStudyLoss(study_weights,
-                                       regularization=self.regularization)
+        loss_function = MultiStudyLoss(study_weights)
         # Optimizers
         embedder_weight = self.module_.embedder.linear.weight
         params = []
         for name, param in self.module_.named_parameters():
             if name != 'embedder.linear.weight':
                 params.append(param)
-
         if self.optimizer == 'adam':
             optimizer = OurAdam([dict(params=params),
                                  dict(params=embedder_weight,
-                                      clip='cross')], lr=self.lr)
+                                      soft_thresholding=0,
+                                      clip='cross')],
+                                lr=self.lr)
         elif self.optimizer == 'sgd':
             optimizer = SGD(self.module_.parameters(), lr=self.lr, )
         else:
@@ -435,6 +437,9 @@ class MultiStudyClassifier(BaseEstimator):
         epoch_batch = 0
         best_loss = float('inf')
         no_improvement = 0
+        n_elem = self.module_.embedder.linear.weight.view(-1).shape[0]
+        random_features = check_random_state(10).permutation(n_elem)[:100].tolist()
+        weights = []
         for inputs, targets in data_loader:
             batch_size = sum(input.shape[0] for input in inputs.values())
             seen_samples += batch_size
@@ -442,14 +447,16 @@ class MultiStudyClassifier(BaseEstimator):
             optimizer.zero_grad()
 
             preds = self.module_(inputs)
-            penalties = self.module_.penalty(inputs)
-            loss = loss_function(preds, targets, penalties)
+            weights.append(self.module_.embedder.linear.weight.data.view(-1)[random_features].numpy())
+            penalty = self.module_.embedder.penalty() * self.regularization
+            loss = loss_function(preds, targets)
+            loss += penalty
             loss.backward()
             optimizer.step()
 
             epoch_batch += 1
             epoch_loss *= (1 - 1 / epoch_batch)
-            epoch_loss = loss.data[0] / epoch_batch
+            epoch_loss += loss.data[0] / epoch_batch
 
             epoch = floor(seen_samples / n_samples)
             if epoch > old_epoch:
@@ -458,12 +465,13 @@ class MultiStudyClassifier(BaseEstimator):
 
                 if (report_every is not None
                         and epoch % report_every == 0):
-                    print('Epoch %.2f, train loss: %.4f'
-                          % (epoch, epoch_loss))
-                    weight = self.module_.embedder.linear.weight.data
-                    density = (torch.sum(weight != 0)
-                               / weight.shape[0] / weight.shape[1])
-                    print('Sparsity: %.4f' % (1 - density))
+                    weight = self.module_.embedder.linear.weight
+                    density = (weight != 0).float().mean().data[0]
+                    penalty = (self.module_.embedder.penalty()
+                               * self.regularization)
+                    print('Epoch %.2f, train loss: %.4f, penalty: %.4f,'
+                          ' density: %.4f' % (epoch, epoch_loss,
+                                              penalty, density))
                     if callback is not None:
                         callback(self, epoch)
 
@@ -480,10 +488,14 @@ class MultiStudyClassifier(BaseEstimator):
                     print('Stopping at epoch %.2f, best train loss'
                           ' %.4f' % (epoch, best_loss))
                     self.module_.load_state_dict(best_state)
+                    callback(self, epoch)
+                    print('----------------------------------')
                     break
+        weights = np.concatenate([weight[None, :] for weight in weights], axis=0)
+        np.save('weights_7.npy', weights)
+
         X_red = {}
-        # Remove input dropout
-        self.module_.embedder.eval()
+        self.module_.embedder.input_dropout.p = 0
         for study, this_X in X.items():
             print('Fine tuning %s' % study)
             if cuda:
@@ -530,8 +542,6 @@ class MultiStudyClassifier(BaseEstimator):
                         and epoch % report_every == 0):
                     print('Epoch %.2f, train loss: %.4f'
                           % (epoch, epoch_loss))
-                    if callback is not None:
-                        callback(self, epoch)
 
                 if epoch_loss > best_loss:
                     no_improvement += 1
@@ -545,6 +555,7 @@ class MultiStudyClassifier(BaseEstimator):
             print('Stopping at epoch %.2f, best train loss'
                   ' %.4f' % (epoch, best_loss))
             module.load_state_dict(best_state)
+            print('----------------------------------')
         return self
 
     def _check_cuda(self):
