@@ -61,47 +61,47 @@ class DropoutLinear(nn.Linear):
         return self.weight
 
 
-# class AdaptiveDropoutLinear2(nn.Linear):
-#     def __init__(self, in_features, out_features, bias=True, p=0.):
-#         super().__init__(in_features, out_features, bias)
-#         self.p = p
-#         self.log_alpha = Parameter(torch.Tensor(out_features, in_features))
-#
-#     def reset_parameters(self):
-#         super().reset_parameters()
-#         if hasattr(self, 'log_alpha'):
-#             p = max(self.p, 1e-8)
-#             log_alpha = math.log(p) - math.log(1 - p)
-#             self.log_alpha.data.fill_(log_alpha)
-#
-#     def forward(self, input):
-#         mask = self.log_alpha > 3
-#         if self.training:
-#             output = super().forward(input)
-#             # Local reparemtrization trick: gaussian dropout noise on input
-#             # <-> gaussian noise on output
-#             log_alpha = clip(self.log_alpha)
-#             std = torch.sqrt(F.linear(input ** 2,
-#                                       torch.exp(log_alpha)
-#                                       * self.weight ** 2,
-#                                       None) + 1e-8)
-#             eps = Variable(torch.randn(*output.shape))
-#             return output + eps * std
-#         else:
-#             output = F.linear(input, self.weight.masked_fill(mask, 0),
-#                               self.bias)
-#             return output
-#
-#     def penalty(self):
-#         log_alpha = clip(self.log_alpha)
-#         # We put a mean there but in theory it should be a sum
-#         return - torch.sum(k1 * (F.sigmoid(k2 + k3 * log_alpha)
-#                                  - .5 * F.softplus(-log_alpha) - 1))
-#
-#     @property
-#     def sparse_weight(self):
-#         mask = self.log_alpha > 3
-#         return self.weight.masked_fill(mask, 0)
+class AdaptiveDropoutLinear2(nn.Linear):
+    def __init__(self, in_features, out_features, bias=True, p=0.):
+        super().__init__(in_features, out_features, bias)
+        self.p = p
+        self.log_alpha = Parameter(torch.Tensor(1, ))
+
+    def reset_parameters(self):
+        super().reset_parameters()
+        if hasattr(self, 'log_alpha'):
+            p = max(self.p, 1e-8)
+            log_alpha = math.log(p) - math.log(1 - p)
+            self.log_alpha.data.fill_(log_alpha)
+
+    def forward(self, input):
+        mask = self.log_alpha > 3
+        if self.training:
+            output = super().forward(input)
+            # Local reparemtrization trick: gaussian dropout noise on input
+            # <-> gaussian noise on output
+            log_alpha = clip(self.log_alpha)
+            std = torch.sqrt(F.linear(input ** 2,
+                                      torch.exp(log_alpha)
+                                      * self.weight ** 2,
+                                      None) + 1e-8)
+            eps = Variable(torch.randn(*output.shape))
+            return output + eps * std
+        else:
+            output = F.linear(input, self.weight.masked_fill(mask, 0),
+                              self.bias)
+            return output
+
+    def penalty(self):
+        log_alpha = clip(self.log_alpha)
+        # We put a mean there but in theory it should be a sum
+        return - k1 * (F.sigmoid(k2 + k3 * log_alpha)
+                       - .5 * F.softplus(-log_alpha) - 1) * self.out_features * self.in_features
+
+    @property
+    def sparse_weight(self):
+        mask = self.log_alpha > 3
+        return self.weight.masked_fill(mask, 0)
 
 
 class AdaptiveDropoutLinear(nn.Linear):
@@ -171,7 +171,7 @@ class Embedder(nn.Module):
         super().__init__()
 
         if adaptive_dropout:
-            self.linear = AdaptiveDropoutLinear(in_features,
+            self.linear = AdaptiveDropoutLinear2(in_features,
                                                 latent_size, bias=True,
                                                 p=dropout)
         else:
@@ -199,7 +199,7 @@ class LatentClassifier(nn.Module):
 
         self.batch_norm = nn.BatchNorm1d(latent_size)
         if adaptive_dropout:
-            self.linear = AdaptiveDropoutLinear(latent_size,
+            self.linear = AdaptiveDropoutLinear2(latent_size,
                                                 target_size, bias=True,
                                                 p=dropout)
         else:
@@ -236,7 +236,7 @@ class VarMultiStudyModule(nn.Module):
 
         self.classifiers = {study: LatentClassifier(
             latent_size, target_size, dropout=latent_dropout,
-            adaptive_dropout=False, )
+            adaptive_dropout=adaptive_dropout, )
             for study, target_size in target_sizes.items()}
         for study, classifier in self.classifiers.items():
             self.add_module('classifier_%s' % study, classifier)
@@ -384,10 +384,10 @@ class VarMultiStudyClassifier(BaseEstimator):
             self.module_ = module
             if phase == 'fixed':
                 lr = self.lr
-                # modules[phase] = torch.load(join(get_output_dir(),
-                #                                  'model_%s.pkl' % phase))
-                # self.module_ = module = modules[phase]
-                # continue
+                modules[phase] = torch.load(join(get_output_dir(),
+                                                 'model_%s.pkl' % phase))
+                self.module_ = module = modules[phase]
+                continue
             else:
                 # modules[phase] = torch.load(join(get_output_dir(),
                 #                                  'model_%s.pkl' % phase))
@@ -431,14 +431,14 @@ class VarMultiStudyClassifier(BaseEstimator):
                 #     (this_penalty + embedder_penalty) / lengths[study]
                 #     for study, this_penalty
                 #     in penalties.items())
-                # regularization = regularization_schedule(self.regularization,
-                #                                          self.regularization
-                #                                          * 0.5,
-                #                                          warmup=0.1,
-                #                                          cooldown=0.9,
-                #                                          max_iter=self.max_iter,
-                #                                          epoch=epoch)
-                penalty *= self.regularization
+                regularization = regularization_schedule(
+                    self.regularization * 5,
+                    self.regularization,
+                    warmup=0.1,
+                    cooldown=0.9,
+                    max_iter=self.max_iter,
+                    epoch=epoch)
+                penalty *= regularization
                 loss += penalty
                 loss.backward()
                 optimizer.step()
@@ -515,6 +515,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                                      batch_size=self.batch_size,
                                      pin_memory=cuda)
             module = self.module_.classifiers[study]
+            module.linear.p = 0.75
             optimizer = Adam(module.parameters(), lr=lr)
             loss_function = F.nll_loss
 
