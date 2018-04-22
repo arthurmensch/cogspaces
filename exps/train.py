@@ -37,9 +37,9 @@ def default():
     )
     model = dict(
         normalize=False,
-        estimator='factored_fast',
+        estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter=200,
+        max_iter=500,
     )
     factored_fast = dict(
         optimizer='adam',
@@ -48,10 +48,10 @@ def default():
         epoch_counting='all',
         sampling='random',
         batch_size=128,
-        regularization=1e-4,
-        dropout=0.75,
+        regularization=1e-5,
+        dropout=0.5,
         lr=1e-3,
-        input_dropout=0.25)
+        input_dropout=0.)
 
     factored_variational = dict(
         optimizer='adam',
@@ -60,10 +60,10 @@ def default():
         epoch_counting='all',
         sampling='random',
         batch_size=128,
-        regularization=.05,
-        dropout=0.75,
+        regularization=1,
+        dropout=0.5,
         lr=1e-3,
-        input_dropout=0.25)
+        input_dropout=0.5)
 
     factored = dict(
         optimizer='adam',

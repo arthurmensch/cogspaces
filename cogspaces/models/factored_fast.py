@@ -120,7 +120,7 @@ class OurAdam(Optimizer):
                 if group['clip'] == 'cross':
                     sgn = torch.sign(p.data)
                     state['cross_count'] += (old_sgn * sgn == -1).long()
-                    p.data[state['cross_count'] > 10] = 0
+                    p.data[state['cross_count'] > 1] = 0
                 elif group['clip'] == 'positive':
                     p.data[p.data < 0] = 0.
 
@@ -507,7 +507,7 @@ class MultiStudyClassifier(BaseEstimator):
                                      batch_size=self.batch_size,
                                      pin_memory=cuda)
             module = self.module_.classifiers[study]
-            optimizer = Adam(module.parameters(), lr=self.lr)
+            optimizer = Adam(module.parameters(), lr=self.lr * .1)
             loss_function = F.nll_loss
 
             seen_samples = 0

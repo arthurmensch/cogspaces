@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
+from os.path import join
 from sklearn.base import BaseEstimator
 from torch import nn
 from torch.autograd import Variable
@@ -14,6 +15,7 @@ from torch.nn import Parameter
 from torch.optim import Adam, SGD
 from torch.utils.data import TensorDataset, DataLoader
 
+from cogspaces.datasets.utils import get_output_dir
 from cogspaces.models.factored import Identity
 from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
 
@@ -44,7 +46,7 @@ class DropoutLinear(nn.Linear):
         self.p = p
 
     def forward(self, input):
-        input = F.dropout(input, p=self.p, training=self.training)
+        input = gaussian_dropout(input, p=self.p, training=self.training)
         return super().forward(input)
 
     def penalty(self):
@@ -234,7 +236,7 @@ class VarMultiStudyModule(nn.Module):
 
         self.classifiers = {study: LatentClassifier(
             latent_size, target_size, dropout=latent_dropout,
-            adaptive_dropout=adaptive_dropout, )
+            adaptive_dropout=False, )
             for study, target_size in target_sizes.items()}
         for study, classifier in self.classifiers.items():
             self.add_module('classifier_%s' % study, classifier)
@@ -257,6 +259,19 @@ class VarMultiStudyModule(nn.Module):
                 for study in studies}
 
 
+def regularization_schedule(start_value, stop_value, warmup, cooldown,
+                            max_iter, epoch):
+    warmup_epoch = floor(warmup * max_iter)
+    cooldown_epoch = floor(cooldown * max_iter)
+    if epoch <= warmup_epoch:
+        return start_value
+    elif epoch >= cooldown_epoch:
+        return stop_value
+    else:
+        alpha = (epoch - warmup_epoch) / (cooldown_epoch - warmup_epoch)
+        return start_value * (1 - alpha) + stop_value * alpha
+
+
 class VarMultiStudyClassifier(BaseEstimator):
     def __init__(self, latent_size=30,
                  activation='linear',
@@ -269,7 +284,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                  device=-1,
                  variational=False,
                  sampling='cycle',
-                 patience=50,
+                 patience=200,
                  regularization=0.,
                  seed=None):
 
@@ -346,16 +361,44 @@ class VarMultiStudyClassifier(BaseEstimator):
                 activation=self.activation,
                 latent_size=self.latent_size,
                 target_sizes=target_sizes)}
+
+        # Verbosity + epoch counting
+        if self.epoch_counting == 'all':
+            n_samples = sum(len(this_X) for this_X in X.values())
+        elif self.epoch_counting == 'target':
+            if self.sampling == 'weighted_random':
+                multiplier = (sum(study_weights.values()) /
+                              next(iter(study_weights.values())))
+            else:
+                multiplier = len(X)
+            n_samples = len(next(iter(X.values()))) * multiplier
+        else:
+            raise ValueError
+
+        if self.verbose != 0:
+            report_every = ceil(self.max_iter / self.verbose)
+        else:
+            report_every = None
+
         for phase, module in modules.items():
             self.module_ = module
             if phase == 'fixed':
                 lr = self.lr
+                # modules[phase] = torch.load(join(get_output_dir(),
+                #                                  'model_%s.pkl' % phase))
+                # self.module_ = module = modules[phase]
+                # continue
             else:
+                # modules[phase] = torch.load(join(get_output_dir(),
+                #                                  'model_%s.pkl' % phase))
+                # self.module_ = module = modules[phase]
+                # continue
                 module.load_state_dict(modules['fixed'].state_dict(),
                                        strict=False)
                 module.embedder.linear.reset_log_sigma2()
-                for classifier in module.classifiers.values():
-                    classifier.linear.reset_log_sigma2()
+                #
+                # for classifier in module.classifiers.values():
+                #     classifier.linear.reset_log_sigma2()
                 lr = self.lr * .1
             # Optimizers
             if self.optimizer == 'adam':
@@ -365,27 +408,10 @@ class VarMultiStudyClassifier(BaseEstimator):
             else:
                 raise ValueError
 
-            # Verbosity + epoch counting
-            if self.epoch_counting == 'all':
-                n_samples = sum(len(this_X) for this_X in X.values())
-            elif self.epoch_counting == 'target':
-                if self.sampling == 'weighted_random':
-                    multiplier = (sum(study_weights.values()) /
-                                  next(iter(study_weights.values())))
-                else:
-                    multiplier = len(X)
-                n_samples = len(next(iter(X.values()))) * multiplier
-            else:
-                raise ValueError
-
-            if self.verbose != 0:
-                report_every = ceil(self.max_iter / self.verbose)
-            else:
-                report_every = None
-
             best_state = module.state_dict()
 
             old_epoch = -1
+            epoch = 0
             seen_samples = 0
             epoch_loss = 0
             epoch_batch = 0
@@ -400,10 +426,18 @@ class VarMultiStudyClassifier(BaseEstimator):
                 preds = module(inputs)
                 loss = loss_function(preds, targets)
                 embedder_penalty, penalties = module.penalty(inputs)
-                penalty = sum(
-                    (this_penalty + embedder_penalty) / lengths[study]
-                    for study, this_penalty
-                    in penalties.items())
+                penalty = embedder_penalty / total_length
+                # penalty = sum(
+                #     (this_penalty + embedder_penalty) / lengths[study]
+                #     for study, this_penalty
+                #     in penalties.items())
+                # regularization = regularization_schedule(self.regularization,
+                #                                          self.regularization
+                #                                          * 0.5,
+                #                                          warmup=0.1,
+                #                                          cooldown=0.9,
+                #                                          max_iter=self.max_iter,
+                #                                          epoch=epoch)
                 penalty *= self.regularization
                 loss += penalty
                 loss.backward()
@@ -448,21 +482,27 @@ class VarMultiStudyClassifier(BaseEstimator):
                         print('Stopping at epoch %.2f, best train loss'
                               ' %.4f' % (epoch, best_loss))
                         callback(self, epoch)
-                        # module.load_state_dict(best_state)
+                        module.load_state_dict(best_state)
+                        torch.save(module, join(get_output_dir(),
+                                                'model_%s.pkl' % phase))
                         print('-----------------------------------')
                         break
 
-        modules['fixed'].load_state_dict(modules['adaptative'].state_dict(),
-                                         strict=False)
-        modules['fixed'].embedder.linear.weight.data = \
-            modules['adaptative'].embedder.linear.sparse_weight.data
-        modules['fixed'].embedder.linear.p = 0.
-        self.module_ = modules['fixed']
-        lr = self.lr * 0.05
+        weight = self.module_.embedder.linear.sparse_weight.data
+        bias = self.module_.embedder.linear.bias.data
+        in_features = self.module_.embedder.linear.in_features
+        out_features = self.module_.embedder.linear.out_features
+        self.module_.embedder.linear = nn.Linear(in_features, out_features,
+                                                 bias=True)
+        self.module_.embedder.linear.weight.data = weight
+        self.module_.embedder.linear.bias.data = bias
 
         nnz = self.module_.embedder.linear.weight != 0
         density = nnz.float().mean().data[0]
         print('Final density %s' % density)
+
+        lr = self.lr
+
         X_red = {}
         for study, this_X in X.items():
             print('Fine tuning %s' % study)
@@ -522,11 +562,11 @@ class VarMultiStudyClassifier(BaseEstimator):
 
                 if no_improvement > self.patience:
                     break
+            module.load_state_dict(best_state)
             print('Stopping at epoch %.2f, best train loss'
                   ' %.4f' % (epoch, best_loss))
             print('-----------------------------------')
-
-        module.load_state_dict(best_state)
+        callback(self, epoch)
         return self
 
     def _check_cuda(self):
