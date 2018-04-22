@@ -32,7 +32,7 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'brainomics'],
+        studies=['archi', 'la5c'],
         target_study='archi'
     )
     model = dict(
@@ -61,9 +61,9 @@ def default():
         sampling='random',
         batch_size=128,
         regularization=1,
-        dropout=0.5,
+        dropout=0.75,
         lr=1e-3,
-        input_dropout=0.5)
+        input_dropout=0.25)
 
     factored = dict(
         optimizer='adam',

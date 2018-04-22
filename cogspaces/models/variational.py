@@ -66,13 +66,17 @@ class AdaptiveDropoutLinear2(nn.Linear):
         super().__init__(in_features, out_features, bias)
         self.p = p
         self.log_alpha = Parameter(torch.Tensor(1, ))
+        self.reset_dropout()
 
     def reset_parameters(self):
         super().reset_parameters()
         if hasattr(self, 'log_alpha'):
-            p = max(self.p, 1e-8)
-            log_alpha = math.log(p) - math.log(1 - p)
-            self.log_alpha.data.fill_(log_alpha)
+            self.reset_dropout()
+
+    def reset_dropout(self):
+        p = max(self.p, 1e-8)
+        log_alpha = math.log(p) - math.log(1 - p)
+        self.log_alpha.data[0] = log_alpha
 
     def forward(self, input):
         mask = self.log_alpha > 3
@@ -96,12 +100,19 @@ class AdaptiveDropoutLinear2(nn.Linear):
         log_alpha = clip(self.log_alpha)
         # We put a mean there but in theory it should be a sum
         return - k1 * (F.sigmoid(k2 + k3 * log_alpha)
-                       - .5 * F.softplus(-log_alpha) - 1) * self.out_features * self.in_features
+                       - .5 * F.softplus(
+                    -log_alpha) - 1) * self.out_features * self.in_features
+
+    @property
+    def density(self):
+        return (self.sparse_weight != 0).float().mean().data[0]
 
     @property
     def sparse_weight(self):
-        mask = self.log_alpha > 3
-        return self.weight.masked_fill(mask, 0)
+        if self.log_alpha.data[0] > 3:
+            return self.weight.clone().fill_(0)
+        else:
+            return self.weight
 
 
 class AdaptiveDropoutLinear(nn.Linear):
@@ -109,15 +120,15 @@ class AdaptiveDropoutLinear(nn.Linear):
         super().__init__(in_features, out_features, bias)
         self.p = p
         self.log_sigma2 = Parameter(torch.Tensor(out_features, in_features))
-        self.reset_log_sigma2()
+        self.reset_dropout()
         self.mask_training = False
 
     def reset_parameters(self):
         super().reset_parameters()
         if hasattr(self, 'log_sigma2'):
-            self.reset_log_sigma2()
+            self.reset_dropout()
 
-    def reset_log_sigma2(self):
+    def reset_dropout(self):
         p = max(self.p, 1e-8)
         log_alpha = math.log(p) - math.log(1 - p)
         self.log_sigma2.data = log_alpha + torch.log(self.weight.data ** 2
@@ -171,7 +182,7 @@ class Embedder(nn.Module):
         super().__init__()
 
         if adaptive_dropout:
-            self.linear = AdaptiveDropoutLinear2(in_features,
+            self.linear = AdaptiveDropoutLinear(in_features,
                                                 latent_size, bias=True,
                                                 p=dropout)
         else:
@@ -200,8 +211,8 @@ class LatentClassifier(nn.Module):
         self.batch_norm = nn.BatchNorm1d(latent_size)
         if adaptive_dropout:
             self.linear = AdaptiveDropoutLinear2(latent_size,
-                                                target_size, bias=True,
-                                                p=dropout)
+                                                 target_size, bias=True,
+                                                 p=dropout)
         else:
             self.linear = DropoutLinear(latent_size,
                                         target_size, bias=True,
@@ -384,10 +395,10 @@ class VarMultiStudyClassifier(BaseEstimator):
             self.module_ = module
             if phase == 'fixed':
                 lr = self.lr
-                modules[phase] = torch.load(join(get_output_dir(),
-                                                 'model_%s.pkl' % phase))
-                self.module_ = module = modules[phase]
-                continue
+                # modules[phase] = torch.load(join(get_output_dir(),
+                #                                  'model_%s.pkl' % phase))
+                # self.module_ = module = modules[phase]
+                # continue
             else:
                 # modules[phase] = torch.load(join(get_output_dir(),
                 #                                  'model_%s.pkl' % phase))
@@ -395,10 +406,10 @@ class VarMultiStudyClassifier(BaseEstimator):
                 # continue
                 module.load_state_dict(modules['fixed'].state_dict(),
                                        strict=False)
-                module.embedder.linear.reset_log_sigma2()
-                #
-                # for classifier in module.classifiers.values():
-                #     classifier.linear.reset_log_sigma2()
+                module.embedder.linear.reset_dropout()
+
+                for classifier in module.classifiers.values():
+                    classifier.linear.reset_dropout()
                 lr = self.lr * .1
             # Optimizers
             if self.optimizer == 'adam':
@@ -427,18 +438,17 @@ class VarMultiStudyClassifier(BaseEstimator):
                 loss = loss_function(preds, targets)
                 embedder_penalty, penalties = module.penalty(inputs)
                 penalty = embedder_penalty / total_length
-                # penalty = sum(
-                #     (this_penalty + embedder_penalty) / lengths[study]
-                #     for study, this_penalty
-                #     in penalties.items())
-                regularization = regularization_schedule(
-                    self.regularization * 5,
-                    self.regularization,
-                    warmup=0.1,
-                    cooldown=0.9,
-                    max_iter=self.max_iter,
-                    epoch=epoch)
-                penalty *= regularization
+                penalty += sum(this_penalty / lengths[study]
+                               for study, this_penalty
+                               in penalties.items())
+                # regularization = regularization_schedule(
+                #     self.regularization,
+                #     self.regularization / 10,
+                #     warmup=0.2,
+                #     cooldown=0.9,
+                #     max_iter=self.max_iter,
+                #     epoch=epoch)
+                penalty *= self.regularization
                 loss += penalty
                 loss.backward()
                 optimizer.step()
@@ -462,6 +472,9 @@ class VarMultiStudyClassifier(BaseEstimator):
                             for study, this_penalty
                             in penalties.items())
                         penalty *= self.regularization
+                        for classifier in module.classifiers.values():
+                            if hasattr(classifier.linear, 'log_alpha'):
+                                print(classifier.linear.log_alpha)
                         density = module.embedder.linear.density
                         print('Epoch %.2f, train loss: %.4f, penalty: %.4f,'
                               ' density: %.4f'
@@ -484,7 +497,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                         callback(self, epoch)
                         module.load_state_dict(best_state)
                         torch.save(module, join(get_output_dir(),
-                                                'model_%s.pkl' % phase))
+                                                'model_2_%s.pkl' % phase))
                         print('-----------------------------------')
                         break
 
@@ -538,7 +551,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                     optimizer.zero_grad()
                     pred = module(input)
                     loss = loss_function(pred, target)
-                    penalty = module.penalty()
+                    penalty = 0
                     elbo = loss + penalty
                     elbo.backward()
                     optimizer.step()
@@ -551,8 +564,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 if (report_every is not None
                         and epoch % report_every == 0):
                     print('Epoch %.2f, train loss: %.4f, penalty: %.4f'
-                          % (epoch, epoch_loss,
-                             module.penalty()))
+                          % (epoch, epoch_loss, 0))
 
                 if epoch_loss > best_loss:
                     no_improvement += 1
