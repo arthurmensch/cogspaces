@@ -1,22 +1,20 @@
 import json
 import os
+import re
 
 import matplotlib.pyplot as plt
 import numpy as np
-from joblib import load, Memory
+from joblib import load, dump, delayed, Parallel
 from nilearn._utils import check_niimg
-from nilearn.decomposition import CanICA
 from nilearn.image import index_img, iter_img
 from nilearn.input_data import NiftiMasker
-from nilearn.plotting import plot_stat_map, plot_prob_atlas
-from os.path import join, expanduser
+from nilearn.plotting import plot_stat_map, plot_prob_atlas, \
+    find_xyz_cut_coords
+from os.path import join
 from scipy.linalg import svd
-from sklearn.decomposition import PCA, FastICA, fastica, dict_learning_online
-from sklearn.utils.extmath import randomized_svd
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask, get_data_dir, get_output_dir
-from exps.train import load_data
+from cogspaces.datasets.utils import fetch_mask, get_output_dir
 
 
 def plot_components(components, names, output_dir):
@@ -54,76 +52,28 @@ def compute_latent(output_dir):
     sup_proj = estimator.module_.embedder.linear.weight.data.numpy()
     proj = sup_proj @ dict_proj
 
-    img = masker.inverse_transform(proj)
-    img.to_filename(join(introspect_dir, 'components.nii.gz'))
-    #
-    # memory = Memory(cachedir=expanduser('~/cache'))
-    #
-    # components, variance, _ = memory.cache(randomized_svd)(proj.T,
-    #                                                        n_components=128)
-    # _, _, sources = memory.cache(fastica)(components, whiten=True, fun='cube')
-    # dict_init, _, _, _ = memory.cache(np.linalg.lstsq)(sources, proj.T)
-    #
-    # code, dictionary = memory.cache(dict_learning_online)(proj.T,
-    #                                                       n_components=128,
-    #                                                       alpha=.1,
-    #                                                       batch_size=32,
-    #                                                       dict_init=dict_init,
-    #                                                       return_code=True,
-    #                                                       method='cd',
-    #                                                       verbose=10,
-    #                                                       n_iter=proj.shape[
-    #                                                                  1] // 32)
-    # S = code.sum(axis=0) < 0
-    # code[:, S] *= -1
-    # img = masker.inverse_transform(code.T)
-    # img.to_filename(join(introspect_dir, '~/components_sparse.nii.gz'))
-    #
-    # gram = proj @ proj.T
-    # back_proj = np.linalg.inv(gram) @ proj
+    # img = masker.inverse_transform(proj)
+    # img.to_filename(join(introspect_dir, 'components.nii.gz'))
 
-    # components, variance, _ = randomized_svd(proj.T, n_components=128)
-    # _, _, sources = fastica(components, whiten=True, fun='cube')
-    # img = masker.inverse_transform(sources.T)
-    # img.to_filename(expanduser('~/components_orth.nii.gz'))
+    target_encoder = load(join(output_dir, 'target_encoder.pkl'))
 
-    # source_dir = join(get_data_dir(), 'reduced_512_lstsq')
-    # data, target = load_data(source_dir, 'all', 'archi')
-    # data = {'archi': data['archi']}
-    # latents = estimator.predict_latent(data)['archi']
-    # rec = latents.dot(back_proj)
-    # print(data)
-    # print(rec)
-
-    # print(projector.shape)
-    # fast_ica = FastICA(whiten=False, algorithm='deflation')
-    # fast_ica.fit(projector)
-    # projector = fast_ica.components_
-    # img = masker.inverse_transform(projector)
-    # img.to_filename(expanduser('~/components.nii.gz'))
+    for study, classifier in estimator.module_.classifiers.items():
+        weight = classifier.linear.weight.data.numpy()
+        these_weights = weight @ proj
+        these_weights -= these_weights.mean(axis=0)[None, :]
+        classification_maps = masker.inverse_transform(these_weights)
+        these_names = target_encoder.le_[study]['contrast'].classes_
+        classification_maps.to_filename(join(introspect_dir,
+                                             'classification_%s.nii.gz'
+                                             % study))
+        dump(these_names, join(introspect_dir,
+                               'classification_%s-names.pkl' % study))
+        with open(join(introspect_dir, 'classification_%s-names' % study),
+                  'w+') as f:
+            f.write(str(these_names))
 
 
-#
-#
-# def compute_components(output_dir, lstsq):
-#     estimator = load(join(output_dir, 'estimator.pkl'))
-#     target_encoder = load(join(output_dir, 'target_encoder.pkl'))
-#     standard_scaler = load(join(output_dir, 'standard_scaler.pkl'))
-#
-#     modl_atlas = fetch_atlas_modl()
-#     dictionary = modl_atlas['components512']
-#     plot_dir = join(output_dir, 'plot')
-#     if not os.path.exists(plot_dir):
-#         os.makedirs(plot_dir)
-#     dump(names, join(plot_dir, 'names.pkl'))
-#     for study, this_components in components.items():
-#         this_components.to_filename(join(plot_dir,
-#                                          'components_%s.nii.gz' % study))
-#         plot_components(components, names, plot_dir)
-#
-#
-
-def plot_components(output_dir):
+def plot_latent(output_dir):
     introspect_dir = join(output_dir, 'introspect')
     plot_dir = join(introspect_dir, 'plot')
     if not os.path.exists(plot_dir):
@@ -136,6 +86,40 @@ def plot_components(output_dir):
         plot_stat_map(this_img)
         plt.savefig(join(plot_dir, 'components_%i.png' % i))
         plt.close()
+
+
+def plot_classification(output_dir):
+    introspect_dir = join(output_dir, 'introspect')
+    plot_dir = join(introspect_dir, 'plot')
+    if not os.path.exists(plot_dir):
+        os.makedirs(plot_dir)
+
+    pattern = re.compile(r'classification_(?P<study>\w*).nii.gz')
+    for this_file in os.listdir(introspect_dir):
+        match = re.match(pattern, this_file)
+        if match is not None:
+            study = match['study']
+            print(study)
+            maps = check_niimg(join(introspect_dir,
+                                    'classification_%s.nii.gz' % study))
+            names = load(join(introspect_dir, 'classification_%s-names.pkl'
+                              % study))
+            Parallel(n_jobs=4)(delayed(plot_single_img)(
+                name, plot_dir, study, this_img)
+                               for (this_img, name)
+                               in zip(iter_img(maps), names))
+
+
+def plot_single_img(name, plot_dir, study, this_img):
+    vmax = np.max(np.abs(this_img.get_data()))
+    cut_coords = find_xyz_cut_coords(this_img,
+                                     activation_threshold=vmax / 3)
+    plt.figure()
+    plot_stat_map(this_img, title='%s::%s' % (study, name),
+                  cut_coords=cut_coords,
+                  threshold=vmax / 6)
+    plt.savefig(join(plot_dir, '%s_%s.png' % (study, name)))
+    plt.close()
 
 
 def plot_activation(output_dir):
@@ -187,9 +171,6 @@ def plot_activation(output_dir):
 
 
 if __name__ == '__main__':
-    # compute_latent(expanduser('~/322'), True)
-    compute_latent(join(get_output_dir(), 'multi_studies', '1235'))
-    plot_components(join(get_output_dir(), 'multi_studies', '1235'))
-    # compute_components(join(get_output_dir(), 'multi_studies', '107'),
-    #                    lstsq=True)
-    # plot_activation(join(get_output_dir(), 'multi_studies', '922'))
+    # compute_latent(join(get_output_dir(), 'multi_studies', '1745'))
+    # plot_latent(join(get_output_dir(), 'multi_studies', '1745'))
+    plot_classification(join(get_output_dir(), 'multi_studies', '1745'))

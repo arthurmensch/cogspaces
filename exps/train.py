@@ -32,20 +32,21 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'la5c'],
+        studies=['archi', 'brainomics'],
         target_study='archi'
     )
     model = dict(
         normalize=False,
         estimator='factored_variational',
-        study_weight='sqrt_sample',
-        max_iter=50,
+        study_weight='study',
+        max_iter=100,
     )
     factored_fast = dict(
         optimizer='adam',
         latent_size=128,
         activation='linear',
         epoch_counting='all',
+
         sampling='random',
         batch_size=128,
         regularization=1e-5,
@@ -55,7 +56,7 @@ def default():
 
     factored_variational = dict(
         optimizer='adam',
-        latent_size=128,
+        latent_size=256,
         activation='linear',
         epoch_counting='all',
         sampling='random',
@@ -151,7 +152,6 @@ def load_data(source_dir, studies, target_study):
 def train(system, model, factored, factored_cv, trace, logistic,
           factored_fast, factored_variational,
           _run, _seed):
-    print(_seed)
     data, target = load_data()
 
     target_encoder = MultiTargetEncoder().fit(target)
