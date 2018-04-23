@@ -408,6 +408,7 @@ class VarMultiStudyClassifier(BaseEstimator):
             self.module_ = module = modules[phase]
             if phase == 'pretrain':
                 lr = self.lr
+                continue
             elif phase == 'adapt':
                 module.load_state_dict(modules['pretrain'].state_dict(),
                                        strict=False)
@@ -529,8 +530,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 modules['sparsify'].classifiers[study].linear.log_alpha.data[0]
             p = 1 / (1 + math.exp(-log_alpha))
             p = min(p, 0.75)
-            classifier.linear.p = 0.5
-        print(self.module_)
+            classifier.linear.p = p
         nnz = self.module_.embedder.linear.weight != 0
         density = nnz.float().mean().data[0]
         print('Final density %s' % density)

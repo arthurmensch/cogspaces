@@ -1,15 +1,12 @@
-import cloudpickle
-
-from os.path import join
-
 import numpy as np
 from joblib import Parallel, delayed
+from os.path import join
 from sklearn.model_selection import ParameterGrid
+from sklearn.utils import check_random_state
 
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.utils.sacred import get_id, OurFileStorageObserver
-
 from exps.train import exp
 
 
@@ -21,7 +18,7 @@ def baseline():
         verbose=100,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512_gm'),
+        source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
         studies='archi'
     )
     model = dict(
@@ -46,14 +43,17 @@ def run_exp(output_dir, config_updates, _id):
 
 
 if __name__ == '__main__':
-    source_dir = join(get_data_dir(), 'reduced_512_gm')
+    source_dir = join(get_data_dir(), 'reduced_512_lstsq')
     data, target = load_data_from_dir(data_dir=source_dir)
     studies = list(data.keys())
     l2_penalties = np.logspace(-4, -1, 20)
 
+    seeds = check_random_state(1).randint(0, 100000, size=20)
+
     config_updates = ParameterGrid({'logistic.l2_penalty': l2_penalties,
-                                    'data.studies': studies})
-    output_dir = join(get_output_dir(), 'baseline_logistic_gm')
+                                    'data.studies': studies,
+                                    'seed': seeds})
+    output_dir = join(get_output_dir(), 'baseline_logistic_avg')
 
     _id = get_id(output_dir)
 

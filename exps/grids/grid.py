@@ -1,11 +1,10 @@
-import gc
 import os
-
-from os.path import join, expanduser
+import sys
 
 import numpy as np
-import sys
+import pandas as pd
 from joblib import Parallel, delayed
+from os.path import join, expanduser
 from sklearn.model_selection import ParameterGrid
 from sklearn.utils import check_random_state
 
@@ -13,7 +12,6 @@ from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.utils.sacred import get_id, OurFileStorageObserver
 from exps.train import exp
-import pandas as pd
 
 
 @exp.config
@@ -209,6 +207,35 @@ def study_selection():
         input_dropout=0.25,
     )
 
+
+def variational():
+    seed = 1
+    system = dict(
+        device=-1,
+        verbose=2,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512'),
+        studies='all',
+        target_study='gauthier2010resonance'
+    )
+    model = dict(
+        normalize=False,
+        estimator='factored_variational',
+        study_weight='sqrt_sample',
+        max_iter=100,
+    )
+    factored_variational = dict(
+        optimizer='adam',
+        latent_size=128,
+        activation='linear',
+        epoch_counting='all',
+        sampling='random',
+        batch_size=128,
+        regularization=1,
+        dropout=0.75,
+        lr=1e-3,
+        input_dropout=0.25)
 
 def run_exp(output_dir, config_updates, _id, mock=False):
     """Boiler plate function that has to be put in every multiple
@@ -452,10 +479,18 @@ if __name__ == '__main__':
                                            'data.target_study': study,
                                            'model.study_weight': study_weight,
                                            'seed': seed})
+    elif grid == 'variational':
+        output_dir = join(get_output_dir(), 'variational')
+        exp.config(variational)
+        config_updates = []
+        seeds = check_random_state(1).randint(0, 100000, size=20)
+        for seed in seeds:
+            config_updates.append({'seed': seed})
     else:
         raise ValueError('Wrong argument')
+
     _id = get_id(output_dir)
-    Parallel(n_jobs=24, verbose=100)(delayed(run_exp)(output_dir,
+    Parallel(n_jobs=20, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       mock=False,
                                                       _id=_id + i)

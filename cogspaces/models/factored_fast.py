@@ -404,7 +404,8 @@ class MultiStudyClassifier(BaseEstimator):
             optimizer = OurAdam([dict(params=params),
                                  dict(params=embedder_weight,
                                       soft_thresholding=0,
-                                      clip='cross')],
+                                      clip='none')
+                                 ],
                                 lr=self.lr)
         elif self.optimizer == 'sgd':
             optimizer = SGD(self.module_.parameters(), lr=self.lr, )

@@ -28,17 +28,17 @@ def default():
     seed = 10
     system = dict(
         device=-1,
-        verbose=10,
+        verbose=2,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'brainomics'],
-        target_study='archi'
+        studies='all',
+        target_study='gauthier2010resonance'
     )
     model = dict(
         normalize=False,
         estimator='factored_variational',
-        study_weight='study',
+        study_weight='sqrt_sample',
         max_iter=100,
     )
     factored_fast = dict(
@@ -49,14 +49,14 @@ def default():
 
         sampling='random',
         batch_size=128,
-        regularization=1e-5,
-        dropout=0.5,
+        regularization=0,
+        dropout=0.75,
         lr=1e-3,
-        input_dropout=0.)
+        input_dropout=0.25)
 
     factored_variational = dict(
         optimizer='adam',
-        latent_size=256,
+        latent_size=128,
         activation='linear',
         epoch_counting='all',
         sampling='random',
@@ -106,7 +106,7 @@ def default():
         trace_penalty=1e-3,
     )
     logistic = dict(
-        l2_penalty=1e-3,
+        l2_penalty=1e-4,
     )
 
 
@@ -230,8 +230,12 @@ def train(system, model, factored, factored_cv, trace, logistic,
 
     test_preds = estimator.predict(test_data)
 
-    test_latents = estimator.predict_latent(test_data)
-    train_latents = estimator.predict_latent(train_data)
+    if hasattr(estimator, 'predict_latent'):
+        test_latents = estimator.predict_latent(test_data)
+        train_latents = estimator.predict_latent(train_data)
+    else:
+        test_latents = None
+        train_latents = None
 
     test_scores = {}
     for study in test_preds:
