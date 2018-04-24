@@ -32,14 +32,15 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'brainomics'],
+        studies='all',
         target_study='archi'
     )
     model = dict(
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter=100,
+        max_iter=100
+        ,
     )
     factored_fast = dict(
         optimizer='adam',

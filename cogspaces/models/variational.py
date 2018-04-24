@@ -384,7 +384,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 in_features=in_features,
                 input_dropout=self.input_dropout,
                 latent_dropout=self.dropout,
-                adaptivity='classifier(full)',
+                adaptivity='embedding+classifier(full)',
                 activation=self.activation,
                 latent_size=self.latent_size,
                 target_sizes=target_sizes),
@@ -423,10 +423,12 @@ class VarMultiStudyClassifier(BaseEstimator):
                 lr = self.lr
                 module.load_state_dict(modules['pretrain'].state_dict(),
                                        strict=False)
-            else:
+            else: # sparsify
                 module.load_state_dict(modules['adapt'].state_dict(),
                                        strict=False)
                 module.embedder.linear.reset_dropout()
+                for classifier in module.classifiers.values():
+                    classifier.linear.reset_dropout()
                 lr = self.lr * .1
             # Optimizers
             if self.optimizer == 'adam':
