@@ -141,8 +141,8 @@ def load_data(source_dir, studies, target_study):
         studies = [studies]
     elif not isinstance(studies, list):
         raise ValueError("Studies should be a list or 'all'")
-    studies.remove(target_study)
-    studies = [target_study] + studies
+    # studies.remove(target_study)
+    # studies = [target_study] + studies
     data = {study: data[study] for study in studies}
     target = {study: target[study] for study in studies}
     return data, target

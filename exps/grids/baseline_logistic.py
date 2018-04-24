@@ -12,7 +12,7 @@ from exps.train import exp
 
 @exp.config
 def baseline():
-    seed = 0
+    seed = 1
     system = dict(
         device=-1,
         verbose=100,
@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
     _id = get_id(output_dir)
 
-    Parallel(n_jobs=40, verbose=100)(delayed(run_exp)(output_dir,
+    Parallel(n_jobs=20, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       _id=_id + i)
                                      for i, config_update

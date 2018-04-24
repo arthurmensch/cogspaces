@@ -492,7 +492,7 @@ if __name__ == '__main__':
     _id = get_id(output_dir)
     Parallel(n_jobs=20, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
-                                                      mock=False,
+                                                      mock=True,
                                                       _id=_id + i)
                                      for i, config_update
                                      in enumerate(config_updates))

@@ -3,81 +3,172 @@ import json
 import os
 import re
 
-from matplotlib import gridspec
-from os.path import expanduser, join
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib import gridspec
+from os.path import expanduser, join
 
-from cogspaces.data import load_data_from_dir
-from cogspaces.datasets.utils import get_data_dir
+idx = pd.IndexSlice
 
 
 def summarize_baseline():
-    output_dir = expanduser('~/output/cogspaces/baseline_logistic')
-
-    regex = re.compile(r'[0-9]+$')
-    res = []
-    estimators = []
-    for this_dir in filter(regex.match, os.listdir(output_dir)):
-        this_exp_dir = join(output_dir, this_dir)
-        this_dir = int(this_dir)
-        try:
-            config = json.load(
-                open(join(this_exp_dir, 'config.json'), 'r'))
-            run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
-            info = json.load(open(join(this_exp_dir, 'info.json'), 'r'))
-        except (FileNotFoundError, json.decoder.JSONDecodeError):
-            print('Skipping exp %i' % this_dir)
-            continue
-        study = config['data']['studies']
-        l2_penalty = config['logistic']['l2_penalty']
-        if run['result'] is None:
-            continue
-        else:
-            test_score = run['result'][study]
-        res.append(dict(study=study, test_score=test_score,
-                        run=this_dir))
-    res = pd.DataFrame(res)
-
-    max_res = res.groupby(by='study').aggregate('idxmax')['test_score']
-    max_res = res.iloc[max_res.values.tolist()]
-    print(max_res)
-    pd.to_pickle(max_res, join(expanduser('~/output/cogspaces/'
-                                          'max_baseline.pkl')))
+    output_dir = expanduser('~/output/cogspaces/baseline_logistic_avg')
     #
+    # regex = re.compile(r'[0-9]+$')
+    # res = []
+    # i = 0
+    # for this_dir in filter(regex.match, os.listdir(output_dir)):
+    #     this_exp_dir = join(output_dir, this_dir)
+    #     this_dir = int(this_dir)
+    #     try:
+    #         config = json.load(
+    #             open(join(this_exp_dir, 'config.json'), 'r'))
+    #         run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
+    #     except (FileNotFoundError, json.decoder.JSONDecodeError):
+    #         print('Skipping exp %i' % this_dir)
+    #         continue
+    #     study = config['data']['studies']
+    #     l2_penalty = config['logistic']['l2_penalty']
+    #     seed = config['seed']
+    #     if run['result'] is None:
+    #         continue
+    #     else:
+    #         test_score = run['result'][study]
+    #     res.append(dict(study=study, test_score=test_score,
+    #                     seed=seed, l2_penalty=l2_penalty,
+    #                     run=this_dir))
+    #     print('File %i' % i)
+    #     i += 1
+    # res = pd.DataFrame(res)
+    # pd.to_pickle(res, join(expanduser('~/output/cogspaces/'
+    #                                   'baseline.pkl')))
+    res = pd.read_pickle(join(expanduser('~/output/cogspaces/baseline.pkl')))
+    res = res.set_index(['study', 'seed', 'l2_penalty'])
+    idxmax = \
+    res.groupby(level=['study', 'l2_penalty']).aggregate('mean').groupby(
+        level='study').aggregate('idxmax')['test_score']
+    idxmax = idxmax.values.tolist()
+    best_res = []
+    for study, l2_penalty in idxmax:
+        best_res.append(res.loc[idx[study, :, l2_penalty]])
+    best = pd.concat(best_res, keys=[study for study, _ in idxmax],
+                     names=['study'])['test_score']
+    pd.to_pickle(best, join(expanduser('~/output/cogspaces/'
+                                      'baseline_seed.pkl')))
+    res = best.groupby('study').aggregate(['mean', 'std'])
+    pd.to_pickle(res, join(expanduser('~/output/cogspaces/'
+                                      'baseline_avg.pkl')))
+
+
+def summarize_variational():
+    # output_dir = [expanduser('~/output/cogspaces/variational'), ]
     #
-    # coefs = {}
-    # # print(max_res)
-    # for this_dir in max_res['run']:
-    #     exp_dir = join(output_dir, str(this_dir))
-    #     estimator = load(join(exp_dir, 'estimator.pkl'))
-    #     standard_scaler = load(join(exp_dir, 'standard_scaler.pkl'))
-    #     target_encoder = load(join(exp_dir, 'target_encoder.pkl'))
-    #     dict_coefs, names = coefs_from_model(estimator, target_encoder,
-    #                                           standard_scaler)
-    #     for study, these_coefs in dict_coefs.items():
-    #         # these_coefs -= np.mean(these_coefs, axis=0)[None, :]
-    #         these_coefs /= np.sqrt(np.sum(these_coefs ** 2, axis=1))[:, None]
-    #         coefs[study] = these_coefs
-    # lengths = np.array([0] + [coef.shape[0] for coef in coefs.values()])
-    # limits = np.cumsum(lengths)
-    # ticks = (limits[:-1] + limits[1:]) / 2
-    # names = max_res['study'].values
-    # coefs = np.concatenate(list(coefs.values()), axis=0)
-    # corr = coefs.dot(coefs.T)
-    # fig, ax = plt.subplots(1, 1, figsize=(20, 20))
-    # ax.matshow(corr)
-    # ax.hlines(limits, xmin=0, xmax=limits[-1])
-    # ax.vlines(limits, ymin=0, ymax=limits[-1])
-    # ax.set_xticks(ticks)
-    # ax.set_xticklabels(names, rotation=90)
-    # ax.set_yticks(ticks)
-    # ax.set_yticklabels(names)
-    # plt.savefig(expanduser('~/output/cogspaces/corr.png'))
-    # plt.close(fig)
+    # regex = re.compile(r'[0-9]+$')
+    # res = []
+    # for this_output_dir in output_dir:
+    #     for this_dir in filter(regex.match, os.listdir(this_output_dir)):
+    #         this_exp_dir = join(this_output_dir, this_dir)
+    #         this_dir = int(this_dir)
+    #         try:
+    #             config = json.load(
+    #                 open(join(this_exp_dir, 'config.json'), 'r'))
+    #             run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
+    #             info = json.load(
+    #                 open(join(this_exp_dir, 'info.json'), 'r'))
+    #         except (FileNotFoundError, json.decoder.JSONDecodeError):
+    #             print('Skipping exp %i' % this_dir)
+    #             continue
+    #         test_scores = run['result']
+    #         if test_scores is None:
+    #             print('Skipping exp %i' % this_dir)
+    #             continue
+    #         seed = config['seed']
+    #         this_res = dict(seed=seed, **test_scores)
+    #         res.append(this_res)
+    # res = pd.DataFrame(res)
+    # res = res.set_index('seed')
+    # pd.to_pickle(res, join(expanduser('~/output/cogspaces/variational.pkl')))
+    res = pd.read_pickle(
+        join(expanduser('~/output/cogspaces/variational.pkl')))
+    studies = res.columns
+    res = [res[study] for study in studies]
+    res = pd.concat(res, keys=studies, names=['study'])
+    pd.to_pickle(res,
+                 join(expanduser('~/output/cogspaces/variational_seed.pkl')))
+    res = res.groupby('study').aggregate(['mean', 'std'])
+    pd.to_pickle(res,
+                 join(expanduser('~/output/cogspaces/variational_avg.pkl')))
+
+
+def compare_variational():
+    variational = pd.read_pickle(
+        join(expanduser('~/output/cogspaces/variational_seed.pkl')))
+    baseline = pd.read_pickle(
+        join(expanduser('~/output/cogspaces/baseline_seed.pkl')))
+    variational = pd.DataFrame(data=dict(score=variational))
+    baseline = pd.DataFrame(data=dict(score=baseline))
+    joined = variational.join(baseline, how='inner', lsuffix='_variational',
+                     rsuffix='_baseline')
+    joined['diff'] = joined['score_variational'] - joined['score_baseline']
+    joined = joined.groupby('study').aggregate(['mean', 'std'])
+    pd.to_pickle(joined, (expanduser('~/output/cogspaces/joined.pkl')))
+
+
+def plot_variational():
+    output_dir = expanduser('~/output/cogspaces/')
+    data = pd.read_pickle(join(output_dir, 'joined.pkl'))
+    data = data.sort_values(('diff', 'mean'), ascending=False)
+    gs = gridspec.GridSpec(2, 1,
+                           height_ratios=[1, 2]
+                           )
+    gs.update(top=0.98, bottom=0.3, left=0.1, right=0.98)
+    fig = plt.figure(figsize=(10, 7))
+    ax2 = fig.add_subplot(gs[1])
+    ax1 = fig.add_subplot(gs[0], sharex=ax2)
+    n_study = data.shape[0]
+
+    ind = np.arange(n_study) * 2 + .5
+    width = 1.2
+    diff_color = plt.get_cmap('tab10').colors[2]
+    baseline_color = plt.get_cmap('tab10').colors[0]
+    transfer_color = plt.get_cmap('tab10').colors[1]
+    rects = ax1.bar(ind, data[('diff', 'mean')], width,
+                    color=diff_color, alpha=0.8)
+    errorbar = ax1.errorbar(ind, data[('diff', 'mean')],
+                            yerr=data[('diff', 'std')], elinewidth=1.5,
+                            capsize=2, linewidth=0, ecolor=diff_color,
+                            alpha=.8)
+    ax1.set_ylabel('Transfer gain')
+    ax1.spines['bottom'].set_position('zero')
+    plt.setp(ax1.get_xticklabels(), visible=False)
+
+    ind = np.arange(n_study) * 2
+
+    width = .8
+    rects1 = ax2.bar(ind, data[('score_baseline', 'mean')], width,
+                     color=baseline_color, alpha=.8)
+    errorbar = ax2.errorbar(ind, data[('score_baseline', 'mean')],
+                            yerr=data[('score_baseline', 'std')], elinewidth=1.5,
+                            capsize=2, linewidth=0, ecolor=baseline_color,
+                            alpha=.8)
+    rects2 = ax2.bar(ind + width, data[('score_variational', 'mean')], width,
+                     color=transfer_color, alpha=.8)
+    errorbar = ax2.errorbar(ind + width, data[('score_variational', 'mean')],
+                            yerr=data[('score_variational', 'std')], elinewidth=1.5,
+                            capsize=2, linewidth=0, ecolor=transfer_color,
+                            alpha=.8)
+    ax2.set_ylabel('Test accuracy')
+    ax2.set_xticks(ind + width / 2)
+    ax2.set_xticklabels(data.index.values, rotation=60, ha='right',
+                        va='top')
+    ax2.set_ylim([0.1, 0.94])
+    ax1.legend((rects1[0], rects2[0], rects[0]),
+               ('Baseline', 'Transfer', 'Diff'))
+    sns.despine(fig)
+    plt.savefig(join(output_dir, 'comparison_variational.pdf'))
+    # plt.show()
 
 
 def summarize_factored():
@@ -282,8 +373,11 @@ def plot():
 
 
 if __name__ == '__main__':
+    # summarize_variational()
     # summarize_baseline()
-    # summarize_factored()
-    summarize_study_selection()
+    compare_variational()
+    plot_variational()
+    # summarize_factored    ()
+    # summarize_study_selection()
     # plot_study_selection()
     # plot()
