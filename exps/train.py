@@ -32,8 +32,8 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies='all',
-        target_study='gauthier2010resonance'
+        studies=['archi', 'brainomics'],
+        target_study='archi'
     )
     model = dict(
         normalize=False,

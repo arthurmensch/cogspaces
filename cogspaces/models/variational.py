@@ -13,7 +13,7 @@ from torch import nn
 from torch.autograd import Variable
 from torch.nn import Parameter
 from torch.optim import Adam, SGD
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import TensorDataset
 
 from cogspaces.datasets.utils import get_output_dir
 from cogspaces.models.factored import Identity
@@ -204,10 +204,14 @@ class LatentClassifier(nn.Module):
         super().__init__()
 
         self.batch_norm = nn.BatchNorm1d(latent_size)
-        if adaptive:
+        if adaptive == 'layer':
             self.linear = AdaDropoutLinear(latent_size,
                                            target_size, bias=True, p=dropout,
                                            level='layer')
+        elif adaptive == 'full':
+            self.linear = AdditiveAdaDropoutLinear(latent_size,
+                                           target_size, bias=True, p=dropout,
+                                           )
         else:
             self.linear = DropoutLinear(latent_size, target_size, bias=True,
                                         p=dropout)
@@ -240,7 +244,14 @@ class VarMultiStudyModule(nn.Module):
                                  dropout=input_dropout,
                                  adaptive=embedder_adaptive,
                                  activation=activation)
-        classifier_adaptive = 'classifier' in adaptivity
+        if 'classifier(layer)' in adaptivity:
+            classifier_adaptive = 'layer'
+        elif 'classifier(full)' in adaptivity:
+            classifier_adaptive = 'full'
+        elif 'classifier' in adaptivity:
+            classifier_adaptive = 'layer'
+        else:
+            classifier_adaptive = False
         self.classifiers = {study: LatentClassifier(
             latent_size, target_size, dropout=latent_dropout,
             adaptive=classifier_adaptive, )
@@ -365,7 +376,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 in_features=in_features,
                 input_dropout=self.input_dropout,
                 latent_dropout=self.dropout,
-                adaptivity='classifier',
+                adaptivity='none',
                 activation=self.activation,
                 latent_size=self.latent_size,
                 target_sizes=target_sizes),
@@ -373,7 +384,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 in_features=in_features,
                 input_dropout=self.input_dropout,
                 latent_dropout=self.dropout,
-                adaptivity='embedding+classifier',
+                adaptivity='classifier(full)',
                 activation=self.activation,
                 latent_size=self.latent_size,
                 target_sizes=target_sizes),
@@ -407,9 +418,9 @@ class VarMultiStudyClassifier(BaseEstimator):
         for phase in ['pretrain', 'adapt', 'sparsify']:
             self.module_ = module = modules[phase]
             if phase == 'pretrain':
-                lr = self.lr
                 continue
             elif phase == 'adapt':
+                lr = self.lr
                 module.load_state_dict(modules['pretrain'].state_dict(),
                                        strict=False)
             else:
@@ -487,9 +498,9 @@ class VarMultiStudyClassifier(BaseEstimator):
                         p = {}
                         if phase in ['adapt', 'sparsify']:
                             for study, classifier in self.module_.classifiers.items():
-                                log_alpha = classifier.linear.log_alpha.data[0]
-                                p[study] = 1 / (1 + math.exp(- log_alpha))
-                            print('Dropout', ' '.join('%s: %.2f'
+                                density = classifier.linear.density
+                                p[study] = density
+                            print('Density', ' '.join('%s: %.2f'
                                                       % (study, this_p) for
                                                       study, this_p in
                                                       p.items()))
@@ -517,87 +528,87 @@ class VarMultiStudyClassifier(BaseEstimator):
                         break
 
         callback(self, self.max_iter)
-
-        self.module_ = modules['finetune']
-        self.module_.load_state_dict(modules['sparsify'].state_dict(),
-                                     strict=False)
-
-        self.module_.embedder.linear.weight.data = \
-            modules['sparsify'].embedder.linear.sparse_weight.data
-        for study in self.module_.classifiers:
-            classifier = self.module_.classifiers[study]
-            log_alpha = \
-                modules['sparsify'].classifiers[study].linear.log_alpha.data[0]
-            p = 1 / (1 + math.exp(-log_alpha))
-            p = min(p, 0.75)
-            classifier.linear.p = p
-        nnz = self.module_.embedder.linear.weight != 0
-        density = nnz.float().mean().data[0]
-        print('Final density %s' % density)
-        lr = self.lr
-        X_red = {}
-        for study, this_X in X.items():
-            print('Fine tuning %s' % study)
-            if cuda:
-                this_X = this_X.cuda(device=device)
-            this_X = Variable(this_X, volatile=True)
-            X_red[study] = self.module_.embedder(this_X).data.cpu()
-            data = TensorDataset(X_red[study], y[study])
-            data_loader = DataLoader(data, shuffle=True,
-                                     batch_size=self.batch_size,
-                                     pin_memory=cuda)
-            module = self.module_.classifiers[study]
-            optimizer = Adam(module.parameters(), lr=lr)
-            loss_function = F.nll_loss
-
-            seen_samples = 0
-            best_loss = float('inf')
-            no_improvement = 0
-            epoch = 0
-            for epoch in range(self.max_iter):
-                epoch_batch = 0
-                epoch_loss = 0
-                for input, target in data_loader:
-                    batch_size = input.shape[0]
-                    if cuda:
-                        input = input.cuda(device=device)
-                        target = target.cuda(device=device)
-                    input = Variable(input)
-                    target = Variable(target)
-
-                    module.train()
-                    optimizer.zero_grad()
-                    pred = module(input)
-                    loss = loss_function(pred, target)
-                    penalty = 0
-                    elbo = loss + penalty
-                    elbo.backward()
-                    optimizer.step()
-
-                    seen_samples += batch_size
-                    epoch_batch += 1
-                    epoch_loss *= (1 - 1 / epoch_batch)
-                    epoch_loss = loss.data[0] / epoch_batch
-
-                if (report_every is not None
-                        and epoch % report_every == 0):
-                    print('Epoch %.2f, train loss: %.4f, penalty: %.4f'
-                          % (epoch, epoch_loss, 0))
-
-                if epoch_loss > best_loss:
-                    no_improvement += 1
-                else:
-                    no_improvement = 0
-                    best_loss = epoch_loss
-                    best_state = module.state_dict()
-
-                if no_improvement > self.patience:
-                    break
-            # module.load_state_dict(best_state)
-            print('Stopping at epoch %.2f, best train loss'
-                  ' %.4f' % (epoch, best_loss))
-            print('-----------------------------------')
-        callback(self, epoch)
+        #
+        # self.module_ = modules['finetune']
+        # self.module_.load_state_dict(modules['sparsify'].state_dict(),
+        #                              strict=False)
+        #
+        # self.module_.embedder.linear.weight.data = \
+        #     modules['sparsify'].embedder.linear.sparse_weight.data
+        # for study in self.module_.classifiers:
+        #     classifier = self.module_.classifiers[study]
+        #     log_alpha = \
+        #         modules['sparsify'].classifiers[study].linear.log_alpha.data[0]
+        #     p = 1 / (1 + math.exp(-log_alpha))
+        #     p = min(p, 0.75)
+        #     classifier.linear.p = p
+        # nnz = self.module_.embedder.linear.weight != 0
+        # density = nnz.float().mean().data[0]
+        # print('Final density %s' % density)
+        # lr = self.lr
+        # X_red = {}
+        # for study, this_X in X.items():
+        #     print('Fine tuning %s' % study)
+        #     if cuda:
+        #         this_X = this_X.cuda(device=device)
+        #     this_X = Variable(this_X, volatile=True)
+        #     X_red[study] = self.module_.embedder(this_X).data.cpu()
+        #     data = TensorDataset(X_red[study], y[study])
+        #     data_loader = DataLoader(data, shuffle=True,
+        #                              batch_size=self.batch_size,
+        #                              pin_memory=cuda)
+        #     module = self.module_.classifiers[study]
+        #     optimizer = Adam(module.parameters(), lr=lr)
+        #     loss_function = F.nll_loss
+        #
+        #     seen_samples = 0
+        #     best_loss = float('inf')
+        #     no_improvement = 0
+        #     epoch = 0
+        #     for epoch in range(self.max_iter):
+        #         epoch_batch = 0
+        #         epoch_loss = 0
+        #         for input, target in data_loader:
+        #             batch_size = input.shape[0]
+        #             if cuda:
+        #                 input = input.cuda(device=device)
+        #                 target = target.cuda(device=device)
+        #             input = Variable(input)
+        #             target = Variable(target)
+        #
+        #             module.train()
+        #             optimizer.zero_grad()
+        #             pred = module(input)
+        #             loss = loss_function(pred, target)
+        #             penalty = 0
+        #             elbo = loss + penalty
+        #             elbo.backward()
+        #             optimizer.step()
+        #
+        #             seen_samples += batch_size
+        #             epoch_batch += 1
+        #             epoch_loss *= (1 - 1 / epoch_batch)
+        #             epoch_loss = loss.data[0] / epoch_batch
+        #
+        #         if (report_every is not None
+        #                 and epoch % report_every == 0):
+        #             print('Epoch %.2f, train loss: %.4f, penalty: %.4f'
+        #                   % (epoch, epoch_loss, 0))
+        #
+        #         if epoch_loss > best_loss:
+        #             no_improvement += 1
+        #         else:
+        #             no_improvement = 0
+        #             best_loss = epoch_loss
+        #             best_state = module.state_dict()
+        #
+        #         if no_improvement > self.patience:
+        #             break
+        #     # module.load_state_dict(best_state)
+        #     print('Stopping at epoch %.2f, best train loss'
+        #           ' %.4f' % (epoch, best_loss))
+        #     print('-----------------------------------')
+        # callback(self, epoch)
         return self
 
     def _check_cuda(self):
