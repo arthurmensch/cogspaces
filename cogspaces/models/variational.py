@@ -23,6 +23,7 @@ k1 = 0.63576
 k2 = 1.87320
 k3 = 1.48695
 
+
 class DropoutLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True, p=0.):
         super().__init__(in_features, out_features, bias)
@@ -374,7 +375,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 activation=self.activation,
                 latent_size=self.latent_size,
                 input_dropout=0,
-                adaptivity='none',
+                adaptivity='embedding',
                 latent_dropout=self.dropout,
                 target_sizes=target_sizes, )}
 
@@ -400,7 +401,13 @@ class VarMultiStudyClassifier(BaseEstimator):
             self.module_ = module = modules[phase]
             if phase == 'pretrain':
                 lr = self.lr
+                modules[phase] = torch.load(join(get_output_dir(),
+                                                'model_%s.pkl' % phase))
+                continue
             else:
+                modules[phase] = torch.load(join(get_output_dir(),
+                                                'model_%s.pkl' % phase))
+                continue
                 module.load_state_dict(modules['pretrain'].state_dict(),
                                        strict=False)
                 module.embedder.linear.reset_dropout()
@@ -442,10 +449,10 @@ class VarMultiStudyClassifier(BaseEstimator):
                 optimizer.step()
                 if hasattr(module.embedder.linear, 'log_sigma2'):
                     module.embedder.linear.log_sigma2.data = (
-                        torch.clamp(module.embedder.linear.log_alpha.data,
-                                    min=-8, max=8) +
-                        torch.log(module.embedder.linear.weight.data ** 2
-                                  + 1e-8))
+                            torch.clamp(module.embedder.linear.log_alpha.data,
+                                        min=-8, max=8) +
+                            torch.log(module.embedder.linear.weight.data ** 2
+                                      + 1e-8))
 
                 epoch_batch += 1
                 epoch_loss *= (1 - 1 / epoch_batch)
@@ -466,14 +473,17 @@ class VarMultiStudyClassifier(BaseEstimator):
                               ' density: %.4f'
                               % (epoch, epoch_loss, epoch_penalty, density))
                         p = {}
-                        if phase in ['adapt', 'sparsify']:
-                            for study, classifier in self.module_.classifiers.items():
-                                log_alpha = classifier.linear.log_alpha.data[0]
-                                p[study] = 1 / (1 + math.exp(- log_alpha))
-                            print('Dropout', ' '.join('%s: %.2f'
-                                                      % (study, this_p) for
-                                                      study, this_p in
-                                                      p.items()))
+                        for study, classifier in self.module_.classifiers.items():
+                            log_alpha = classifier.linear.log_alpha.data[0]
+                            p[study] = 1 / (1 + math.exp(- log_alpha))
+                        print('Dropout', ' '.join('%s: %.2f'
+                                                  % (study, this_p) for
+                                                  study, this_p in
+                                                  p.items()))
+                        if phase in 'sparsify':
+                            snr = torch.exp(
+                                -.5 * module.embedder.linear.log_alpha)
+                            print(snr.data.numpy())
                         if callback is not None:
                             callback(self, epoch)
 
