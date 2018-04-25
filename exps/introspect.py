@@ -1,10 +1,12 @@
 import json
+import math
 import os
 import re
 
 import matplotlib.pyplot as plt
 import numpy as np
-from joblib import load, dump, delayed, Parallel
+import torch
+from joblib import load, delayed, Parallel
 from nilearn._utils import check_niimg
 from nilearn.image import index_img, iter_img
 from nilearn.input_data import NiftiMasker
@@ -12,9 +14,15 @@ from nilearn.plotting import plot_stat_map, plot_prob_atlas, \
     find_xyz_cut_coords
 from os.path import join
 from scipy.linalg import svd
+from sklearn.decomposition import MiniBatchDictionaryLearning
+from torch.utils.data import TensorDataset
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir
+from cogspaces.model_selection import train_test_split
+from cogspaces.models.factored_fast import MultiStudyLoader
+from cogspaces.preprocessing import MultiTargetEncoder
+from exps.train import load_data
 
 
 def plot_components(components, names, output_dir):
@@ -49,28 +57,33 @@ def compute_latent(output_dir):
         dict_proj = np.linalg.inv(gram).dot(dictionary)
     else:
         dict_proj = dictionary
-    sup_proj = estimator.module_.embedder.linear.weight.data.numpy()
-    proj = sup_proj @ dict_proj
+    weight = estimator.module_.embedder.linear.weight.data.numpy()
+    z_score = - .5 * estimator.module_.embedder.linear.log_alpha.data.numpy()
+    z_score = np.exp(z_score) * np.sign(weight)
+    proj = weight @ dict_proj
+    proj_var = z_score @ dict_proj
 
-    # img = masker.inverse_transform(proj)
-    # img.to_filename(join(introspect_dir, 'components.nii.gz'))
+    img = masker.inverse_transform(proj)
+    img_var = masker.inverse_transform(proj_var)
+    img.to_filename(join(introspect_dir, 'components.nii.gz'))
+    img_var.to_filename(join(introspect_dir, 'components_var.nii.gz'))
 
-    target_encoder = load(join(output_dir, 'target_encoder.pkl'))
-
-    for study, classifier in estimator.module_.classifiers.items():
-        weight = classifier.linear.weight.data.numpy()
-        these_weights = weight @ proj
-        these_weights -= these_weights.mean(axis=0)[None, :]
-        classification_maps = masker.inverse_transform(these_weights)
-        these_names = target_encoder.le_[study]['contrast'].classes_
-        classification_maps.to_filename(join(introspect_dir,
-                                             'classification_%s.nii.gz'
-                                             % study))
-        dump(these_names, join(introspect_dir,
-                               'classification_%s-names.pkl' % study))
-        with open(join(introspect_dir, 'classification_%s-names' % study),
-                  'w+') as f:
-            f.write(str(these_names))
+    # target_encoder = load(join(output_dir, 'target_encoder.pkl'))
+    #
+    # for study, classifier in estimator.module_.classifiers.items():
+    #     weight = classifier.linear.weight.data.numpy()
+    #     these_weights = weight @ proj
+    #     these_weights -= these_weights.mean(axis=0)[None, :]
+    #     classification_maps = masker.inverse_transform(these_weights)
+    #     these_names = target_encoder.le_[study]['contrast'].classes_
+    #     classification_maps.to_filename(join(introspect_dir,
+    #                                          'classification_%s.nii.gz'
+    #                                          % study))
+    #     dump(these_names, join(introspect_dir,
+    #                            'classification_%s-names.pkl' % study))
+    #     with open(join(introspect_dir, 'classification_%s-names' % study),
+    #               'w+') as f:
+    #         f.write(str(these_names))
 
 
 def plot_latent(output_dir):
@@ -104,7 +117,7 @@ def plot_classification(output_dir):
                                     'classification_%s.nii.gz' % study))
             names = load(join(introspect_dir, 'classification_%s-names.pkl'
                               % study))
-            Parallel(n_jobs=4)(delayed(plot_single_img)(
+            Parallel(n_jobs=20  )(delayed(plot_single_img)(
                 name, plot_dir, study, this_img)
                                for (this_img, name)
                                in zip(iter_img(maps), names))
@@ -170,7 +183,99 @@ def plot_activation(output_dir):
         plt.close(fig)
 
 
+def inspect_latent(output_dir):
+    introspect_dir = join(output_dir, 'introspect')
+    if not os.path.exists(introspect_dir):
+        os.makedirs(introspect_dir)
+    estimator = load(join(output_dir, 'estimator.pkl'))
+
+    config = json.load(open(join(output_dir, 'config.json'), 'r'))
+
+    data, target = load_data(config['data']['source_dir'], config['data']['studies'],
+                     config['data']['target_study'])
+    target_encoder = MultiTargetEncoder().fit(target)
+    target = target_encoder.transform(target)
+
+    train_data, test_data, train_targets, test_targets = \
+        train_test_split(data, target, random_state=844704211)
+    lstsq = True
+
+    # PCA
+    # weights = np.array([math.sqrt(latent.shape[0])
+    #                     for latent in latents.values()])
+    # weights /= np.sum(weights)
+    # weights = np.concatenate(list(map(lambda x: np.ones(x.shape[0])
+    #                                             * 1 / math.sqrt(x.shape[0]),
+    #                                   iter(latents.values()))))
+    # X = np.concatenate(list(latents.values()), axis=0)
+    # mean = np.sum(X * weights[:, None], axis=0) / np.sum(weights)
+    # Xc = X - mean[None, :]
+    # cov = np.dot((Xc * weights[:, None]).T, Xc)
+    # cov /= np.sum(weights)
+    # V, S, Vt = np.linalg.svd(cov)
+    # print(Vt.shape)
+    # plt.plot(range(S.shape[0]), S)
+    # plt.show()
+
+    latents = estimator.predict_latent(train_data)
+    X, y = latents, train_targets
+    X = {study: torch.from_numpy(this_X).float()
+         for study, this_X in X.items()}
+    y = {study: torch.from_numpy(this_y['contrast'].values).long()
+         for study, this_y in y.items()}
+    data = {study: TensorDataset(X[study], y[study]) for study in X}
+
+    study_weights = {study: math.sqrt(len(data)) for study, this_data
+                     in data.items()}
+    data_loader = MultiStudyLoader(data, sampling='random',
+                                   batch_size=32,
+                                   seed=0,
+                                   study_weights=study_weights,
+                                   cuda=False, device=-1)
+
+    dl = MiniBatchDictionaryLearning(n_components=10, fit_algorithm='cd')
+
+
+    i = 0
+    for inputs, targets in data_loader:
+        for study, input in inputs.items():
+            print('Iter % i' % i)
+            print(input.data.numpy().shape)
+            dl.partial_fit(input.data.numpy())
+            i += 1
+            if i > 1000:
+                break
+        if i > 1000:
+            break
+    Vt = dl.components_
+
+    modl_atlas = fetch_atlas_modl()
+    dictionary = modl_atlas['components512']
+    mask = fetch_mask()['hcp']
+    masker = NiftiMasker(mask_img=mask).fit()
+    dictionary = masker.transform(dictionary)
+    if lstsq:
+        gram = dictionary.dot(dictionary.T)
+        dict_proj = np.linalg.inv(gram).dot(dictionary)
+    else:
+        dict_proj = dictionary
+    sup_proj = estimator.module_.embedder.linear.weight.data.numpy()
+    proj = sup_proj @ dict_proj
+    principal = Vt @ proj
+    img = masker.inverse_transform(principal)
+    img.to_filename(join(introspect_dir, 'principal_components.nii.gz'))
+
+
 if __name__ == '__main__':
     # compute_latent(join(get_output_dir(), 'multi_studies', '1745'))
     # plot_latent(join(get_output_dir(), 'multi_studies', '1745'))
-    plot_classification(join(get_output_dir(), 'multi_studies', '1745'))
+    # plot_classification(join(get_output_dir(), 'multi_studies', '1745'))
+
+    # compute_latent(join(get_output_dir(), 'multi_studies', '413'))
+    # plot_latent(join(get_output_dir(), 'multi_studies', '413'))
+    # plot_classification(join(get_output_dir(), 'multi_studies', '413'))
+
+
+    inspect_latent(join(get_output_dir(), 'multi_studies', '1745'))
+
+    # compute_latent(join(get_output_dir(), 'multi_studies', '1786'))

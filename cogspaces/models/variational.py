@@ -404,16 +404,12 @@ class VarMultiStudyClassifier(BaseEstimator):
         else:
             report_every = None
 
-        for phase in ['pretrain', 'adapt', 'sparsify']:
+        for phase in ['pretrain', 'sparsify']:
             self.module_ = module = modules[phase]
             if phase == 'pretrain':
                 lr = self.lr
-                continue
-            elif phase == 'adapt':
-                module.load_state_dict(modules['pretrain'].state_dict(),
-                                       strict=False)
             else:
-                module.load_state_dict(modules['adapt'].state_dict(),
+                module.load_state_dict(modules['pretrain'].state_dict(),
                                        strict=False)
                 module.embedder.linear.reset_dropout()
                 lr = self.lr * .1
@@ -445,20 +441,13 @@ class VarMultiStudyClassifier(BaseEstimator):
                 loss = loss_function(preds, targets)
                 embedder_penalty, penalties = module.penalty(inputs)
 
-                penalty = embedder_penalty / total_length
+                penalty = embedder_penalty / total_length * self.regularization
                 penalty += sum(this_penalty / lengths[study]
                                for study, this_penalty
                                in penalties.items())
-
-                penalty *= self.regularization
                 loss += penalty
                 loss.backward()
                 optimizer.step()
-                # for classifier in module.classifiers.values():
-                #     if hasattr(classifier.linear, 'log_alpha'):
-                #         classifier.linear.log_alpha.data = \
-                #             torch.clamp(classifier.linear.log_alpha.data,
-                #                         min=-1.111, max=1.111)
                 if hasattr(module.embedder.linear, 'log_sigma2'):
                     module.embedder.linear.log_sigma2.data = (
                         torch.clamp(module.embedder.linear.log_alpha.data,
@@ -517,6 +506,8 @@ class VarMultiStudyClassifier(BaseEstimator):
                         break
 
         callback(self, self.max_iter)
+
+        self.module_sparsify_ = modules['sparsify']
 
         self.module_ = modules['finetune']
         self.module_.load_state_dict(modules['sparsify'].state_dict(),
@@ -634,7 +625,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 this_X = this_X.cuda(device=device)
             this_X = Variable(this_X, volatile=True)
             latent = self.module_.embedder(this_X)
-            # latent = self.module_.classifiers[study].batch_norm(latent)
+            latent = self.module_.classifiers[study].batch_norm(latent)
             latents[study] = latent.data.cpu().numpy()
         return latents
 
@@ -670,7 +661,7 @@ class VarMultiStudyClassifier(BaseEstimator):
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        for key in ['module_']:
+        for key in ['module_', 'module_sparsify_']:
             if key in state:
                 val = state.pop(key)
                 with tempfile.SpooledTemporaryFile() as f:
@@ -682,7 +673,7 @@ class VarMultiStudyClassifier(BaseEstimator):
 
     def __setstate__(self, state):
         disable_cuda = False
-        for key in ['module_']:
+        for key in ['module_', 'module_sparsify_']:
             if key not in state:
                 continue
             dump = state.pop(key)

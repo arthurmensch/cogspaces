@@ -33,7 +33,7 @@ def default():
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
         studies='all',
-        target_study='gauthier2010resonance'
+        target_study='archi'
     )
     model = dict(
         normalize=False,
@@ -153,12 +153,15 @@ def train(system, model, factored, factored_cv, trace, logistic,
           factored_fast, factored_variational,
           _run, _seed):
     data, target = load_data()
+    print(_seed)
 
     target_encoder = MultiTargetEncoder().fit(target)
     target = target_encoder.transform(target)
 
     train_data, test_data, train_targets, test_targets = \
         train_test_split(data, target, random_state=_seed)
+    train_data = data
+    train_targets = target
 
     if model['normalize']:
         standard_scaler = MultiStandardScaler().fit(train_data)
