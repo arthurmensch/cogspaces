@@ -515,8 +515,9 @@ class VarMultiStudyClassifier(BaseEstimator):
         self.module_.load_state_dict(modules['sparsify'].state_dict(),
                                      strict=False)
 
-        self.module_.embedder.linear.weight.data = \
-            modules['sparsify'].embedder.linear.sparse_weight.data
+        # self.module_.embedder.linear.weight.data = \
+        #     modules['sparsify'].embedder.linear.sparse_weight.data
+        self.module_.embedder.linear.log_sigma2.requires_grad = False
         for study in self.module_.classifiers:
             classifier = self.module_.classifiers[study]
             log_alpha = \
@@ -527,20 +528,18 @@ class VarMultiStudyClassifier(BaseEstimator):
         nnz = self.module_.embedder.linear.weight != 0
         density = nnz.float().mean().data[0]
         print('Final density %s' % density)
-        lr = self.lr
+        lr = self.lr * 0.01
         X_red = {}
-        for study, this_X in X.items():
+        for study in X:
             print('Fine tuning %s' % study)
-            if cuda:
-                this_X = this_X.cuda(device=device)
-            this_X = Variable(this_X, volatile=True)
-            X_red[study] = self.module_.embedder(this_X).data.cpu()
-            data = TensorDataset(X_red[study], y[study])
+            # X_red[study] = self.module_.embedder(this_X).data.cpu()
+            data = TensorDataset(X[study], y[study])
             data_loader = DataLoader(data, shuffle=True,
                                      batch_size=self.batch_size,
                                      pin_memory=cuda)
-            module = self.module_.classifiers[study]
-            optimizer = Adam(module.parameters(), lr=lr)
+            module = self.module_
+            optimizer = Adam(filter(lambda p: p.requires_grad,
+                                    module.parameters()), lr=lr)
             loss_function = F.nll_loss
 
             seen_samples = 0
@@ -560,7 +559,7 @@ class VarMultiStudyClassifier(BaseEstimator):
 
                     module.train()
                     optimizer.zero_grad()
-                    pred = module(input)
+                    pred = module({study: input})[study]
                     loss = loss_function(pred, target)
                     penalty = 0
                     elbo = loss + penalty
