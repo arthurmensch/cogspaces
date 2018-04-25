@@ -39,7 +39,7 @@ def default():
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter=100,
+        max_iter=30,
     )
     factored_fast = dict(
         optimizer='adam',
@@ -160,8 +160,8 @@ def train(system, model, factored, factored_cv, trace, logistic,
 
     train_data, test_data, train_targets, test_targets = \
         train_test_split(data, target, random_state=_seed)
-    train_data = data
-    train_targets = target
+    # train_data = data
+    # train_targets = target
 
     if model['normalize']:
         standard_scaler = MultiStandardScaler().fit(train_data)

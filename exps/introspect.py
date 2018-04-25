@@ -6,15 +6,15 @@ import re
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from joblib import load, delayed, Parallel
+from joblib import load, delayed, Parallel, Memory
+from modl import DictFact
 from nilearn._utils import check_niimg
 from nilearn.image import index_img, iter_img
 from nilearn.input_data import NiftiMasker
 from nilearn.plotting import plot_stat_map, plot_prob_atlas, \
     find_xyz_cut_coords
-from os.path import join
+from os.path import join, expanduser
 from scipy.linalg import svd
-from sklearn.decomposition import MiniBatchDictionaryLearning
 from torch.utils.data import TensorDataset
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
@@ -46,6 +46,7 @@ def compute_latent(output_dir):
 
     config = json.load(open(join(output_dir, 'config.json'), 'r'))
     lstsq = config['data']['source_dir'] == 'reduced_512_lstsq'
+    print(lstsq)
 
     modl_atlas = fetch_atlas_modl()
     dictionary = modl_atlas['components512']
@@ -57,16 +58,18 @@ def compute_latent(output_dir):
         dict_proj = np.linalg.inv(gram).dot(dictionary)
     else:
         dict_proj = dictionary
-    weight = estimator.module_.embedder.linear.weight.data.numpy()
-    z_score = - .5 * estimator.module_.embedder.linear.log_alpha.data.numpy()
-    z_score = np.exp(z_score) * np.sign(weight)
+    weight = estimator.module_sparsify_.embedder.linear.weight.data.numpy()
+    snr = - .5 * estimator.module_sparsify_.embedder.linear.log_alpha.data.numpy()
+    snr = np.exp(snr)
     proj = weight @ dict_proj
-    proj_var = z_score @ dict_proj
-
+    proj_snr = snr @ dict_proj
+    weighted_proj = proj * proj_snr
     img = masker.inverse_transform(proj)
-    img_var = masker.inverse_transform(proj_var)
+    img_snr = masker.inverse_transform(proj_snr)
+    img_weighted = masker.inverse_transform(weighted_proj)
     img.to_filename(join(introspect_dir, 'components.nii.gz'))
-    img_var.to_filename(join(introspect_dir, 'components_var.nii.gz'))
+    img_snr.to_filename(join(introspect_dir, 'components_snr.nii.gz'))
+    img_weighted.to_filename(join(introspect_dir, 'components_weighted.nii.gz'))
 
     # target_encoder = load(join(output_dir, 'target_encoder.pkl'))
     #
@@ -92,13 +95,24 @@ def plot_latent(output_dir):
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
     img = check_niimg(join(introspect_dir, 'components.nii.gz'))
+    img_snr = check_niimg(join(introspect_dir, 'components_snr.nii.gz'))
+    img_weighted = check_niimg(join(introspect_dir, 'components_weighted.nii.gz'))
     plot_prob_atlas(img)
     plt.savefig(join(plot_dir, 'components.png'))
     plt.close()
-    for i, this_img in enumerate(iter_img(img)):
-        plot_stat_map(this_img)
-        plt.savefig(join(plot_dir, 'components_%i.png' % i))
-        plt.close()
+    Parallel(n_jobs=20)(delayed(plot_single_img)(
+        str(i), plot_dir, 'components', this_img)
+                        for (i, this_img)
+                        in enumerate(iter_img(img)))
+    Parallel(n_jobs=20)(delayed(plot_single_img)(
+        str(i), plot_dir, 'snr', this_img)
+                        for (i, this_img)
+                        in enumerate(iter_img(img_snr)))
+    Parallel(n_jobs=20)(delayed(plot_single_img)(
+        str(i), plot_dir, 'componentsxsnr', this_img, to=0)
+                        for (i, this_img)
+                        in enumerate(iter_img(img_weighted)))
+
 
 
 def plot_classification(output_dir):
@@ -117,20 +131,20 @@ def plot_classification(output_dir):
                                     'classification_%s.nii.gz' % study))
             names = load(join(introspect_dir, 'classification_%s-names.pkl'
                               % study))
-            Parallel(n_jobs=20  )(delayed(plot_single_img)(
+            Parallel(n_jobs=20)(delayed(plot_single_img)(
                 name, plot_dir, study, this_img)
                                for (this_img, name)
                                in zip(iter_img(maps), names))
 
 
-def plot_single_img(name, plot_dir, study, this_img):
+def plot_single_img(name, plot_dir, study, this_img, to=1/6):
     vmax = np.max(np.abs(this_img.get_data()))
     cut_coords = find_xyz_cut_coords(this_img,
                                      activation_threshold=vmax / 3)
     plt.figure()
     plot_stat_map(this_img, title='%s::%s' % (study, name),
                   cut_coords=cut_coords,
-                  threshold=vmax / 6)
+                  threshold=vmax * to)
     plt.savefig(join(plot_dir, '%s_%s.png' % (study, name)))
     plt.close()
 
@@ -219,29 +233,33 @@ def inspect_latent(output_dir):
 
     latents = estimator.predict_latent(train_data)
     X, y = latents, train_targets
-    X = {study: torch.from_numpy(this_X).float()
+    X = {study: torch.from_numpy(this_X).double()
          for study, this_X in X.items()}
     y = {study: torch.from_numpy(this_y['contrast'].values).long()
          for study, this_y in y.items()}
     data = {study: TensorDataset(X[study], y[study]) for study in X}
+    print(len)
 
-    study_weights = {study: math.sqrt(len(data)) for study, this_data
+    study_weights = {study: math.sqrt(len(this_data)) for study, this_data
                      in data.items()}
+    print(study_weights)
+    for study, this_data in data.items():
+        print(study, len(this_data))
     data_loader = MultiStudyLoader(data, sampling='random',
-                                   batch_size=32,
+                                   batch_size=128,
                                    seed=0,
                                    study_weights=study_weights,
                                    cuda=False, device=-1)
 
-    dl = MiniBatchDictionaryLearning(n_components=10, fit_algorithm='cd')
-
+    dl = DictFact(n_components=128, code_l1_ratio=0, comp_l1_ratio=1,
+                  code_alpha=10)
+    dl.prepare(n_samples=128, n_features=256)
 
     i = 0
     for inputs, targets in data_loader:
         for study, input in inputs.items():
-            print('Iter % i' % i)
-            print(input.data.numpy().shape)
-            dl.partial_fit(input.data.numpy())
+            print('%s iter % i' % (study, i))
+            dl.partial_fit(input.data.numpy(), sample_indices=np.arange(len(input)))
             i += 1
             if i > 1000:
                 break
@@ -249,6 +267,14 @@ def inspect_latent(output_dir):
             break
     Vt = dl.components_
 
+    mem = Memory(cachedir=expanduser('~/cachedir'))
+    proj, masker = mem.cache(get_proj_and_masker)(estimator, lstsq)
+    principal = Vt @ proj
+    img = masker.inverse_transform(principal)
+    img.to_filename(join(introspect_dir, 'principal_components.nii.gz'))
+
+
+def get_proj_and_masker(estimator, lstsq):
     modl_atlas = fetch_atlas_modl()
     dictionary = modl_atlas['components512']
     mask = fetch_mask()['hcp']
@@ -261,21 +287,18 @@ def inspect_latent(output_dir):
         dict_proj = dictionary
     sup_proj = estimator.module_.embedder.linear.weight.data.numpy()
     proj = sup_proj @ dict_proj
-    principal = Vt @ proj
-    img = masker.inverse_transform(principal)
-    img.to_filename(join(introspect_dir, 'principal_components.nii.gz'))
+    return proj, masker
 
 
 if __name__ == '__main__':
-    # compute_latent(join(get_output_dir(), 'multi_studies', '1745'))
-    # plot_latent(join(get_output_dir(), 'multi_studies', '1745'))
-    # plot_classification(join(get_output_dir(), 'multi_studies', '1745'))
+    compute_latent(join(get_output_dir(), 'multi_studies', '418'))
+    # plot_latent(join(get_output_dir(), 'multi_studies', '418'))
+    # plot_classification(join(get_output_dir(), 'multi_studies', '418'))
 
     # compute_latent(join(get_output_dir(), 'multi_studies', '413'))
     # plot_latent(join(get_output_dir(), 'multi_studies', '413'))
     # plot_classification(join(get_output_dir(), 'multi_studies', '413'))
 
-
-    inspect_latent(join(get_output_dir(), 'multi_studies', '1745'))
+    # inspect_latent(join(get_output_dir(), 'multi_studies', '1745'))
 
     # compute_latent(join(get_output_dir(), 'multi_studies', '1786'))
