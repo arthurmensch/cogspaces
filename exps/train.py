@@ -37,9 +37,9 @@ def default():
     )
     model = dict(
         normalize=False,
-        estimator='factored_variational',
+        estimator='factored_fast',
         study_weight='sqrt_sample',
-        max_iter=30,
+        max_iter=10,
     )
     factored_fast = dict(
         optimizer='adam',

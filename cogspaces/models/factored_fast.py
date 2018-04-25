@@ -149,8 +149,7 @@ class Embedder(nn.Module):
         self.linear.reset_parameters()
 
     def penalty(self):
-        return torch.sum(
-            torch.abs(self.linear.weight))
+        return torch.sum(torch.abs(self.linear.weight))
 
 
 class LatentClassifier(nn.Module):
@@ -173,7 +172,8 @@ class LatentClassifier(nn.Module):
         self.batch_norm.reset_parameters()
 
     def penalty(self):
-        return 0
+        return torch.sum(torch.abs(self.linear.weight))
+        # return Variable(torch.FloatTensor([0]))
 
 
 class MultiStudyModule(nn.Module):
@@ -210,10 +210,10 @@ class MultiStudyModule(nn.Module):
             preds[study] = self.classifiers[study](self.embedder(input))
         return preds
 
-    def penalty(self, studies):
-        return {study:
-                    self.embedder.penalty() + self.classifiers[study].penalty()
-                for study in studies}
+    def penalty(self):
+        return (self.embedder.penalty(),
+                {study: classifier.penalty() for study, classifier
+                 in self.classifiers.items()})
 
 
 class MultiStudyLoss(nn.Module):
@@ -401,7 +401,7 @@ class MultiStudyClassifier(BaseEstimator):
             if name != 'embedder.linear.weight':
                 params.append(param)
         if self.optimizer == 'adam':
-            optimizer = OurAdam([dict(params=params),
+            optimizer = OurAdam([dict(params=params, soft_thresholding=1e-3),
                                  dict(params=embedder_weight,
                                       soft_thresholding=0,
                                       clip='none')
@@ -439,7 +439,8 @@ class MultiStudyClassifier(BaseEstimator):
         best_loss = float('inf')
         no_improvement = 0
         n_elem = self.module_.embedder.linear.weight.view(-1).shape[0]
-        random_features = check_random_state(10).permutation(n_elem)[:100].tolist()
+        random_features = check_random_state(10).permutation(n_elem)[
+                          :100].tolist()
         weights = []
         for inputs, targets in data_loader:
             batch_size = sum(input.shape[0] for input in inputs.values())
@@ -448,10 +449,12 @@ class MultiStudyClassifier(BaseEstimator):
             optimizer.zero_grad()
 
             preds = self.module_(inputs)
-            weights.append(self.module_.embedder.linear.weight.data.view(-1)[random_features].numpy())
-            penalty = self.module_.embedder.penalty() * self.regularization
+            # weights.append(self.module_.embedder.linear.weight.data.view(-1)[random_features].numpy())
+            # embedder_penalty, penalties = self.module_.penalty()
+            # penalty = self.regularization * (sum(penalties.values()))
+            penalty = 0
             loss = loss_function(preds, targets)
-            loss += penalty
+            # loss += penalty
             loss.backward()
             optimizer.step()
 
@@ -468,8 +471,6 @@ class MultiStudyClassifier(BaseEstimator):
                         and epoch % report_every == 0):
                     weight = self.module_.embedder.linear.weight
                     density = (weight != 0).float().mean().data[0]
-                    penalty = (self.module_.embedder.penalty()
-                               * self.regularization)
                     print('Epoch %.2f, train loss: %.4f, penalty: %.4f,'
                           ' density: %.4f' % (epoch, epoch_loss,
                                               penalty, density))
@@ -492,8 +493,8 @@ class MultiStudyClassifier(BaseEstimator):
                     callback(self, epoch)
                     print('----------------------------------')
                     break
-        weights = np.concatenate([weight[None, :] for weight in weights], axis=0)
-        np.save('weights_7.npy', weights)
+        # weights = np.concatenate([weight[None, :] for weight in weights], axis=0)
+        # np.save('weights_7.npy', weights)
 
         X_red = {}
         self.module_.embedder.input_dropout.p = 0

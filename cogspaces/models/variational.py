@@ -401,13 +401,13 @@ class VarMultiStudyClassifier(BaseEstimator):
             self.module_ = module = modules[phase]
             if phase == 'pretrain':
                 lr = self.lr
-                modules[phase] = torch.load(join(get_output_dir(),
-                                                'model_%s.pkl' % phase))
-                continue
+                # modules[phase] = torch.load(join(get_output_dir(),
+                #                                 'model_%s.pkl' % phase))
+                # continue
             else:
-                modules[phase] = torch.load(join(get_output_dir(),
-                                                'model_%s.pkl' % phase))
-                continue
+                # modules[phase] = torch.load(join(get_output_dir(),
+                #                                 'model_%s.pkl' % phase))
+                # continue
                 module.load_state_dict(modules['pretrain'].state_dict(),
                                        strict=False)
                 module.embedder.linear.reset_dropout()
@@ -444,6 +444,9 @@ class VarMultiStudyClassifier(BaseEstimator):
                 penalty += sum(this_penalty / lengths[study]
                                for study, this_penalty
                                in penalties.items())
+                penalty += 1e-2 * sum(torch.sum(
+                    torch.abs(module.classifiers[study].linear.weight)) for
+                                      study in inputs)
                 loss += penalty
                 loss.backward()
                 optimizer.step()
@@ -517,29 +520,30 @@ class VarMultiStudyClassifier(BaseEstimator):
 
         # self.module_.embedder.linear.weight.data = \
         #     modules['sparsify'].embedder.linear.sparse_weight.data
-        self.module_.embedder.linear.log_sigma2.requires_grad = False
         for study in self.module_.classifiers:
             classifier = self.module_.classifiers[study]
             log_alpha = \
                 modules['sparsify'].classifiers[study].linear.log_alpha.data[0]
             p = 1 / (1 + math.exp(-log_alpha))
             p = min(p, 0.75)
-            classifier.linear.p = p
+            classifier.linear.p = 0
         nnz = self.module_.embedder.linear.weight != 0
         density = nnz.float().mean().data[0]
         print('Final density %s' % density)
-        lr = self.lr * 0.01
+        lr = self.lr
         X_red = {}
-        for study in X:
+        for study, this_X in X.items():
             print('Fine tuning %s' % study)
-            # X_red[study] = self.module_.embedder(this_X).data.cpu()
-            data = TensorDataset(X[study], y[study])
+            if cuda:
+                this_X = this_X.cuda(device=device)
+            this_X = Variable(this_X, volatile=True)
+            X_red[study] = self.module_.embedder(this_X).data.cpu()
+            data = TensorDataset(X_red[study], y[study])
             data_loader = DataLoader(data, shuffle=True,
                                      batch_size=self.batch_size,
                                      pin_memory=cuda)
-            module = self.module_
-            optimizer = Adam(filter(lambda p: p.requires_grad,
-                                    module.parameters()), lr=lr)
+            module = self.module_.classifiers[study]
+            optimizer = Adam(module.parameters(), lr=lr)
             loss_function = F.nll_loss
 
             seen_samples = 0
@@ -559,7 +563,7 @@ class VarMultiStudyClassifier(BaseEstimator):
 
                     module.train()
                     optimizer.zero_grad()
-                    pred = module({study: input})[study]
+                    pred = module(input)
                     loss = loss_function(pred, target)
                     penalty = 0
                     elbo = loss + penalty
