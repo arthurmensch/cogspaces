@@ -51,7 +51,6 @@ def _update_dict_procrustes(dictionary, Y, code, verbose=False,
     U, S, Vt = svd(Q)
     dictionary = U.dot(Vt)
     residuals = np.sum((Y - dictionary.dot(code)) ** 2)
-    print(residuals)
     return dictionary, residuals
 
 
@@ -206,12 +205,14 @@ def dict_learning(X, n_components, alpha, max_iter=100, tol=1e-8,
                              init=code, n_jobs=n_jobs)
         # Update dictionary
         dictionary, residuals = _update_dict_procrustes(dictionary.T,
-                                                        X.T * sample_weights[
-                                                              None, :], code.T,
-                                                        verbose=verbose,
-                                                        return_r2=True,
-                                                        random_state=random_state)
+                                             X.T * sample_weights[
+                                                   None, :], code.T,
+                                             verbose=verbose,
+                                             return_r2=True,
+                                             random_state=random_state)
         dictionary = dictionary.T
+
+        print(dictionary.dot(dictionary.T))
 
         # Cost function
         current_cost = 0.5 * residuals + alpha * np.sum(np.abs(code))

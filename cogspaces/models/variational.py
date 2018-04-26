@@ -9,7 +9,6 @@ import torch
 import torch.nn.functional as F
 from os.path import join
 from sklearn.base import BaseEstimator
-from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch.autograd import Variable
 from torch.nn import Parameter
@@ -19,7 +18,6 @@ from torch.utils.data import TensorDataset, DataLoader
 from cogspaces.datasets.utils import get_output_dir
 from cogspaces.models.factored import Identity
 from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
-from cogspaces.utils.dict_learning import dict_learning
 
 k1 = 0.63576
 k2 = 1.87320
@@ -374,7 +372,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 in_features=in_features,
                 input_dropout=self.input_dropout,
                 latent_dropout=self.dropout,
-                adaptivity='embedding+classifier',
+                adaptivity='classifier',
                 activation=self.activation,
                 latent_size=self.latent_size,
                 target_sizes=target_sizes),
@@ -526,30 +524,30 @@ class VarMultiStudyClassifier(BaseEstimator):
                                      strict=False)
         # self.module_.embedder.linear.weight.data = \
         #     modules['sparsify'].embedder.linear.sparse_weight.data
-
-        if self.rotation:
-            classif = []
-            classif_weights = []
-            for study, classifier in self.module_.classifiers.items():
-                these_classif = classifier.linear.weight.data.numpy()
-                these_classif_weights = np.ones(these_classif.shape[0])
-                these_classif_weights /= these_classif.shape[0]
-                these_classif_weights *= math.sqrt(lengths[study])
-                classif.append(classifier.linear.weight.data.numpy())
-                classif_weights.append(these_classif_weights)
-            classif = np.concatenate(classif, axis=0)
-            classif_weights = np.concatenate(classif_weights, axis=0)
-            classif_weights /= np.sum(classif_weights) / len(classif_weights)
-            classif = StandardScaler().fit_transform(classif)
-            code, dictionary, errors = dict_learning(classif,
-                                                     method='lars',
-                                                     alpha=.01, max_iter=10000,
-                                                     sample_weights=classif_weights,
-                                                     n_components=128,
-                                                     verbose=True)
-            self.module_.embedder.linear.weight.data = \
-                torch.FloatTensor(dictionary) @ self.module_.embedder.linear.weight.data
-            print(errors[-1], (code == 0).astype('float').mean())
+        #
+        # if self.rotation:
+        #     classif = []
+        #     classif_weights = []
+        #     for study, classifier in self.module_.classifiers.items():
+        #         these_classif = classifier.linear.weight.data.numpy()
+        #         these_classif_weights = np.ones(these_classif.shape[0])
+        #         these_classif_weights /= these_classif.shape[0]
+        #         these_classif_weights *= math.sqrt(lengths[study])
+        #         classif.append(classifier.linear.weight.data.numpy())
+        #         classif_weights.append(these_classif_weights)
+        #     classif = np.concatenate(classif, axis=0)
+        #     classif_weights = np.concatenate(classif_weights, axis=0)
+        #     classif_weights /= np.sum(classif_weights) / len(classif_weights)
+        #     classif = StandardScaler().fit_transform(classif)
+        #     code, dictionary, errors = dict_learning(classif,
+        #                                              method='lars',
+        #                                              alpha=.01, max_iter=10000,
+        #                                              sample_weights=classif_weights,
+        #                                              n_components=128,
+        #                                              verbose=True)
+        #     self.module_.embedder.linear.weight.data = \
+        #         torch.FloatTensor(dictionary) @ self.module_.embedder.linear.weight.data
+        #     print(errors[-1], (code == 0).astype('float').mean())
 
         for study in self.module_.classifiers:
             classifier = self.module_.classifiers[study]
@@ -557,7 +555,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 modules['sparsify'].classifiers[study].linear.log_alpha.data[0]
             p = 1 / (1 + math.exp(-log_alpha))
             p = min(p, 0.75)
-            classifier.linear.p = 0
+            classifier.linear.p = p
         nnz = self.module_.embedder.linear.weight != 0
         density = nnz.float().mean().data[0]
         print('Final density %s' % density)
