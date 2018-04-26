@@ -11,11 +11,10 @@ from modl import DictFact
 from nilearn._utils import check_niimg
 from nilearn.image import index_img, iter_img
 from nilearn.input_data import NiftiMasker
-from nilearn.plotting import plot_stat_map, plot_prob_atlas, \
-    find_xyz_cut_coords, plot_glass_brain
+from nilearn.plotting import plot_stat_map, find_xyz_cut_coords, \
+    plot_glass_brain
 from os.path import join, expanduser
 from scipy.linalg import svd
-from cogspaces.utils.dict_learning import dict_learning
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import TensorDataset
 
@@ -24,6 +23,7 @@ from cogspaces.datasets.utils import fetch_mask, get_output_dir
 from cogspaces.model_selection import train_test_split
 from cogspaces.models.factored_fast import MultiStudyLoader
 from cogspaces.preprocessing import MultiTargetEncoder
+from cogspaces.utils.dict_learning import dict_learning
 from exps.train import load_data
 
 
@@ -64,7 +64,7 @@ def compute_rotated_latent(output_dir):
     sample_weights /= np.sum(sample_weights) / len(sample_weights)
     classif_weights = StandardScaler().fit_transform(classif_weights)
     print(sample_weights)
-    code, dictionary, errors = dict_learning(classif_weights, method='lars',
+    code, dictionary, errors = dict_learning(classif_weights, method='cd',
                                              alpha=.1, max_iter=10000,
                                              dict_init=np.eye(128),
                                              sample_weights=sample_weights,
@@ -351,12 +351,12 @@ def get_proj_and_masker(output_dir):
 
 
 if __name__ == '__main__':
-    compute_latent(join(get_output_dir(), 'multi_studies', '420'))
+    # compute_latent(join(get_output_dir(), 'multi_studies', '420'))
     # plot_latent(join(get_output_dir(), 'multi_studies', '418'))
 
 
     # compute_latent(join(get_output_dir(), 'multi_studies', '418'))
-    # compute_rotated_latent(join(get_output_dir(), 'multi_studies', '418'))
+    compute_rotated_latent(join(get_output_dir(), 'multi_studies', '418'))
     #
     # plot_latent(join(get_output_dir(), 'multi_studies', '418'))
     #

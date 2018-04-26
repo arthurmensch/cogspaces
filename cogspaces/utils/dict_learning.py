@@ -51,6 +51,7 @@ def _update_dict_procrustes(dictionary, Y, code, verbose=False,
     U, S, Vt = svd(Q)
     dictionary = U.dot(Vt)
     residuals = np.sum((Y - dictionary.dot(code)) ** 2)
+    print(residuals)
     return dictionary, residuals
 
 
