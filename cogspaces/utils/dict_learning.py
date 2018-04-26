@@ -1,18 +1,17 @@
 import sys
 import time
 
+import numpy as np
 from joblib import cpu_count
 from numpy.linalg import svd
 from scipy import linalg
 from sklearn.decomposition import sparse_encode
-from sklearn.decomposition.dict_learning import _update_dict
-
-import numpy as np
 from sklearn.utils import check_random_state
 
 
-def _update_dict_procrustes(dictionary, Y, code, verbose=False, return_r2=False,
-                 random_state=None):
+def _update_dict_procrustes(dictionary, Y, code, verbose=False,
+                            return_r2=False,
+                            random_state=None):
     """Update the dense dictionary factor in place.
 
     Parameters
@@ -53,6 +52,7 @@ def _update_dict_procrustes(dictionary, Y, code, verbose=False, return_r2=False,
     dictionary = U.dot(Vt)
     residuals = np.sum((Y - dictionary.dot(code)) ** 2)
     return dictionary, residuals
+
 
 def dict_learning(X, n_components, alpha, max_iter=100, tol=1e-8,
                   method='lars', n_jobs=1, dict_init=None, code_init=None,
@@ -204,9 +204,12 @@ def dict_learning(X, n_components, alpha, max_iter=100, tol=1e-8,
         code = sparse_encode(X, dictionary, algorithm=method, alpha=alpha,
                              init=code, n_jobs=n_jobs)
         # Update dictionary
-        dictionary, residuals = _update_dict_procrustes(dictionary.T, X.T * sample_weights[None, :], code.T,
-                                             verbose=verbose, return_r2=True,
-                                             random_state=random_state)
+        dictionary, residuals = _update_dict_procrustes(dictionary.T,
+                                                        X.T * sample_weights[
+                                                              None, :], code.T,
+                                                        verbose=verbose,
+                                                        return_r2=True,
+                                                        random_state=random_state)
         dictionary = dictionary.T
 
         # Cost function
