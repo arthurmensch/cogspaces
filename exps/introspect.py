@@ -15,7 +15,7 @@ from nilearn.plotting import plot_stat_map, plot_prob_atlas, \
     find_xyz_cut_coords, plot_glass_brain
 from os.path import join, expanduser
 from scipy.linalg import svd
-from sklearn.decomposition import dict_learning
+from cogspaces.utils.dict_learning import dict_learning
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import TensorDataset
 
@@ -41,36 +41,39 @@ def plot_components(components, names, output_dir):
 
 
 def compute_rotated_latent(output_dir):
+    mem = Memory(cachedir=expanduser('~/cachedir'))
     introspect_dir = join(output_dir, 'introspect')
     if not os.path.exists(introspect_dir):
         os.makedirs(introspect_dir)
     estimator = load(join(output_dir, 'estimator.pkl'))
-
     config = json.load(open(join(output_dir, 'config.json'), 'r'))
     lstsq = config['data']['source_dir'] == 'reduced_512_lstsq'
-    print(lstsq)
 
-    modl_atlas = fetch_atlas_modl()
-    dictionary = modl_atlas['components512']
-    mask = fetch_mask()['hcp']
-    masker = NiftiMasker(mask_img=mask).fit()
-    dictionary = masker.transform(dictionary)
-    if lstsq:
-        gram = dictionary.dot(dictionary.T)
-        dict_proj = np.linalg.inv(gram).dot(dictionary)
-    else:
-        dict_proj = dictionary
-    weight = estimator.module_sparsify_.embedder.linear.weight.data.numpy()
     classif_weights = []
+    sample_weights = []
+    train_latents = load(join(output_dir, 'train_latents.pkl'))
     for study, classifier in estimator.module_.classifiers.items():
+        these_weights = classifier.linear.weight.data.numpy()
+        these_sample_weights = np.ones(these_weights.shape[0])
+        these_sample_weights /= these_weights.shape[0]
+        these_sample_weights *= math.sqrt(len(train_latents[study]))
         classif_weights.append(classifier.linear.weight.data.numpy())
+        sample_weights.append(these_sample_weights)
     classif_weights = np.concatenate(classif_weights, axis=0)
+    sample_weights = np.concatenate(sample_weights, axis=0)
+    sample_weights /= np.sum(sample_weights) / len(sample_weights)
     classif_weights = StandardScaler().fit_transform(classif_weights)
-    code, dictionary, errors = dict_learning(classif_weights, method='cd',
-                                             alpha=1,
+    print(sample_weights)
+    code, dictionary, errors = dict_learning(classif_weights, method='lars',
+                                             alpha=.1, max_iter=10000,
+                                             dict_init=np.eye(128),
+                                             sample_weights=sample_weights,
                                              n_components=128, verbose=True)
+    print(errors[-1], (code == 0).astype('float').mean())
     print(np.mean(code == 0).astype('float'))
-    proj = dictionary @ weight @ dict_proj
+    print(errors)
+    proj, masker = mem.cache(get_proj_and_masker)(estimator, lstsq)
+    proj = dictionary @ proj
     img = masker.inverse_transform(proj)
     img.to_filename(join(introspect_dir, 'components_rotated.nii.gz'))
 
@@ -95,18 +98,20 @@ def compute_latent(output_dir):
         dict_proj = np.linalg.inv(gram).dot(dictionary)
     else:
         dict_proj = dictionary
-    weight = estimator.module_sparsify_.embedder.linear.weight.data.numpy()
+    weight = estimator.module_.embedder.linear.weight.data.numpy()
+    proj = weight @ dict_proj
+    img = masker.inverse_transform(proj)
+    img.to_filename(join(introspect_dir, 'components.nii.gz'))
+
     snr = - .5 * estimator.module_sparsify_.embedder.linear. \
         log_alpha.data.numpy()
     snr = np.exp(snr)
-    proj = weight @ dict_proj
     proj_snr = (snr * np.sign(weight)) @ dict_proj
-    weighted_proj = proj * proj_snr
-    img = masker.inverse_transform(proj)
     img_snr = masker.inverse_transform(proj_snr)
-    img_weighted = masker.inverse_transform(weighted_proj)
-    img.to_filename(join(introspect_dir, 'components.nii.gz'))
     img_snr.to_filename(join(introspect_dir, 'components_snr.nii.gz'))
+
+    weighted_proj = proj * proj_snr
+    img_weighted = masker.inverse_transform(weighted_proj)
     img_weighted.to_filename(
         join(introspect_dir, 'components_weighted.nii.gz'))
 
@@ -133,22 +138,23 @@ def plot_latent(output_dir):
     plot_dir = join(introspect_dir, 'plot')
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
-    img = check_niimg(join(introspect_dir, 'components.nii.gz'))
+    # img = check_niimg(join(introspect_dir, 'components.nii.gz'))
     img_rotated = check_niimg(join(introspect_dir, 'components_rotated.nii.gz'))
-    img_snr = check_niimg(join(introspect_dir, 'components_snr.nii.gz'))
-    img_weighted = check_niimg(
-        join(introspect_dir, 'components_weighted.nii.gz'))
-    plot_prob_atlas(img)
-    plt.savefig(join(plot_dir, 'components.png'))
-    plt.close()
+    principal = check_niimg(join(introspect_dir, 'principal_components.nii.gz'))
+    # img_snr = check_niimg(join(introspect_dir, 'components_snr.nii.gz'))
+    # img_weighted = check_niimg(
+    #     join(introspect_dir, 'components_weighted.nii.gz'))
+    # plot_prob_atlas(img)
+    # plt.savefig(join(plot_dir, 'components.png'))
+    # plt.close()
     # Parallel(n_jobs=20)(delayed(plot_single_img)(
     #     str(i), plot_dir, 'components', this_img)
     #                     for (i, this_img)
     #                     in enumerate(iter_img(img)))
-    Parallel(n_jobs=20)(delayed(plot_single_img)(
-        str(i), plot_dir, 'rotated', this_img)
+    Parallel(n_jobs=3)(delayed(plot_single_img)(
+        str(i), plot_dir, 'principal', this_img)
                         for (i, this_img)
-                        in enumerate(iter_img(img_rotated)))
+                        in enumerate(iter_img(principal)))
     # Parallel(n_jobs=20)(delayed(plot_single_img)(
     #     str(i), plot_dir, 'snr', this_img)
     #                     for (i, this_img)
@@ -191,6 +197,7 @@ def plot_single_img(name, plot_dir, study, this_img, to=1 / 6):
                      cut_coords=cut_coords,
                      threshold=vmax * to)
     plt.savefig(join(plot_dir, '%s_%s.png' % (study, name)))
+    plt.close()
 
 
 def plot_activation(output_dir):
@@ -279,8 +286,8 @@ def inspect_latent(output_dir):
                                    study_weights=study_weights,
                                    cuda=False, device=-1)
 
-    dl = DictFact(n_components=256, code_l1_ratio=1, comp_l1_ratio=0,
-                  code_alpha=5)
+    dl = DictFact(n_components=128, code_l1_ratio=1, comp_l1_ratio=0,
+                  code_alpha=10)
     dl.prepare(n_samples=128, n_features=128)
 
     i = 0
@@ -289,6 +296,8 @@ def inspect_latent(output_dir):
             print('%s iter % i' % (study, i))
             dl.partial_fit(input.data.numpy(),
                            sample_indices=np.arange(len(input)))
+            code = dl.transform(input.data.numpy())
+            print('Sparsity', (code == 0).astype('float').mean())
             i += 1
             if i > 1000:
                 break
@@ -296,17 +305,36 @@ def inspect_latent(output_dir):
             break
     Vt = dl.components_
 
+
     Vt -= estimator.module_sparsify_.embedder.linear.bias.data.numpy()[None, :]
 
     mem = Memory(cachedir=expanduser('~/cachedir'))
-    proj, masker = mem.cache(get_proj_and_masker)(estimator, lstsq)
+    proj, masker = mem.cache(get_proj_and_masker)(output_dir)
     inv_proj = np.linalg.pinv(proj)
     principal = Vt @ inv_proj.T
+    # modl_atlas = fetch_atlas_modl()
+    # dictionary = modl_atlas['components512']
+    # mask = fetch_mask()['hcp']
+    # masker = NiftiMasker(mask_img=mask).fit()
+    # dictionary = masker.transform(dictionary)
+    # if lstsq:
+    #     dict_proj = mem.cache(np.linalg.pinv)(dictionary).T
+    #     dict_proj_inv = dictionary.T
+    # else:
+    #     dict_proj = dictionary
+    #     dict_proj_inv = mem.cache(np.linalg.pinv)(dictionary)
+    # sup_proj = estimator.module_.embedder.linear.weight.data.numpy()
+    # sup_proj_inv = mem.cache(np.linalg.pinv)(sup_proj)
+    # principal = Vt @ sup_proj_inv.T @ dict_proj_inv.T
     img = masker.inverse_transform(principal)
     img.to_filename(join(introspect_dir, 'principal_components.nii.gz'))
 
 
-def get_proj_and_masker(estimator, lstsq):
+def get_proj_and_masker(output_dir):
+    estimator = load(join(output_dir, 'estimator.pkl'))
+
+    config = json.load(open(join(output_dir, 'config.json'), 'r'))
+    lstsq = config['data']['source_dir'] == 'reduced_512_lstsq'
     modl_atlas = fetch_atlas_modl()
     dictionary = modl_atlas['components512']
     mask = fetch_mask()['hcp']
@@ -323,11 +351,13 @@ def get_proj_and_masker(estimator, lstsq):
 
 
 if __name__ == '__main__':
-    compute_latent(join(get_output_dir(), 'multi_studies', '1825'))
+    compute_latent(join(get_output_dir(), 'multi_studies', '420'))
+    # plot_latent(join(get_output_dir(), 'multi_studies', '418'))
+
 
     # compute_latent(join(get_output_dir(), 'multi_studies', '418'))
     # compute_rotated_latent(join(get_output_dir(), 'multi_studies', '418'))
-
+    #
     # plot_latent(join(get_output_dir(), 'multi_studies', '418'))
     #
     # inspect_latent(join(get_output_dir(), 'multi_studies', '418'))

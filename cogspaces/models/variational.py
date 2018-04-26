@@ -9,6 +9,7 @@ import torch
 import torch.nn.functional as F
 from os.path import join
 from sklearn.base import BaseEstimator
+from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch.autograd import Variable
 from torch.nn import Parameter
@@ -18,6 +19,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from cogspaces.datasets.utils import get_output_dir
 from cogspaces.models.factored import Identity
 from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
+from cogspaces.utils.dict_learning import dict_learning
 
 k1 = 0.63576
 k2 = 1.87320
@@ -292,14 +294,20 @@ class VarMultiStudyClassifier(BaseEstimator):
                  device=-1,
                  variational=False,
                  sampling='cycle',
+                 rotation=False,
                  patience=200,
                  regularization=0.,
+                 l1_penalty=1e-2,
                  seed=None):
 
         self.latent_size = latent_size
         self.activation = activation
         self.input_dropout = input_dropout
         self.dropout = dropout
+
+        self.rotation = rotation
+
+        self.l1_penalty = l1_penalty
 
         self.sampling = sampling
         self.batch_size = batch_size
@@ -444,7 +452,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 penalty += sum(this_penalty / lengths[study]
                                for study, this_penalty
                                in penalties.items())
-                penalty += 1e-2 * sum(torch.sum(
+                penalty += self.l1_penalty * sum(torch.sum(
                     torch.abs(module.classifiers[study].linear.weight)) for
                                       study in inputs)
                 loss += penalty
@@ -513,13 +521,36 @@ class VarMultiStudyClassifier(BaseEstimator):
         callback(self, self.max_iter)
 
         self.module_sparsify_ = modules['sparsify']
-
         self.module_ = modules['finetune']
         self.module_.load_state_dict(modules['sparsify'].state_dict(),
                                      strict=False)
-
         # self.module_.embedder.linear.weight.data = \
         #     modules['sparsify'].embedder.linear.sparse_weight.data
+
+        if self.rotation:
+            classif = []
+            classif_weights = []
+            for study, classifier in self.module_.classifiers.items():
+                these_classif = classifier.linear.weight.data.numpy()
+                these_classif_weights = np.ones(these_classif.shape[0])
+                these_classif_weights /= these_classif.shape[0]
+                these_classif_weights *= math.sqrt(lengths[study])
+                classif.append(classifier.linear.weight.data.numpy())
+                classif_weights.append(these_classif_weights)
+            classif = np.concatenate(classif, axis=0)
+            classif_weights = np.concatenate(classif_weights, axis=0)
+            classif_weights /= np.sum(classif_weights) / len(classif_weights)
+            classif = StandardScaler().fit_transform(classif)
+            code, dictionary, errors = dict_learning(classif,
+                                                     method='lars',
+                                                     alpha=.01, max_iter=10000,
+                                                     sample_weights=classif_weights,
+                                                     n_components=128,
+                                                     verbose=True)
+            self.module_.embedder.linear.weight.data = \
+                torch.FloatTensor(dictionary) @ self.module_.embedder.linear.weight.data
+            print(errors[-1], (code == 0).astype('float').mean())
+
         for study in self.module_.classifiers:
             classifier = self.module_.classifiers[study]
             log_alpha = \
@@ -630,7 +661,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 this_X = this_X.cuda(device=device)
             this_X = Variable(this_X, volatile=True)
             latent = self.module_.embedder(this_X)
-            latent = self.module_.classifiers[study].batch_norm(latent)
+            # latent = self.module_.classifiers[study].batch_norm(latent)
             latents[study] = latent.data.cpu().numpy()
         return latents
 
