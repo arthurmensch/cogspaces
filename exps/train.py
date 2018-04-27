@@ -49,7 +49,7 @@ def default():
 
         sampling='random',
         batch_size=128,
-        regularization=1e-2,
+        regularization=1e-1,
         dropout=0.5,
         lr=1e-3,
         input_dropout=0.25)
@@ -57,7 +57,7 @@ def default():
     factored_variational = dict(
         optimizer='adam',
         latent_size=128,
-        l1_penalty=0,
+        l1_penalty=1e-2,
         activation='linear',
         epoch_counting='all',
         sampling='random',

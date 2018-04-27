@@ -6,6 +6,7 @@ from joblib import cpu_count
 from numpy.linalg import svd
 from scipy import linalg
 from sklearn.decomposition import sparse_encode
+from sklearn.decomposition.dict_learning import _update_dict
 from sklearn.utils import check_random_state
 
 
@@ -57,7 +58,7 @@ def _update_dict_procrustes(dictionary, Y, code, verbose=False,
 def dict_learning(X, n_components, alpha, max_iter=100, tol=1e-8,
                   method='lars', n_jobs=1, dict_init=None, code_init=None,
                   callback=None, verbose=False, random_state=None,
-                  sample_weights=None,
+                  sample_weights=None, rotation=False,
                   return_n_iter=False):
     """Solves a dictionary learning matrix factorization problem.
 
@@ -204,30 +205,32 @@ def dict_learning(X, n_components, alpha, max_iter=100, tol=1e-8,
         code = sparse_encode(X, dictionary, algorithm=method, alpha=alpha,
                              init=code, n_jobs=n_jobs)
         # Update dictionary
-        dictionary, residuals = _update_dict_procrustes(dictionary.T,
-                                             X.T * sample_weights[
-                                                   None, :], code.T,
-                                             verbose=verbose,
-                                             return_r2=True,
-                                             random_state=random_state)
+        if rotation:
+            func = _update_dict_procrustes
+        else:
+            func = _update_dict
+        dictionary, residuals = func(dictionary.T,
+                                     X.T * sample_weights[
+                                           None, :], code.T,
+                                     verbose=verbose,
+                                     return_r2=True,
+                                     random_state=random_state)
         dictionary = dictionary.T
-
-        print(dictionary.dot(dictionary.T))
 
         # Cost function
         current_cost = 0.5 * residuals + alpha * np.sum(np.abs(code))
         errors.append(current_cost)
 
-        if ii > 0:
-            dE = errors[-2] - errors[-1]
-            # assert(dE >= -tol * errors[-1])
-            if dE < tol * errors[-1]:
-                if verbose == 1:
-                    # A line return
-                    print("")
-                elif verbose:
-                    print("--- Convergence reached after %d iterations" % ii)
-                break
+        # if ii > 0:
+        #     dE = errors[-2] - errors[-1]
+        #     # assert(dE >= -tol * errors[-1])
+        #     if dE < tol * errors[-1]:
+        #         if verbose == 1:
+        #             # A line return
+        #             print("")
+        #         elif verbose:
+        #             print("--- Convergence reached after %d iterations" % ii)
+        #         break
         if ii % 5 == 0 and callback is not None:
             callback(locals())
 

@@ -239,7 +239,9 @@ class Embedder(nn.Module):
         self.linear.reset_parameters()
 
     def penalty(self):
-        return torch.sum(torch.abs(self.linear.weight))
+        alpha = 1000
+        return torch.sum((F.softplus(-alpha * self.linear.weight)
+                         + F.softplus(alpha * self.linear.weight)) / alpha)
 
 
 class LatentClassifier(nn.Module):
@@ -492,7 +494,8 @@ class MultiStudyClassifier(BaseEstimator):
                 params.append(param)
         if self.optimizer == 'adam':
             optimizer = OurAdam([dict(params=params,
-                                      soft_thresholding=self.regularization),
+                                      # soft_thresholding=self.regularization
+                                      ),
                                  dict(params=embedder_weight,
                                       soft_thresholding=0,
                                       clip='none')
@@ -541,9 +544,9 @@ class MultiStudyClassifier(BaseEstimator):
 
             preds = self.module_(inputs)
             # weights.append(self.module_.embedder.linear.weight.data.view(-1)[random_features].numpy())
-            # embedder_penalty, penalties = self.module_.penalty()
+            embedder_penalty, penalties = self.module_.penalty()
             # penalty = self.regularization * (sum(penalties.values()))
-            penalty = 0
+            penalty = self.regularization * embedder_penalty
             loss = loss_function(preds, targets)
             # loss += penalty
             loss.backward()

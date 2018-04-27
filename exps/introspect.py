@@ -63,18 +63,21 @@ def compute_rotated_latent(output_dir):
     classif_weights = np.concatenate(classif_weights, axis=0)
     sample_weights = np.concatenate(sample_weights, axis=0)
     sample_weights /= np.sum(sample_weights) / len(sample_weights)
-    classif_weights = StandardScaler().fit_transform(classif_weights)
-    print(sample_weights)
+    sc = StandardScaler()
+    classif_weights = sc.fit_transform(classif_weights)
     code, dictionary, errors = dict_learning(classif_weights, method='lars',
-                                             alpha=1, max_iter=10,
+                                             alpha=1, max_iter=80,
+                                             rotation=False,
                                              dict_init=np.eye(128),
+                                             code_init=classif_weights,
                                              sample_weights=sample_weights,
-                                             n_components=32, verbose=2)
+                                             n_components=128, verbose=2)
     residuals = np.sum((classif_weights - code.dot(dictionary)) ** 2)
+    dictionary *= sc.scale_
     exp_var = residuals / np.sum(classif_weights ** 2)
     print(exp_var, (code == 0).astype('float').mean())
     print(np.mean(code == 0).astype('float'))
-    proj_1, proj_2, var_2, sparse_proj_2, masker =\
+    proj_1, proj_2, var_2, sparse_proj_2, masker = \
         mem.cache(get_proj_and_masker)(output_dir)
 
     proj_3 = dictionary @ proj_2
@@ -83,9 +86,9 @@ def compute_rotated_latent(output_dir):
     sparse_img = masker.inverse_transform(dictionary @ sparse_proj_2 @ proj_1)
     img = masker.inverse_transform(proj_3 @ proj_1)
     snr = masker.inverse_transform(snr_3 @ proj_1)
-    sparse_img.to_filename(join(introspect_dir, 'sparse_img.nii.gz'))
-    img.to_filename(join(introspect_dir, 'components_rotated.nii.gz'))
-    snr.to_filename(join(introspect_dir, 'snr_rotated.nii.gz'))
+    sparse_img.to_filename(join(introspect_dir, 'rotated_sparse.nii.gz'))
+    img.to_filename(join(introspect_dir, 'rotated.nii.gz'))
+    snr.to_filename(join(introspect_dir, 'rotated_snr.nii.gz'))
 
 
 # def compute_rotated_latent_2(output_dir):
@@ -143,18 +146,31 @@ def compute_latent(output_dir):
     proj = weight @ dict_proj
     img = masker.inverse_transform(proj)
     img.to_filename(join(introspect_dir, 'components.nii.gz'))
+    for classifier in estimator.module_.classifiers.values():
+        print(classifier.linear.weight.data.numpy())
 
-    snr = - .5 * estimator.module_sparsify_.embedder.linear. \
-        log_alpha.data.numpy()
-    snr = np.exp(snr)
-    proj_snr = (snr * np.sign(weight)) @ dict_proj
-    img_snr = masker.inverse_transform(proj_snr)
-    img_snr.to_filename(join(introspect_dir, 'components_snr.nii.gz'))
+    # code, dictionary = dict_learning_online(proj.T, n_components=128,
+    #                                         verbose=11,
+    #                                         batch_size=32, method='cd',
+    #                                         alpha=1e-4,
+    #                                         n_iter=10000)
+    # sparse_comp = code.T
+    # img = masker.inverse_transform(sparse_comp)
+    # img.to_filename(join(introspect_dir, 'sparse_components.nii.gz'))
 
-    weighted_proj = proj * proj_snr
-    img_weighted = masker.inverse_transform(weighted_proj)
-    img_weighted.to_filename(
-        join(introspect_dir, 'components_weighted.nii.gz'))
+
+
+    # snr = - .5 * estimator.module_sparsify_.embedder.linear. \
+    #     log_alpha.data.numpy()
+    # snr = np.exp(snr)
+    # proj_snr = (snr * np.sign(weight)) @ dict_proj
+    # img_snr = masker.inverse_transform(proj_snr)
+    # img_snr.to_filename(join(introspect_dir, 'snr.nii.gz'))
+    #
+    # weighted_proj = proj * proj_snr
+    # img_weighted = masker.inverse_transform(weighted_proj)
+    # img_weighted.to_filename(
+    #     join(introspect_dir, 'weighted.nii.gz'))
 
     # target_encoder = load(join(output_dir, 'target_encoder.pkl'))
     #
@@ -180,13 +196,12 @@ def plot_latent(output_dir):
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
 
-    for name in ['components_rotated']:
+    for name in ['components']:  # 'rotated_snr', 'components_snr']:
         img = check_niimg(join(introspect_dir, '%s.nii.gz' % name))
-        Parallel(n_jobs=3)(delayed(plot_single_img)(
+        Parallel(n_jobs=20)(delayed(plot_single_img)(
             str(i), plot_dir, name, this_img)
-                            for (i, this_img)
-                            in enumerate(iter_img(img)))
-
+                           for (i, this_img)
+                           in enumerate(iter_img(img)))
 
 
 def plot_classification(output_dir):
@@ -211,7 +226,7 @@ def plot_classification(output_dir):
                                 in zip(iter_img(maps), names))
 
 
-def plot_single_img(name, plot_dir, study, this_img, to=1 / 3):
+def plot_single_img(name, plot_dir, study, this_img, to=1 / 6):
     vmax = np.max(np.abs(this_img.get_data()))
     cut_coords = find_xyz_cut_coords(this_img,
                                      activation_threshold=vmax / 3)
@@ -220,6 +235,12 @@ def plot_single_img(name, plot_dir, study, this_img, to=1 / 3):
                      plot_abs=False,
                      cut_coords=cut_coords,
                      threshold=vmax * to, figure=fig)
+    plt.savefig(join(plot_dir, '%s_%s_glass.png' % (study, name)))
+    plt.close(fig)
+    fig = plt.figure()
+    plot_stat_map(this_img, title='%s::%s' % (study, name),
+                  cut_coords=cut_coords,
+                  threshold=vmax * to, figure=fig)
     plt.savefig(join(plot_dir, '%s_%s.png' % (study, name)))
     plt.close(fig)
 
@@ -337,7 +358,6 @@ def inspect_latent_2(output_dir):
     img.to_filename(join(introspect_dir, 'principal_components.nii.gz'))
 
 
-
 def inspect_latent_2(output_dir):
     introspect_dir = join(output_dir, 'introspect')
     if not os.path.exists(introspect_dir):
@@ -430,15 +450,16 @@ def get_proj_and_masker(output_dir):
 
 
 if __name__ == '__main__':
-    # compute_latent(join(get_output_dir(), 'multi_studies', '423'))
     # compute_latent(join(get_output_dir(), 'multi_studies', '418'))
-    # plot_latent(join(get_output_dir(), 'multi_studies', '423'))
-
+    compute_latent(join(get_output_dir(), 'multi_studies', '429'))
+    # compute_rotated_latent(join(get_output_dir(), 'multi_studies', '418'))
+    plot_latent(join(get_output_dir(), 'multi_studies', '429'))
+    # compute_latent(join(get_output_dir(), 'multi_studies', '418'))
     # compute_rotated_latent(join(get_output_dir(), 'multi_studies', '418'))
     #
     # plot_latent(join(get_output_dir(), 'multi_studies', '418'))
     #
-    inspect_latent(join(get_output_dir(), 'multi_studies', '418'))
+    # inspect_latent(join(get_output_dir(), 'multi_studies', '418'))
     # plot_classification(join(get_output_dir(), 'multi_studies', '418'))
 
     # compute_latent(join(get_output_dir(), 'multi_studies', '413'))

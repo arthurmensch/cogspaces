@@ -51,6 +51,10 @@ class DropoutLinear(nn.Linear):
 
     def penalty(self):
         return Variable(torch.FloatTensor([0]))
+        # alpha = 1000
+        # return torch.sum((F.softplus(-alpha * self.weight)
+        #                   + F.softplus(
+        #             alpha * self.weight)) / alpha)
 
     @property
     def density(self):
@@ -341,6 +345,13 @@ class VarMultiStudyClassifier(BaseEstimator):
         lengths = {study: len(this_data)
                    for study, this_data in data.items()}
         total_length = sum(iter(lengths.values()))
+
+        sum_srqti = np.array([1 / math.sqrt(length)
+                              for length in lengths.values()]).sum()
+        sum_srqt = np.array([math.sqrt(length)
+                             for length in lengths.values()]).sum()
+        total_length_weighted = sum_srqt / sum_srqti
+        print(total_length, total_length_weighted)
         all_studies = list(data.keys())
         data_loader = MultiStudyLoader(data, sampling=self.sampling,
                                        batch_size=self.batch_size,
@@ -372,7 +383,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 in_features=in_features,
                 input_dropout=self.input_dropout,
                 latent_dropout=self.dropout,
-                adaptivity='classifier',
+                adaptivity='embedding+classifier',
                 activation=self.activation,
                 latent_size=self.latent_size,
                 target_sizes=target_sizes),
@@ -446,22 +457,19 @@ class VarMultiStudyClassifier(BaseEstimator):
                 loss = loss_function(preds, targets)
                 embedder_penalty, penalties = module.penalty(inputs)
 
-                penalty = embedder_penalty / total_length * self.regularization
+                penalty = embedder_penalty / total_length
                 penalty += sum(this_penalty / lengths[study]
                                for study, this_penalty
                                in penalties.items())
-                penalty += self.l1_penalty * sum(torch.sum(
-                    torch.abs(module.classifiers[study].linear.weight)) for
-                                      study in inputs)
                 loss += penalty
                 loss.backward()
                 optimizer.step()
                 if hasattr(module.embedder.linear, 'log_sigma2'):
                     module.embedder.linear.log_sigma2.data = (
-                            torch.clamp(module.embedder.linear.log_alpha.data,
-                                        min=-8, max=8) +
-                            torch.log(module.embedder.linear.weight.data ** 2
-                                      + 1e-8))
+                            torch.clamp(module.embedder.linear.
+                                        log_alpha.data, min=-8, max=8) +
+                            torch.log(module.embedder.linear.
+                                      weight.data ** 2 + 1e-8))
 
                 epoch_batch += 1
                 epoch_loss *= (1 - 1 / epoch_batch)
@@ -476,7 +484,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                     epoch_batch = 0
                     if (report_every is not None
                             and epoch % report_every == 0):
-                        penalty *= self.regularization
                         density = module.embedder.linear.density
                         print('Epoch %.2f, train loss: %.4f, penalty: %.4f,'
                               ' density: %.4f'
@@ -489,10 +496,10 @@ class VarMultiStudyClassifier(BaseEstimator):
                                                   % (study, this_p) for
                                                   study, this_p in
                                                   p.items()))
-                        if phase in 'sparsify':
-                            snr = torch.exp(
-                                -.5 * module.embedder.linear.log_alpha)
-                            print(snr.data.numpy())
+                        # if phase in 'sparsify':
+                        #     snr = torch.exp(
+                        #         -.5 * module.embedder.linear.log_alpha)
+                        #     print(snr.data.numpy())
                         if callback is not None:
                             callback(self, epoch)
 
@@ -520,7 +527,7 @@ class VarMultiStudyClassifier(BaseEstimator):
 
         self.module_sparsify_ = modules['sparsify']
         self.module_ = modules['finetune']
-        self.module_.load_state_dict(modules['sparsify'].state_dict(),
+        self.module_.load_state_dict(modules[phase].state_dict(),
                                      strict=False)
         # self.module_.embedder.linear.weight.data = \
         #     modules['sparsify'].embedder.linear.sparse_weight.data
