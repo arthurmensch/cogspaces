@@ -32,7 +32,7 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'brainomics'],
+        studies='all',
         target_study='archi'
     )
     model = dict(
@@ -57,12 +57,11 @@ def default():
     factored_variational = dict(
         optimizer='adam',
         latent_size=128,
-        l1_penalty=1e-2,
+        l1_penalty=1e-4,
         activation='linear',
         epoch_counting='all',
         sampling='random',
         batch_size=128,
-        regularization=1,
         dropout=0.75,
         lr=1e-3,
         input_dropout=0.25)

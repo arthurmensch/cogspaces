@@ -26,7 +26,7 @@ k3 = 1.48695
 
 class DropoutLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True, p=0.,
-                 l1_penalty=0):
+                 l1_penalty=0.):
         super().__init__(in_features, out_features, bias)
         self.p = p
         self.l1_penalty = l1_penalty
@@ -240,19 +240,19 @@ class Embedder(nn.Module):
 
 class LatentClassifier(nn.Module):
     def __init__(self, latent_size, target_size, length,
-                 dropout=0., adaptive=False, l1_penalty=0):
+                 dropout=0., adaptive=False, l1_penalty=0.):
         super().__init__()
 
         self.batch_norm = nn.BatchNorm1d(latent_size)
         if adaptive:
             self.linear = AdaDropoutLinear(latent_size,
                                            target_size, bias=True, p=dropout,
-                                           var_penalty=1 / length,
-                                           l1_penalty=self.l1_penalty / length,
+                                           var_penalty=1. / length,
+                                           l1_penalty=l1_penalty,
                                            level='layer')
         else:
             self.linear = DropoutLinear(latent_size, target_size, bias=True,
-                                        l1_penalty=self.l1_penalty / length,
+                                        l1_penalty=l1_penalty,
                                         p=dropout)
 
     def forward(self, input):
@@ -293,7 +293,7 @@ class VarMultiStudyModule(nn.Module):
         self.classifiers = {study: LatentClassifier(
             latent_size, target_size, dropout=latent_dropout,
             length=lengths[study],
-            l1_penalty=self.l1_penalty,
+            l1_penalty=l1_penalty,
             adaptive=classifier_adaptive, )
             for study, target_size in target_sizes.items()}
         for study, classifier in self.classifiers.items():
@@ -344,7 +344,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                  sampling='cycle',
                  rotation=False,
                  patience=200,
-                 regularization=0.,
                  l1_penalty=1e-2,
                  seed=None):
 
@@ -375,7 +374,6 @@ class VarMultiStudyClassifier(BaseEstimator):
         self.device = device
         self.seed = seed
 
-        self.regularization = regularization
 
     def fit(self, X, y, study_weights=None, callback=None):
         cuda, device = self._check_cuda()
@@ -656,7 +654,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 if (report_every is not None
                         and epoch % report_every == 0):
                     print('Epoch %.2f, train loss: %.4f, penalty: %.4f'
-                          % (epoch, epoch_loss, 0))
+                          % (epoch, epoch_loss, penalty))
 
                 if epoch_loss > best_loss:
                     no_improvement += 1
