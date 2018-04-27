@@ -32,7 +32,7 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies='all',
+        studies=['archi', 'brainomics'],
         target_study='archi'
     )
     model = dict(

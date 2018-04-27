@@ -158,14 +158,12 @@ def compute_latent(output_dir):
     # img = masker.inverse_transform(sparse_comp)
     # img.to_filename(join(introspect_dir, 'sparse_components.nii.gz'))
 
-
-
-    # snr = - .5 * estimator.module_sparsify_.embedder.linear. \
-    #     log_alpha.data.numpy()
-    # snr = np.exp(snr)
-    # proj_snr = (snr * np.sign(weight)) @ dict_proj
-    # img_snr = masker.inverse_transform(proj_snr)
-    # img_snr.to_filename(join(introspect_dir, 'snr.nii.gz'))
+    snr = - .5 * estimator.module_sparsify_.embedder.linear. \
+        log_alpha.data.numpy()
+    snr = np.exp(snr)
+    proj_snr = (snr * np.sign(weight)) @ dict_proj
+    img_snr = masker.inverse_transform(proj_snr)
+    img_snr.to_filename(join(introspect_dir, 'snr.nii.gz'))
     #
     # weighted_proj = proj * proj_snr
     # img_weighted = masker.inverse_transform(weighted_proj)
@@ -196,7 +194,7 @@ def plot_latent(output_dir):
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
 
-    for name in ['components']:  # 'rotated_snr', 'components_snr']:
+    for name in ['components', 'snr']:  # 'rotated_snr', 'components_snr']:
         img = check_niimg(join(introspect_dir, '%s.nii.gz' % name))
         Parallel(n_jobs=20)(delayed(plot_single_img)(
             str(i), plot_dir, name, this_img)
@@ -226,7 +224,7 @@ def plot_classification(output_dir):
                                 in zip(iter_img(maps), names))
 
 
-def plot_single_img(name, plot_dir, study, this_img, to=1 / 6):
+def plot_single_img(name, plot_dir, study, this_img, to=1 / 3):
     vmax = np.max(np.abs(this_img.get_data()))
     cut_coords = find_xyz_cut_coords(this_img,
                                      activation_threshold=vmax / 3)
@@ -451,9 +449,9 @@ def get_proj_and_masker(output_dir):
 
 if __name__ == '__main__':
     # compute_latent(join(get_output_dir(), 'multi_studies', '418'))
-    compute_latent(join(get_output_dir(), 'multi_studies', '429'))
+    compute_latent(join(get_output_dir(), 'multi_studies', '434'))
     # compute_rotated_latent(join(get_output_dir(), 'multi_studies', '418'))
-    plot_latent(join(get_output_dir(), 'multi_studies', '429'))
+    plot_latent(join(get_output_dir(), 'multi_studies', '434'))
     # compute_latent(join(get_output_dir(), 'multi_studies', '418'))
     # compute_rotated_latent(join(get_output_dir(), 'multi_studies', '418'))
     #

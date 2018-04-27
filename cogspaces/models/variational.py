@@ -25,9 +25,11 @@ k3 = 1.48695
 
 
 class DropoutLinear(nn.Linear):
-    def __init__(self, in_features, out_features, bias=True, p=0.):
+    def __init__(self, in_features, out_features, bias=True, p=0.,
+                 l1_penalty=0):
         super().__init__(in_features, out_features, bias)
         self.p = p
+        self.l1_penalty = l1_penalty
 
     def reset_parameters(self):
         super().reset_parameters()
@@ -50,11 +52,14 @@ class DropoutLinear(nn.Linear):
             return super().forward(input)
 
     def penalty(self):
-        return Variable(torch.FloatTensor([0]))
-        # alpha = 1000
-        # return torch.sum((F.softplus(-alpha * self.weight)
-        #                   + F.softplus(
-        #             alpha * self.weight)) / alpha)
+        penalty = Variable(torch.FloatTensor([0]))
+        if self.l1_penalty != 0:
+            beta = 1000
+            l1_penalty = torch.sum((F.softplus(-beta * self.weight)
+                                    + F.softplus(
+                        beta * self.weight)) / beta)
+            penalty += self.l1_penalty * l1_penalty
+        return penalty
 
     @property
     def density(self):
@@ -67,9 +72,11 @@ class DropoutLinear(nn.Linear):
 
 class AdaDropoutLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True, p=0.,
-                 level='layer'):
+                 level='layer', l1_penalty=0, var_penalty=0):
         super().__init__(in_features, out_features, bias)
         self.p = p
+        self.l1_penalty = l1_penalty
+        self.var_penalty = var_penalty
 
         if level == 'layer':
             self.log_alpha = Parameter(torch.Tensor(1, 1))
@@ -109,10 +116,20 @@ class AdaDropoutLinear(nn.Linear):
             return output
 
     def penalty(self):
-        log_alpha = self.log_alpha
-        return - k1 * (F.sigmoid(k2 + k3 * log_alpha)
-                       - .5 * F.softplus(-log_alpha)
-                       - 1).expand(*self.weight.shape).sum()
+        penalty = Variable(torch.FloatTensor([0]))
+        if self.var_penalty != 0:
+            log_alpha = self.log_alpha
+            var_penalty = - k1 * (F.sigmoid(k2 + k3 * log_alpha)
+                                  - .5 * F.softplus(-log_alpha)
+                                  - 1).expand(*self.weight.shape).sum()
+            penalty += var_penalty * self.var_penalty
+        if self.l1_penalty != 0:
+            beta = 1000
+            l1_penalty = torch.sum((F.softplus(-beta * self.weight)
+                                    + F.softplus(
+                        beta * self.weight)) / beta)
+            penalty += self.l1_penalty * l1_penalty
+        return penalty
 
     @property
     def density(self):
@@ -125,10 +142,15 @@ class AdaDropoutLinear(nn.Linear):
 
 
 class AdditiveAdaDropoutLinear(nn.Linear):
-    def __init__(self, in_features, out_features, bias=True, p=0.):
+    def __init__(self, in_features, out_features, bias=True, p=0.,
+                 l1_penalty=0, var_penalty=0):
         super().__init__(in_features, out_features, bias)
         self.p = p
         self.log_sigma2 = Parameter(torch.Tensor(out_features, in_features))
+
+        self.l1_penalty = l1_penalty
+        self.var_penalty = var_penalty
+
         self.reset_dropout()
 
     def reset_parameters(self):
@@ -163,9 +185,20 @@ class AdditiveAdaDropoutLinear(nn.Linear):
             return output
 
     def penalty(self):
-        log_alpha = self.log_alpha
-        return - torch.sum(k1 * (F.sigmoid(k2 + k3 * log_alpha)
-                                 - .5 * F.softplus(-log_alpha) - 1))
+        penalty = Variable(torch.FloatTensor([0]))
+        if self.var_penalty != 0:
+            log_alpha = self.log_alpha
+            var_penalty = - k1 * torch.sum(k1 *
+                                           (F.sigmoid(k2 + k3 * log_alpha)
+                                            - .5 * F.softplus(-log_alpha) - 1))
+            penalty += var_penalty * self.var_penalty
+        if self.l1_penalty != 0:
+            beta = 1000
+            l1_penalty = torch.sum((F.softplus(-beta * self.linear.weight)
+                                    + F.softplus(
+                        beta * self.linear.weight)) / beta)
+            penalty += self.l1_penalty * l1_penalty
+        return penalty
 
     @property
     def density(self):
@@ -178,13 +211,15 @@ class AdditiveAdaDropoutLinear(nn.Linear):
 
 
 class Embedder(nn.Module):
-    def __init__(self, in_features, latent_size,
+    def __init__(self, in_features, latent_size, length,
                  activation='linear', dropout=0., adaptive=False):
         super().__init__()
 
         if adaptive:
             self.linear = AdditiveAdaDropoutLinear(in_features,
                                                    latent_size, bias=True,
+                                                   var_penalty=1 / length,
+                                                   l1_penalty=0,
                                                    p=dropout)
         else:
             self.linear = DropoutLinear(in_features, latent_size, bias=True)
@@ -204,17 +239,20 @@ class Embedder(nn.Module):
 
 
 class LatentClassifier(nn.Module):
-    def __init__(self, latent_size, target_size, dropout=0.,
-                 adaptive=False):
+    def __init__(self, latent_size, target_size, length,
+                 dropout=0., adaptive=False, l1_penalty=0):
         super().__init__()
 
         self.batch_norm = nn.BatchNorm1d(latent_size)
         if adaptive:
             self.linear = AdaDropoutLinear(latent_size,
                                            target_size, bias=True, p=dropout,
+                                           var_penalty=1 / length,
+                                           l1_penalty=self.l1_penalty / length,
                                            level='layer')
         else:
             self.linear = DropoutLinear(latent_size, target_size, bias=True,
+                                        l1_penalty=self.l1_penalty / length,
                                         p=dropout)
 
     def forward(self, input):
@@ -233,6 +271,8 @@ class VarMultiStudyModule(nn.Module):
     def __init__(self, in_features,
                  latent_size,
                  target_sizes,
+                 lengths,
+                 l1_penalty=0.,
                  activation='linear',
                  input_dropout=0.,
                  latent_dropout=0.,
@@ -241,13 +281,19 @@ class VarMultiStudyModule(nn.Module):
         super().__init__()
 
         embedder_adaptive = 'embedding' in adaptivity
+
+        total_length = sum(iter(lengths.values()))
+
         self.embedder = Embedder(in_features, latent_size,
                                  dropout=input_dropout,
                                  adaptive=embedder_adaptive,
+                                 length=total_length,
                                  activation=activation)
         classifier_adaptive = 'classifier' in adaptivity
         self.classifiers = {study: LatentClassifier(
             latent_size, target_size, dropout=latent_dropout,
+            length=lengths[study],
+            l1_penalty=self.l1_penalty,
             adaptive=classifier_adaptive, )
             for study, target_size in target_sizes.items()}
         for study, classifier in self.classifiers.items():
@@ -265,10 +311,10 @@ class VarMultiStudyModule(nn.Module):
             preds[study] = self.classifiers[study](self.embedder(input))
         return preds
 
-    def penalty(self, studies=None):
-        classifier_penalties = {study: self.classifiers[study].penalty()
-                                for study in studies}
-        return self.embedder.penalty(), classifier_penalties
+    def penalty(self):
+        return (self.embedder.penalty()
+                + sum(classifier.penalty()
+                      for classifier in self.classifiers.values()))
 
 
 def regularization_schedule(start_value, stop_value, warmup, cooldown,
@@ -344,14 +390,13 @@ class VarMultiStudyClassifier(BaseEstimator):
         data = {study: TensorDataset(X[study], y[study]) for study in X}
         lengths = {study: len(this_data)
                    for study, this_data in data.items()}
-        total_length = sum(iter(lengths.values()))
 
-        sum_srqti = np.array([1 / math.sqrt(length)
-                              for length in lengths.values()]).sum()
-        sum_srqt = np.array([math.sqrt(length)
-                             for length in lengths.values()]).sum()
-        total_length_weighted = sum_srqt / sum_srqti
-        print(total_length, total_length_weighted)
+        # sum_srqti = np.array([1 / math.sqrt(length)
+        #                       for length in lengths.values()]).sum()
+        # sum_srqt = np.array([math.sqrt(length)
+        #                      for length in lengths.values()]).sum()
+        # total_length_weighted = sum_srqt / sum_srqti
+        # print(total_length, total_length_weighted)
         all_studies = list(data.keys())
         data_loader = MultiStudyLoader(data, sampling=self.sampling,
                                        batch_size=self.batch_size,
@@ -376,13 +421,17 @@ class VarMultiStudyClassifier(BaseEstimator):
                 input_dropout=self.input_dropout,
                 latent_dropout=self.dropout,
                 adaptivity='classifier',
+                l1_penalty=self.l1_penalty,
                 activation=self.activation,
+                lengths=lengths,
                 latent_size=self.latent_size,
                 target_sizes=target_sizes),
             'sparsify': VarMultiStudyModule(
                 in_features=in_features,
                 input_dropout=self.input_dropout,
                 latent_dropout=self.dropout,
+                lengths=lengths,
+                l1_penalty=self.l1_penalty,
                 adaptivity='embedding+classifier',
                 activation=self.activation,
                 latent_size=self.latent_size,
@@ -392,6 +441,8 @@ class VarMultiStudyClassifier(BaseEstimator):
                 activation=self.activation,
                 latent_size=self.latent_size,
                 input_dropout=0,
+                l1_penalty=self.l1_penalty,
+                lengths=lengths,
                 adaptivity='embedding',
                 latent_dropout=self.dropout,
                 target_sizes=target_sizes, )}
@@ -418,13 +469,7 @@ class VarMultiStudyClassifier(BaseEstimator):
             self.module_ = module = modules[phase]
             if phase == 'pretrain':
                 lr = self.lr
-                # modules[phase] = torch.load(join(get_output_dir(),
-                #                                 'model_%s.pkl' % phase))
-                # continue
             else:
-                # modules[phase] = torch.load(join(get_output_dir(),
-                #                                 'model_%s.pkl' % phase))
-                # continue
                 module.load_state_dict(modules['pretrain'].state_dict(),
                                        strict=False)
                 module.embedder.linear.reset_dropout()
@@ -455,12 +500,7 @@ class VarMultiStudyClassifier(BaseEstimator):
 
                 preds = module(inputs)
                 loss = loss_function(preds, targets)
-                embedder_penalty, penalties = module.penalty(inputs)
-
-                penalty = embedder_penalty / total_length
-                penalty += sum(this_penalty / lengths[study]
-                               for study, this_penalty
-                               in penalties.items())
+                penalty = module.penalty()
                 loss += penalty
                 loss.backward()
                 optimizer.step()
@@ -489,13 +529,16 @@ class VarMultiStudyClassifier(BaseEstimator):
                               ' density: %.4f'
                               % (epoch, epoch_loss, epoch_penalty, density))
                         p = {}
+                        s = {}
                         for study, classifier in self.module_.classifiers.items():
                             log_alpha = classifier.linear.log_alpha.data[0]
                             p[study] = 1 / (1 + math.exp(- log_alpha))
-                        print('Dropout', ' '.join('%s: %.2f'
-                                                  % (study, this_p) for
-                                                  study, this_p in
-                                                  p.items()))
+                            s[study] = torch.sum(
+                                torch.abs(classifier.linear.weight.data))
+                        print('d/s', ' '.join('%s: %.2f/%.2f'
+                                              % (study, p[study],
+                                                 s[study]) for
+                                              study in p))
                         # if phase in 'sparsify':
                         #     snr = torch.exp(
                         #         -.5 * module.embedder.linear.log_alpha)
@@ -601,9 +644,8 @@ class VarMultiStudyClassifier(BaseEstimator):
                     optimizer.zero_grad()
                     pred = module(input)
                     loss = loss_function(pred, target)
-                    penalty = 0
-                    elbo = loss + penalty
-                    elbo.backward()
+                    loss += module.penalty()
+                    loss.backward()
                     optimizer.step()
 
                     seen_samples += batch_size
