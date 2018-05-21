@@ -3,11 +3,6 @@ from math import sqrt
 
 import numpy as np
 import pandas as pd
-from joblib import dump
-from os.path import join
-from sacred import Experiment
-from sklearn.metrics import accuracy_score
-
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.model_selection import train_test_split
@@ -19,6 +14,10 @@ from cogspaces.models.variational import VarMultiStudyClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
+from joblib import dump
+from os.path import join
+from sacred import Experiment
+from sklearn.metrics import accuracy_score
 
 exp = Experiment('multi_studies')
 
@@ -39,7 +38,7 @@ def default():
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter=100,
+        max_iter=200,
     )
     factored_fast = dict(
         optimizer='adam',
@@ -57,10 +56,12 @@ def default():
     factored_variational = dict(
         optimizer='adam',
         latent_size=128,
-        l1_penalty=1e-4,
+        l1_penalty=0,
+        embedder_reg=3.,
         activation='linear',
         epoch_counting='all',
         sampling='random',
+        # rotation=True,
         batch_size=128,
         dropout=0.75,
         lr=1e-3,
@@ -131,9 +132,8 @@ def save_output(target_encoder, standard_scaler, estimator,
 @exp.capture(prefix='data')
 def load_data(source_dir, studies, target_study):
     data, target = load_data_from_dir(data_dir=source_dir)
-    for study in target:
-        target[study]['all_contrast'] = target[study]['study'] \
-                                        + '_' + target[study]['contrast']
+    for study, this_target in target.items():
+        this_target['all_contrast'] = study + '_' + this_target['contrast']
 
     if studies == 'all':
         studies = list(data.keys())

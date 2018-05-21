@@ -1,22 +1,21 @@
 import itertools
 import math
-import tempfile
-import warnings
 from math import ceil, floor
-from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
+import tempfile
 import torch
 import torch.nn.functional as F
+import warnings
+from cogspaces.models.factored import Identity
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_random_state
 from torch import nn
 from torch.autograd import Variable
 from torch.optim import Adam, SGD, Optimizer
 from torch.utils.data import DataLoader, TensorDataset
-
-from cogspaces.models.factored import Identity
+from typing import Dict, Tuple
 
 
 def infinite_iter(iterable):
@@ -342,7 +341,7 @@ class MultiStudyLoaderIter:
         loaders = {study: DataLoader(data,
                                      shuffle=True,
                                      batch_size=loader.batch_size,
-                                     pin_memory=loader.cuda)
+                                     pin_memory=loader.device.type == 'cuda')
                    for study, data in studies.items()}
         self.loader_iters = {study: infinite_iter(loader)
                              for study, loader in loaders.items()}
@@ -361,7 +360,6 @@ class MultiStudyLoaderIter:
         else:
             raise ValueError('Wrong value for `sampling`')
 
-        self.cuda = loader.cuda
         self.device = loader.device
 
     def __next__(self):
@@ -369,18 +367,14 @@ class MultiStudyLoaderIter:
         if self.sampling == 'all':
             for study in self.studies:
                 input, target = next(self.loader_iters[study])
-                if self.cuda:
-                    input = input.cuda(device=self.device)
-                    target = target.cuda(device=self.device)
-                input, target = Variable(input), Variable(target)
+                input = input.to(device=self.device)
+                target = target.to(device=self.device)
                 inputs[study], targets[study] = input, target
         else:
             study = next(self.study_iter)
             input, target = next(self.loader_iters[study])
-            if self.cuda:
-                input = input.cuda(device=self.device)
-                target = target.cuda(device=self.device)
-            input, target = Variable(input), Variable(target)
+            input = input.to(device=self.device)
+            target = target.to(device=self.device)
             inputs[study], targets[study] = input, target
         return inputs, targets
 
@@ -388,14 +382,12 @@ class MultiStudyLoaderIter:
 class MultiStudyLoader:
     def __init__(self, studies,
                  batch_size=128, sampling='cycle',
-                 study_weights=None, seed=None,
-                 cuda=False, device=-1):
+                 study_weights=None, seed=None, device=-1):
         self.studies = studies
         self.batch_size = batch_size
         self.sampling = sampling
         self.study_weights = study_weights
 
-        self.cuda = cuda
         self.device = device
         self.seed = seed
 
@@ -466,7 +458,7 @@ class MultiStudyClassifier(BaseEstimator):
                                        batch_size=self.batch_size,
                                        seed=self.seed,
                                        study_weights=study_weights,
-                                       cuda=cuda, device=device)
+                                       device=device)
         # Model
         target_sizes = {study: int(this_y.max()) + 1
                         for study, this_y in y.items()}
@@ -594,10 +586,9 @@ class MultiStudyClassifier(BaseEstimator):
         self.module_.embedder.input_dropout.p = 0
         for study, this_X in X.items():
             print('Fine tuning %s' % study)
-            if cuda:
-                this_X = this_X.cuda(device=device)
-            this_X = Variable(this_X, volatile=True)
-            X_red[study] = self.module_.embedder(this_X).data.cpu()
+            this_X = this_X.to(device=device)
+            with torch.no_grad():
+                X_red[study] = self.module_.embedder(this_X).cpu()
             data = TensorDataset(X_red[study], y[study])
             data_loader = DataLoader(data, shuffle=True,
                                      batch_size=self.batch_size,
@@ -615,11 +606,8 @@ class MultiStudyClassifier(BaseEstimator):
                 epoch_loss = 0
                 for input, target in data_loader:
                     batch_size = input.shape[0]
-                    if cuda:
-                        input = input.cuda(device=device)
-                        target = target.cuda(device=device)
-                    input = Variable(input)
-                    target = Variable(target)
+                    input = input.to(device=device)
+                    target = target.to(device=device)
 
                     module.train()
                     # module.batch_norm.eval()
@@ -666,13 +654,12 @@ class MultiStudyClassifier(BaseEstimator):
         return cuda, device
 
     def predict_log_proba(self, X):
-        cuda, device = self._check_cuda()
+        device = self._chec()
         self.module_.eval()
         X_ = {}
         for study, this_X in X.items():
             this_X = torch.from_numpy(this_X).float()
-            if cuda:
-                this_X = this_X.cuda(device=device)
+            this_X = this_X.to(device=device)
             X_[study] = Variable(this_X, volatile=True)
         preds = self.module_(X_)
         return {study: pred.data.cpu().numpy() for study, pred in

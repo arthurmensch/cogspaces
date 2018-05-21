@@ -1,11 +1,18 @@
-import json
 import math
-import os
-import re
 
+import json
 import matplotlib.pyplot as plt
 import numpy as np
+import os
+import re
 import torch
+from cogspaces.datasets.dictionaries import fetch_atlas_modl
+from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
+from cogspaces.model_selection import train_test_split
+from cogspaces.models.factored_fast import MultiStudyLoader
+from cogspaces.preprocessing import MultiTargetEncoder
+from cogspaces.utils.dict_learning import dict_learning
+from exps.train import load_data
 from joblib import load, delayed, Parallel, Memory
 from modl import DictFact
 from nilearn._utils import check_niimg
@@ -17,14 +24,6 @@ from os.path import join, expanduser
 from scipy.linalg import svd
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import TensorDataset
-
-from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
-from cogspaces.model_selection import train_test_split
-from cogspaces.models.factored_fast import MultiStudyLoader
-from cogspaces.preprocessing import MultiTargetEncoder
-from cogspaces.utils.dict_learning import dict_learning
-from exps.train import load_data
 
 
 def plot_components(components, names, output_dir):
@@ -449,9 +448,9 @@ def get_proj_and_masker(output_dir):
 
 if __name__ == '__main__':
     # compute_latent(join(get_output_dir(), 'multi_studies', '418'))
-    compute_latent(join(get_output_dir(), 'multi_studies', '434'))
+    compute_latent(join(get_output_dir(), 'multi_studies', '1936'))
     # compute_rotated_latent(join(get_output_dir(), 'multi_studies', '418'))
-    plot_latent(join(get_output_dir(), 'multi_studies', '434'))
+    plot_latent(join(get_output_dir(), 'multi_studies', '1936'))
     # compute_latent(join(get_output_dir(), 'multi_studies', '418'))
     # compute_rotated_latent(join(get_output_dir(), 'multi_studies', '418'))
     #
