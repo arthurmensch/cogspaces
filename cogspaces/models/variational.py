@@ -7,10 +7,6 @@ import tempfile
 import torch
 import torch.nn.functional as F
 import warnings
-from cogspaces.datasets.utils import get_output_dir
-from cogspaces.models.factored import Identity
-from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
-from cogspaces.utils.dict_learning import dict_learning
 from os.path import join
 from sklearn.base import BaseEstimator
 from sklearn.preprocessing import StandardScaler
@@ -18,6 +14,11 @@ from torch import nn
 from torch.nn import Parameter
 from torch.optim import Adam, SGD
 from torch.utils.data import TensorDataset, DataLoader
+
+from cogspaces.datasets.utils import get_output_dir
+from cogspaces.models.factored import Identity
+from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
+from cogspaces.utils.dict_learning import dict_learning
 
 k1 = 0.63576
 k2 = 1.87320
@@ -52,7 +53,8 @@ class DropoutLinear(nn.Linear):
             return super().forward(input)
 
     def penalty(self):
-        penalty = torch.tensor(0., device=self.weight.device, dtype=torch.float)
+        penalty = torch.tensor(0., device=self.weight.device,
+                               dtype=torch.float)
         if self.l1_penalty != 0:
             beta = 1000
             l1_penalty = torch.sum((F.softplus(-beta * self.weight)
@@ -116,7 +118,8 @@ class AdaDropoutLinear(nn.Linear):
             return output
 
     def penalty(self):
-        penalty = torch.tensor(0., device=self.weight.device, dtype=torch.float)
+        penalty = torch.tensor(0., device=self.weight.device,
+                               dtype=torch.float)
         if self.var_penalty != 0:
             log_alpha = self.log_alpha
             var_penalty = - k1 * (F.sigmoid(k2 + k3 * log_alpha)
@@ -163,6 +166,7 @@ class AdditiveAdaDropoutLinear(nn.Linear):
         return self.log_sigma2 - torch.log(self.weight ** 2 + 1e-8)
 
     def reset_dropout(self):
+        # self.log_sigma2.data.fill_(-8)
         p = max(self.p, 1e-8)
         log_alpha = math.log(p) - math.log(1 - p)
         self.log_sigma2.data = log_alpha + torch.log(self.weight.data ** 2
@@ -179,7 +183,7 @@ class AdditiveAdaDropoutLinear(nn.Linear):
             eps = torch.randn_like(output, requires_grad=False)
             return output + eps * std
         else:
-            mask = self.log_alpha > 3
+            mask = self.log_alpha.expand(*self.weight.shape) > 1
             output = F.linear(input, self.weight.masked_fill(mask, 0),
                               self.bias)
             return output
@@ -207,7 +211,7 @@ class AdditiveAdaDropoutLinear(nn.Linear):
 
     @property
     def sparse_weight(self):
-        mask = self.log_alpha.expand(*self.weight.shape) > 3
+        mask = self.log_alpha.expand(*self.weight.shape) > 1
         return self.weight.masked_fill(mask, 0)
 
 
@@ -222,6 +226,11 @@ class Embedder(nn.Module):
                                                    var_penalty=1. / length,
                                                    l1_penalty=0,
                                                    p=dropout)
+            # self.linear = AdaDropoutLinear(in_features,
+            #                                latent_size, bias=True,
+            #                                var_penalty=1. / length,
+            #                                l1_penalty=0,
+            #                                p=dropout)
         else:
             self.linear = DropoutLinear(in_features, latent_size, bias=True)
         if activation == 'linear':
@@ -379,7 +388,6 @@ class VarMultiStudyClassifier(BaseEstimator):
         self.device = device
         self.seed = seed
 
-
     def fit(self, X, y, study_weights=None, callback=None):
         device = self._check_device()
 
@@ -534,17 +542,21 @@ class VarMultiStudyClassifier(BaseEstimator):
                         print('Epoch %.2f, train loss: %.4f, penalty: %.4f,'
                               ' density: %.4f'
                               % (epoch, epoch_loss, epoch_penalty, density))
-                        p = {}
-                        s = {}
-                        for study, classifier in self.module_.classifiers.items():
-                            log_alpha = classifier.linear.log_alpha.item()
-                            p[study] = 1 / (1 + math.exp(- log_alpha))
-                            s[study] = torch.sum(
-                                torch.abs(classifier.linear.weight.data))
-                        print('dropout/l1 weight', ' '.join('%s: %.2f/%.2f'
-                                              % (study, p[study],
-                                                 s[study]) for
-                                              study in p))
+                        if phase == 'sparsify':
+                            # log_alpha = module.embedder.linear.log_alpha.item()
+                            # p = 1 / (1 + math.exp(- log_alpha))
+                            # print('latent_dropout: %.2f' % p)
+                            p = {}
+                            s = {}
+                            for study, classifier in self.module_.classifiers.items():
+                                log_alpha = classifier.linear.log_alpha.item()
+                                p[study] = 1 / (1 + math.exp(- log_alpha))
+                                s[study] = torch.sum(
+                                    torch.abs(classifier.linear.weight.data))
+                            print('dropout/l1 weight', ' '.join('%s: %.2f/%.2f'
+                                                                % (study, p[study],
+                                                                   s[study]) for
+                                                                study in p))
                         # if phase in 'sparsify':
                         #     snr = torch.exp(
                         #         -.5 * module.embedder.linear.log_alpha)
@@ -574,14 +586,11 @@ class VarMultiStudyClassifier(BaseEstimator):
 
         callback(self, self.max_iter)
 
-        self.module_sparsify_ = modules['sparsify']
+        # self.module_sparsify_ = modules['sparsify']
         self.module_ = modules['finetune']
-        self.module_.load_state_dict(modules[phase].state_dict(),
+        self.module_.load_state_dict(modules['sparsify'].state_dict(),
                                      strict=False)
 
-        # self.module_.embedder.linear.weight.data = \
-        #     modules['sparsify'].embedder.linear.sparse_weight.data
-        #
         if self.rotation:
             classif = []
             classif_weights = []
@@ -603,7 +612,8 @@ class VarMultiStudyClassifier(BaseEstimator):
                                                      n_components=128,
                                                      verbose=True)
             self.module_.embedder.linear.weight.data = \
-                torch.FloatTensor(dictionary) @ self.module_.embedder.linear.weight.data
+                torch.FloatTensor(
+                    dictionary) @ self.module_.embedder.linear.weight.data
             self.module_.embedder.linear.log_alpha.fill_(0.)
             print(errors[-1], (code == 0).astype('float').mean())
 
@@ -615,8 +625,8 @@ class VarMultiStudyClassifier(BaseEstimator):
             p = min(p, 0.75)
             classifier.linear.p = p
         nnz = self.module_.embedder.linear.sparse_weight != 0
-        density = nnz.float().mean().item()
-        print('Final density %s' % density)
+        self.embedder_density_ = nnz.float().mean().item()
+        print('Final density %s' % self.embedder_density_)
         self.module_.eval()
         lr = self.lr
         X_red = {}

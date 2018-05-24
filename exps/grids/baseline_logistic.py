@@ -18,7 +18,7 @@ def baseline():
         verbose=100,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512_lstsq'),
+        source_dir=join(get_data_dir(), 'reduced_512'),
         studies='archi'
     )
     model = dict(
@@ -43,7 +43,7 @@ def run_exp(output_dir, config_updates, _id):
 
 
 if __name__ == '__main__':
-    source_dir = join(get_data_dir(), 'reduced_512_lstsq')
+    source_dir = join(get_data_dir(), 'reduced_512')
     data, target = load_data_from_dir(data_dir=source_dir)
     studies = list(data.keys())
     l2_penalties = np.logspace(-4, -1, 20)
@@ -53,7 +53,7 @@ if __name__ == '__main__':
     config_updates = ParameterGrid({'logistic.l2_penalty': l2_penalties,
                                     'data.studies': studies,
                                     'seed': seeds})
-    output_dir = join(get_output_dir(), 'baseline_logistic_avg')
+    output_dir = join(get_output_dir(), 'baseline_logistic_new')
 
     _id = get_id(output_dir)
 

@@ -1,19 +1,17 @@
 # Author: Arthur Mensch
 # License: BSD
-import os
-from os.path import join
-
 import matplotlib.pyplot as plt
-import time
-from cogspaces.datasets.utils import get_output_dir
+import os
 from modl.decomposition.fmri import fMRIDictFact, rfMRIDictionaryScorer
 from modl.input_data.fmri.rest import get_raw_rest_data
 from modl.plotting.fmri import display_maps
 from modl.utils.system import get_output_dir as modl_get_output_dir
-
+from os.path import join
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 from sklearn.model_selection import train_test_split
+
+from cogspaces.datasets.utils import get_output_dir
 
 exp = Experiment('decompose')
 base_artifact_dir = join(get_output_dir(), 'decompose')
@@ -32,7 +30,7 @@ def config():
     n_jobs = 5
     smoothing_fwhm = 4
     positive = True
-    raw_dir = 'hcp_icbm_gm'
+    raw_dir = 'hcp'
 
 
 @exp.automain

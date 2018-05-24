@@ -3,6 +3,11 @@ from math import sqrt
 
 import numpy as np
 import pandas as pd
+from joblib import dump
+from os.path import join
+from sacred import Experiment
+from sklearn.metrics import accuracy_score
+
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.model_selection import train_test_split
@@ -14,10 +19,6 @@ from cogspaces.models.variational import VarMultiStudyClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
-from joblib import dump
-from os.path import join
-from sacred import Experiment
-from sklearn.metrics import accuracy_score
 
 exp = Experiment('multi_studies')
 
@@ -38,7 +39,7 @@ def default():
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter=200,
+        max_iter=100,
     )
     factored_fast = dict(
         optimizer='adam',
@@ -57,7 +58,7 @@ def default():
         optimizer='adam',
         latent_size=128,
         l1_penalty=0,
-        embedder_reg=3.,
+        embedder_reg=1.,
         activation='linear',
         epoch_counting='all',
         sampling='random',
@@ -223,6 +224,8 @@ def train(system, model, factored, factored_cv, trace, logistic,
                   study_weights=study_weights,
                   callback=callback
                   )
+
+    # _run.info['embedder_density'] = estimator.embedder_density_
 
     if model['estimator'] == 'factored_cv':
         target = list(test_data.keys())[0]

@@ -12,8 +12,6 @@ class ScoreCallback:
         scores = {}
         study_scores = {}
         all_contrast_scores = {}
-        # coef = self.estimator.coef_cat_
-        # rank = np.linalg.matrix_rank(coef)
         for study in self.y:
             scores[study] = self.score_function(preds[study]['contrast'],
                                                 self.y[study]['contrast'])
@@ -24,23 +22,10 @@ class ScoreCallback:
                 self.y[study]['all_contrast'])
         self.n_iter_.append(n_iter)
         self.scores_.append(scores)
-        # self.ranks_.append(rank)
         scores_str = ' '.join('%s: %.3f' % (study, score)
                               for study, score in scores.items())
         scores_str = 'Score: ' + scores_str
         return scores_str
-        #
-        # scores_str = ' '.join('%s: %.3f' % (study, score)
-        #                       for study, score in study_scores.items())
-        # scores_str = 'Study score: ' + scores_str
-        # print(scores_str)
-        #
-        # scores_str = ' '.join('%s: %.3f' % (study, score)
-        #                       for study, score in all_contrast_scores.items())
-        # scores_str = 'All contrast score: ' + scores_str
-        # print(scores_str)
-
-        # print('Rank :', rank)
 
 
 class MultiCallback:

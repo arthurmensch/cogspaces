@@ -6,13 +6,6 @@ import numpy as np
 import os
 import re
 import torch
-from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
-from cogspaces.model_selection import train_test_split
-from cogspaces.models.factored_fast import MultiStudyLoader
-from cogspaces.preprocessing import MultiTargetEncoder
-from cogspaces.utils.dict_learning import dict_learning
-from exps.train import load_data
 from joblib import load, delayed, Parallel, Memory
 from modl import DictFact
 from nilearn._utils import check_niimg
@@ -24,6 +17,14 @@ from os.path import join, expanduser
 from scipy.linalg import svd
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import TensorDataset
+
+from cogspaces.datasets.dictionaries import fetch_atlas_modl
+from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
+from cogspaces.model_selection import train_test_split
+from cogspaces.models.factored_fast import MultiStudyLoader
+from cogspaces.preprocessing import MultiTargetEncoder
+from cogspaces.utils.dict_learning import dict_learning
+from exps.train import load_data
 
 
 def plot_components(components, names, output_dir):
@@ -74,8 +75,8 @@ def compute_rotated_latent(output_dir):
     residuals = np.sum((classif_weights - code.dot(dictionary)) ** 2)
     dictionary *= sc.scale_
     exp_var = residuals / np.sum(classif_weights ** 2)
-    print(exp_var, (code == 0).astype('float').mean())
-    print(np.mean(code == 0).astype('float'))
+    # print(exp_var, (code == 0).astype('float').mean())
+    # print(np.mean(code == 0).astype('float'))
     proj_1, proj_2, var_2, sparse_proj_2, masker = \
         mem.cache(get_proj_and_masker)(output_dir)
 
@@ -148,6 +149,13 @@ def compute_latent(output_dir):
     for classifier in estimator.module_.classifiers.values():
         print(classifier.linear.weight.data.numpy())
 
+    snr = - .5 * estimator.module_sparsify_.embedder.linear. \
+        log_alpha.data.numpy()
+    snr = np.exp(snr)
+    proj_snr = (snr * np.sign(weight)) @ dict_proj
+    img_snr = masker.inverse_transform(proj_snr)
+    img_snr.to_filename(join(introspect_dir, 'snr.nii.gz'))
+
     # code, dictionary = dict_learning_online(proj.T, n_components=128,
     #                                         verbose=11,
     #                                         batch_size=32, method='cd',
@@ -157,12 +165,6 @@ def compute_latent(output_dir):
     # img = masker.inverse_transform(sparse_comp)
     # img.to_filename(join(introspect_dir, 'sparse_components.nii.gz'))
 
-    snr = - .5 * estimator.module_sparsify_.embedder.linear. \
-        log_alpha.data.numpy()
-    snr = np.exp(snr)
-    proj_snr = (snr * np.sign(weight)) @ dict_proj
-    img_snr = masker.inverse_transform(proj_snr)
-    img_snr.to_filename(join(introspect_dir, 'snr.nii.gz'))
     #
     # weighted_proj = proj * proj_snr
     # img_weighted = masker.inverse_transform(weighted_proj)
@@ -195,7 +197,7 @@ def plot_latent(output_dir):
 
     for name in ['components', 'snr']:  # 'rotated_snr', 'components_snr']:
         img = check_niimg(join(introspect_dir, '%s.nii.gz' % name))
-        Parallel(n_jobs=20)(delayed(plot_single_img)(
+        Parallel(n_jobs=1)(delayed(plot_single_img)(
             str(i), plot_dir, name, this_img)
                            for (i, this_img)
                            in enumerate(iter_img(img)))
@@ -290,7 +292,55 @@ def plot_activation(output_dir):
         plt.close(fig)
 
 
-def inspect_latent_2(output_dir):
+def inspect_latent_rec(output_dir):
+    introspect_dir = join(output_dir, 'introspect')
+    if not os.path.exists(introspect_dir):
+        os.makedirs(introspect_dir)
+    estimator = load(join(output_dir, 'estimator.pkl'))
+
+    config = json.load(open(join(output_dir, 'config.json'), 'r'))
+    lstsq = config['data']['source_dir'] == 'reduced_512_lstsq'
+
+    data, targets = load_data(join(get_data_dir(), 'reduced_512'),
+                              config['data']['studies'],
+                              config['data']['target_study'])
+    target_encoder = MultiTargetEncoder().fit(targets)
+    targets = target_encoder.transform(targets)
+
+    # train_data, test_data, train_targets, test_targets = \
+    #     train_test_split(data, target, random_state=844704211)
+
+    latents = estimator.predict_latent({'archi': data['archi']})
+
+    modl_atlas = fetch_atlas_modl()
+    dictionary = modl_atlas['components512']
+    mask = fetch_mask()['hcp']
+    masker = NiftiMasker(mask_img=mask).fit()
+    dictionary = masker.transform(dictionary)
+    if lstsq:
+        gram = dictionary.dot(dictionary.T)
+        dict_proj = np.linalg.inv(gram).dot(dictionary)
+    else:
+        dict_proj = dictionary
+    weight = estimator.module_.embedder.linear.weight.data.numpy()
+    proj = weight @ dict_proj
+    gram = proj.dot(proj.T)  # shape (k, k)
+    gram_inv = np.linalg.inv(gram)
+    rec = proj.T.dot(gram_inv)
+    for study, latent in latents.items():
+        if study == 'archi':
+            latent -= estimator.module_.embedder.linear.bias.data.numpy()[None, :]
+            this_denoised = latent.dot(rec.T)
+            img = masker.inverse_transform(this_denoised)
+            img.to_filename(join(introspect_dir, 'denoised_%s.nii.gz' % study))
+            #
+            data, targets = load(data_dir=join(get_data_dir(),
+                                               'masked', 'data_%.pt' % study))
+            # img = masker.inverse_transform(data)
+            # img.to_filename(join(introspect_dir, 'true_%s.nii.gz' % study))
+
+
+def inspect_latent_dictionary(output_dir):
     introspect_dir = join(output_dir, 'introspect')
     if not os.path.exists(introspect_dir):
         os.makedirs(introspect_dir)
@@ -355,7 +405,7 @@ def inspect_latent_2(output_dir):
     img.to_filename(join(introspect_dir, 'principal_components.nii.gz'))
 
 
-def inspect_latent_2(output_dir):
+def inspect_latent_denoise(output_dir):
     introspect_dir = join(output_dir, 'introspect')
     if not os.path.exists(introspect_dir):
         os.makedirs(introspect_dir)
@@ -447,10 +497,12 @@ def get_proj_and_masker(output_dir):
 
 
 if __name__ == '__main__':
+    inspect_latent_rec(join(get_output_dir(), 'multi_studies', '448'))
     # compute_latent(join(get_output_dir(), 'multi_studies', '418'))
-    compute_latent(join(get_output_dir(), 'multi_studies', '1936'))
+    # compute_latent(join(get_output_dir(), 'multi_studies', '448'))
+    # plot_latent(join(get_output_dir(), 'multi_studies', '448'))
+
     # compute_rotated_latent(join(get_output_dir(), 'multi_studies', '418'))
-    plot_latent(join(get_output_dir(), 'multi_studies', '1936'))
     # compute_latent(join(get_output_dir(), 'multi_studies', '418'))
     # compute_rotated_latent(join(get_output_dir(), 'multi_studies', '418'))
     #
