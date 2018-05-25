@@ -431,6 +431,7 @@ class VarMultiStudyClassifier(BaseEstimator):
         loss_function = MultiStudyLoss(loss_study_weights, )
 
         modules = {
+
             'pretrain': VarMultiStudyModule(
                 in_features=in_features,
                 input_dropout=self.input_dropout,
@@ -491,7 +492,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 module.load_state_dict(modules['pretrain'].state_dict(),
                                        strict=False)
                 module.embedder.linear.reset_dropout()
-                lr = self.lr * .1
+                lr = self.lr
             # Optimizers
             if self.optimizer == 'adam':
                 optimizer = Adam(module.parameters(), lr=lr, amsgrad=True)
