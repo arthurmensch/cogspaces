@@ -6,6 +6,13 @@ import numpy as np
 import os
 import re
 import torch
+from cogspaces.datasets.dictionaries import fetch_atlas_modl
+from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
+from cogspaces.model_selection import train_test_split
+from cogspaces.models.factored_fast import MultiStudyLoader
+from cogspaces.preprocessing import MultiTargetEncoder
+from cogspaces.utils.dict_learning import dict_learning
+from exps.train import load_data
 from joblib import load, delayed, Parallel, Memory
 from modl import DictFact
 from nilearn._utils import check_niimg
@@ -17,14 +24,6 @@ from os.path import join, expanduser
 from scipy.linalg import svd
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import TensorDataset
-
-from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
-from cogspaces.model_selection import train_test_split
-from cogspaces.models.factored_fast import MultiStudyLoader
-from cogspaces.preprocessing import MultiTargetEncoder
-from cogspaces.utils.dict_learning import dict_learning
-from exps.train import load_data
 
 
 def plot_components(components, names, output_dir):

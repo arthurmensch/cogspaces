@@ -7,18 +7,15 @@ import tempfile
 import torch
 import torch.nn.functional as F
 import warnings
+from cogspaces.datasets.utils import get_output_dir
+from cogspaces.models.factored import Identity
+from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
 from os.path import join
 from sklearn.base import BaseEstimator
-from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch.nn import Parameter
 from torch.optim import Adam, SGD
 from torch.utils.data import TensorDataset, DataLoader
-
-from cogspaces.datasets.utils import get_output_dir
-from cogspaces.models.factored import Identity
-from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
-from cogspaces.utils.dict_learning import dict_learning
 
 k1 = 0.63576
 k2 = 1.87320
@@ -74,11 +71,14 @@ class DropoutLinear(nn.Linear):
 
 class AdaDropoutLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True, p=0.,
-                 level='layer', l1_penalty=0., var_penalty=0.):
+                 level='layer', l1_penalty=0., var_penalty=0.,
+                 sparsify=False):
         super().__init__(in_features, out_features, bias)
         self.p = p
         self.l1_penalty = l1_penalty
         self.var_penalty = var_penalty
+
+        self.sparsify = sparsify
 
         if level == 'layer':
             self.log_alpha = Parameter(torch.Tensor(1, 1))
@@ -112,10 +112,7 @@ class AdaDropoutLinear(nn.Linear):
             eps = torch.randn_like(output, requires_grad=False)
             return output + std * eps
         else:
-            mask = self.log_alpha > 3
-            output = F.linear(input, self.weight.masked_fill(mask, 0),
-                              self.bias)
-            return output
+            return F.linear(input, self.sparse_weight, self.bias)
 
     def penalty(self):
         penalty = torch.tensor(0., device=self.weight.device,
@@ -140,19 +137,24 @@ class AdaDropoutLinear(nn.Linear):
 
     @property
     def sparse_weight(self):
-        mask = self.log_alpha.expand(*self.weight.shape) > 3
-        return self.weight.masked_fill(mask, 0)
+        if self.sparsify:
+            mask = self.log_alpha.expand(*self.weight.shape) > 3
+            return self.weight.masked_fill(mask, 0)
+        else:
+            return self.weight
 
 
 class AdditiveAdaDropoutLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True, p=0.,
-                 l1_penalty=0., var_penalty=0.):
+                 l1_penalty=0., var_penalty=0., sparsify=False):
         super().__init__(in_features, out_features, bias)
         self.p = p
         self.log_sigma2 = Parameter(torch.Tensor(out_features, in_features))
 
         self.l1_penalty = l1_penalty
         self.var_penalty = var_penalty
+
+        self.sparsify = sparsify
 
         self.reset_dropout()
 
@@ -163,14 +165,13 @@ class AdditiveAdaDropoutLinear(nn.Linear):
 
     @property
     def log_alpha(self):
-        return self.log_sigma2 - torch.log(self.weight ** 2 + 1e-8)
+        return self.log_sigma2 - torch.log(self.weight ** 2)
 
     def reset_dropout(self):
         # self.log_sigma2.data.fill_(-8)
         p = max(self.p, 1e-8)
         log_alpha = math.log(p) - math.log(1 - p)
-        self.log_sigma2.data = log_alpha + torch.log(self.weight.data ** 2
-                                                     + 1e-8)
+        self.log_sigma2.data = log_alpha + torch.log(self.weight.data ** 2)
 
     def forward(self, input):
         if self.training:
@@ -183,10 +184,8 @@ class AdditiveAdaDropoutLinear(nn.Linear):
             eps = torch.randn_like(output, requires_grad=False)
             return output + eps * std
         else:
-            mask = self.log_alpha.expand(*self.weight.shape) > 1
-            output = F.linear(input, self.weight.masked_fill(mask, 0),
-                              self.bias)
-            return output
+            return F.linear(input, self.sparse_weight, self.bias)
+
 
     def penalty(self):
         penalty = torch.tensor(0., device=self.weight.device,
@@ -211,8 +210,11 @@ class AdditiveAdaDropoutLinear(nn.Linear):
 
     @property
     def sparse_weight(self):
-        mask = self.log_alpha.expand(*self.weight.shape) > 1
-        return self.weight.masked_fill(mask, 0)
+        if self.sparsify:
+            mask = self.log_alpha > 1
+            return self.weight.masked_fill(mask, 0)
+        else:
+            return self.weight
 
 
 class Embedder(nn.Module):
@@ -225,6 +227,7 @@ class Embedder(nn.Module):
                                                    latent_size, bias=True,
                                                    var_penalty=1. / length,
                                                    l1_penalty=0,
+                                                   sparsify=True,
                                                    p=dropout)
             # self.linear = AdaDropoutLinear(in_features,
             #                                latent_size, bias=True,
@@ -543,9 +546,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                               ' density: %.4f'
                               % (epoch, epoch_loss, epoch_penalty, density))
                         if phase == 'sparsify':
-                            # log_alpha = module.embedder.linear.log_alpha.item()
-                            # p = 1 / (1 + math.exp(- log_alpha))
-                            # print('latent_dropout: %.2f' % p)
                             p = {}
                             s = {}
                             for study, classifier in self.module_.classifiers.items():
@@ -557,10 +557,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                                                                 % (study, p[study],
                                                                    s[study]) for
                                                                 study in p))
-                        # if phase in 'sparsify':
-                        #     snr = torch.exp(
-                        #         -.5 * module.embedder.linear.log_alpha)
-                        #     print(snr.data.numpy())
+
                         if callback is not None:
                             callback(self, epoch)
 
@@ -586,36 +583,9 @@ class VarMultiStudyClassifier(BaseEstimator):
 
         callback(self, self.max_iter)
 
-        # self.module_sparsify_ = modules['sparsify']
         self.module_ = modules['finetune']
         self.module_.load_state_dict(modules['sparsify'].state_dict(),
                                      strict=False)
-
-        if self.rotation:
-            classif = []
-            classif_weights = []
-            for study, classifier in self.module_.classifiers.items():
-                these_classif = classifier.linear.weight.data.numpy()
-                these_classif_weights = np.ones(these_classif.shape[0])
-                these_classif_weights /= these_classif.shape[0]
-                these_classif_weights *= math.sqrt(lengths[study])
-                classif.append(classifier.linear.weight.data.numpy())
-                classif_weights.append(these_classif_weights)
-            classif = np.concatenate(classif, axis=0)
-            classif_weights = np.concatenate(classif_weights, axis=0)
-            classif_weights /= np.sum(classif_weights) / len(classif_weights)
-            classif = StandardScaler().fit_transform(classif)
-            code, dictionary, errors = dict_learning(classif,
-                                                     method='cd',
-                                                     alpha=.01, max_iter=30,
-                                                     sample_weights=classif_weights,
-                                                     n_components=128,
-                                                     verbose=True)
-            self.module_.embedder.linear.weight.data = \
-                torch.FloatTensor(
-                    dictionary) @ self.module_.embedder.linear.weight.data
-            self.module_.embedder.linear.log_alpha.fill_(0.)
-            print(errors[-1], (code == 0).astype('float').mean())
 
         for study in self.module_.classifiers:
             classifier = self.module_.classifiers[study]
@@ -624,9 +594,7 @@ class VarMultiStudyClassifier(BaseEstimator):
             p = 1 / (1 + math.exp(-log_alpha))
             p = min(p, 0.75)
             classifier.linear.p = p
-        nnz = self.module_.embedder.linear.sparse_weight != 0
-        self.embedder_density_ = nnz.float().mean().item()
-        print('Final density %s' % self.embedder_density_)
+        print('Final density %s' % self.module_.embedder.linear.density)
         self.module_.eval()
         lr = self.lr
         X_red = {}
@@ -634,7 +602,7 @@ class VarMultiStudyClassifier(BaseEstimator):
             print('Fine tuning %s' % study)
             this_X = this_X.to(device=device)
             with torch.no_grad():
-                X_red[study] = self.module_.embedder(this_X).cpu()
+                X_red[study] = self.module_.embedder(this_X).to(device=device)
             data = TensorDataset(X_red[study], y[study])
             data_loader = DataLoader(data, shuffle=True,
                                      batch_size=self.batch_size,
@@ -754,7 +722,7 @@ class VarMultiStudyClassifier(BaseEstimator):
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        for key in ['module_', 'module_sparsify_']:
+        for key in ['module_']:
             if key in state:
                 val = state.pop(key)
                 with tempfile.SpooledTemporaryFile() as f:
@@ -766,7 +734,7 @@ class VarMultiStudyClassifier(BaseEstimator):
 
     def __setstate__(self, state):
         disable_cuda = False
-        for key in ['module_', 'module_sparsify_']:
+        for key in ['module_']:
             if key not in state:
                 continue
             dump = state.pop(key)

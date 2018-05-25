@@ -3,11 +3,6 @@ from math import sqrt
 
 import numpy as np
 import pandas as pd
-from joblib import dump
-from os.path import join
-from sacred import Experiment
-from sklearn.metrics import accuracy_score
-
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.model_selection import train_test_split
@@ -19,6 +14,10 @@ from cogspaces.models.variational import VarMultiStudyClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
+from joblib import dump
+from os.path import join
+from sacred import Experiment
+from sklearn.metrics import accuracy_score
 
 exp = Experiment('multi_studies')
 
@@ -26,6 +25,7 @@ exp = Experiment('multi_studies')
 @exp.config
 def default():
     seed = 10
+    full = False
     system = dict(
         device=-1,
         verbose=2,
@@ -33,7 +33,7 @@ def default():
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
         studies='all',
-        target_study='archi'
+        target_study='archi',
     )
     model = dict(
         normalize=False,
@@ -151,7 +151,7 @@ def load_data(source_dir, studies, target_study):
 
 @exp.main
 def train(system, model, factored, factored_cv, trace, logistic,
-          factored_fast, factored_variational,
+          factored_fast, factored_variational, full,
           _run, _seed):
     data, target = load_data()
     print(_seed)
@@ -161,8 +161,9 @@ def train(system, model, factored, factored_cv, trace, logistic,
 
     train_data, test_data, train_targets, test_targets = \
         train_test_split(data, target, random_state=_seed)
-    # train_data = data
-    # train_targets = target
+    if full:
+        train_data = data
+        train_targets = target
 
     if model['normalize']:
         standard_scaler = MultiStandardScaler().fit(train_data)

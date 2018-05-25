@@ -1,12 +1,10 @@
 # Baseline logistic
 import json
-import os
-import re
-
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import pandas as pd
-import seaborn as sns
+import re
 from matplotlib import gridspec
 from os.path import expanduser, join
 
@@ -49,12 +47,13 @@ def summarize_baseline():
     idxmax = \
     res.groupby(level=['study', 'l2_penalty']).aggregate('mean').groupby(
         level='study').aggregate('idxmax')['test_score']
+    res['l2_penalty_'] = res.index.get_level_values(level='l2_penalty')
     idxmax = idxmax.values.tolist()
     best_res = []
     for study, l2_penalty in idxmax:
         best_res.append(res.loc[idx[study, :, l2_penalty]])
     best = pd.concat(best_res, keys=[study for study, _ in idxmax],
-                     names=['study'])['test_score']
+                     names=['study'])[['test_score', 'l2_penalty_']]
     pd.to_pickle(best, join(expanduser('~/output/cogspaces/'
                                       'baseline_seed.pkl')))
     res = best.groupby('study').aggregate(['mean', 'std'])
@@ -374,9 +373,9 @@ def plot():
 
 if __name__ == '__main__':
     # summarize_variational()
-    # summarize_baseline()
-    compare_variational()
-    plot_variational()
+    summarize_baseline()
+    # compare_variational()
+    # plot_variational()
     # summarize_factored    ()
     # summarize_study_selection()
     # plot_study_selection()
