@@ -32,7 +32,7 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies='all',
+        studies=['archi', 'brainomics'],
         target_study='archi',
     )
     model = dict(
@@ -51,7 +51,7 @@ def default():
         batch_size=128,
         regularization=1e-1,
         dropout=0.5,
-        lr=1e-3,
+        lr=5e-4,
         input_dropout=0.25)
 
     factored_variational = dict(

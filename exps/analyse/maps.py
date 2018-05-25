@@ -214,7 +214,6 @@ def main():
     imgs2, snrs2 = make_level12_imgs(lr2)
     snrs2.to_filename(join(introspect_dir, 'snr.nii.gz'))
     imgs2.to_filename(join(introspect_dir, 'components.nii.gz'))
-    imgs2.to_filename(join(introspect_dir, 'components.nii.gz'))
     dump(names, join(introspect_dir, 'names.pkl'))
     #
     # baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')

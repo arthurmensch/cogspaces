@@ -31,6 +31,7 @@ class DropoutLinear(nn.Linear):
 
     def reset_parameters(self):
         super().reset_parameters()
+        # self.weight.data = torch.abs(self.weight.data)
         if hasattr(self, 'log_alpha'):
             self.reset_dropout()
 
@@ -47,7 +48,7 @@ class DropoutLinear(nn.Linear):
             input = input * (1 + std * eps)
             return F.linear(input, self.weight, self.bias)
         else:
-            return super().forward(input)
+            return F.linear(input, self.weight, self.bias)
 
     def penalty(self):
         penalty = torch.tensor(0., device=self.weight.device,
@@ -62,7 +63,7 @@ class DropoutLinear(nn.Linear):
 
     @property
     def density(self):
-        return 1
+        return (self.weight != 0).float().mean()
 
     @property
     def sparse_weight(self):
@@ -102,7 +103,7 @@ class AdaDropoutLinear(nn.Linear):
 
     def forward(self, input):
         if self.training:
-            output = super().forward(input)
+            output = F.linear(input, self.weight, self.bias)
             # Local reparemtrization trick: gaussian dropout noise on input
             # <-> gaussian noise on output
             std = torch.sqrt(F.linear(input ** 2,
@@ -165,13 +166,13 @@ class AdditiveAdaDropoutLinear(nn.Linear):
 
     @property
     def log_alpha(self):
-        return self.log_sigma2 - torch.log(self.weight ** 2)
+        return self.log_sigma2 - torch.log(self.weight ** 2 + 1e-8)
 
     def reset_dropout(self):
         # self.log_sigma2.data.fill_(-8)
         p = max(self.p, 1e-8)
         log_alpha = math.log(p) - math.log(1 - p)
-        self.log_sigma2.data = log_alpha + torch.log(self.weight.data ** 2)
+        self.log_sigma2.data = log_alpha + torch.log(self.weight.data ** 2 + 1e-8)
 
     def forward(self, input):
         if self.training:
@@ -179,7 +180,7 @@ class AdditiveAdaDropoutLinear(nn.Linear):
             var_weight = torch.exp(self.log_sigma2)
             # Local reparametrization trick: gaussian dropout noise on input
             # <-> gaussian noise on output
-            output = F.linear(input, weight, self.bias)
+            output = F.linear(input, self.weight, self.bias)
             std = torch.sqrt(F.linear(input ** 2, var_weight, None) + 1e-8)
             eps = torch.randn_like(output, requires_grad=False)
             return output + eps * std
@@ -227,7 +228,7 @@ class Embedder(nn.Module):
                                                    latent_size, bias=True,
                                                    var_penalty=1. / length,
                                                    l1_penalty=0,
-                                                   sparsify=True,
+                                                   sparsify=False,
                                                    p=dropout)
             # self.linear = AdaDropoutLinear(in_features,
             #                                latent_size, bias=True,
