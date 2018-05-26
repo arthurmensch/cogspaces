@@ -64,6 +64,7 @@ def analyse_baseline(output_dir):
         lr3.coef_ -= np.mean(lr3.coef_, axis=0, keepdims=True)
         lr3.names_ = names
         lr3s[study] = lr3
+    lr3s = {study: lr3s[study] for study in sorted(lr3s)}
     return lr1, lr3s
 
 
@@ -108,10 +109,11 @@ def analyse(output_dir):
 
 
 def plot_single(img, name, output_dir):
-    from nilearn.plotting import plot_stat_map, find_xyz_cut_coords
     import matplotlib
     matplotlib.use('agg')
     import matplotlib.pyplot as plt
+    from nilearn.plotting import plot_stat_map, find_xyz_cut_coords
+
     vmax = img.get_data().max()
     cut_coords = find_xyz_cut_coords(img, activation_threshold=vmax / 3)
     fig = plt.figure(figsize=(8, 8))
@@ -121,10 +123,10 @@ def plot_single(img, name, output_dir):
 
 
 def plot_double(img, img2, name, output_dir):
-    from nilearn.plotting import plot_stat_map, find_xyz_cut_coords
     import matplotlib
     matplotlib.use('agg')
     import matplotlib.pyplot as plt
+    from nilearn.plotting import plot_stat_map, find_xyz_cut_coords
     vmax = img.get_data().max()
     cut_coords = find_xyz_cut_coords(img, activation_threshold=vmax / 3)
     fig, axes = plt.subplots(2, 1, figsize=(8, 8))
@@ -137,8 +139,16 @@ def plot_double(img, img2, name, output_dir):
     plt.close(fig)
 
 
-def plot_face_to_face(imgs, imgs_baseline, names, output_dir):
-    Parallel(n_jobs=30)(
+def plot_all(imgs, output_dir, name, n_jobs=1):
+    Parallel(n_jobs=n_jobs)(
+        delayed(plot_single)(img,
+                             ('%s_%i' % (name, i)), output_dir)
+        for i, img in
+        enumerate(iter_img(imgs)))
+
+
+def plot_face_to_face(imgs, imgs_baseline, names, output_dir, n_jobs=1):
+    Parallel(n_jobs=n_jobs)(
         delayed(plot_double)(img, img_baseline,
                              '%3i_%s' % (i, name), output_dir)
         for i, (img, img_baseline, name) in
@@ -199,42 +209,60 @@ def compute_corr(lr3s, name, output_dir):
     plt.close(fig)
 
 
-def main():
-    introspect_dir = join(get_output_dir(), 'compare_3')
+def introspect(output_dir, baseline=False):
+    introspect_dir = join(output_dir, 'maps')
     plot_dir = join(introspect_dir, 'plot')
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
-    #
-    output_dir = join(get_output_dir(), 'multi_studies', '1967')
-    lr1, lr2, lr3s = analyse(output_dir)
-    dump((lr1, lr2, lr3s), join(introspect_dir, 'transformers.pkl'))
-    (lr1, lr2, lr3s) = load(join(introspect_dir, 'transformers.pkl'))
-    imgs, names = make_level3_imgs(lr3s)
-    imgs.to_filename(join(introspect_dir, 'classif.nii.gz'))
-    imgs2, snrs2 = make_level12_imgs(lr2)
-    snrs2.to_filename(join(introspect_dir, 'snr.nii.gz'))
-    imgs2.to_filename(join(introspect_dir, 'components.nii.gz'))
-    dump(names, join(introspect_dir, 'names.pkl'))
-    #
-    # baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
-    # lr1_baseline, lr3s_baseline = analyse_baseline(baseline_output_dir)
-    # dump((lr1_baseline, lr3s_baseline), join(introspect_dir, 'transformers_baseline.pkl'))
-    # (lr1_baseline, lr3s_baseline) = load(join(introspect_dir, 'transformers_baseline.pkl'))
-    # # Ordered dict !
-    # lr3s_baseline = {study: lr3s_baseline[study] for study in lr3s.keys()}
-    # baseline_imgs, _ = make_level3_imgs(lr3s_baseline)
-    # baseline_imgs.to_filename(join(introspect_dir, 'classif_baseline.nii.gz'))
+    if baseline:
+        lr1, lr3s = analyse_baseline(output_dir)
+        dump((lr1, lr3s), join(introspect_dir, 'transformers.pkl'))
+        (lr1, lr3s) = load(join(introspect_dir, 'transformers.pkl'))
+        baseline_imgs, _ = make_level3_imgs(lr3s)
+        baseline_imgs.to_filename(join(introspect_dir, 'classif.nii.gz'))
+    else:
+        lr1, lr2, lr3s = analyse(output_dir)
+        dump((lr1, lr2, lr3s), join(introspect_dir, 'transformers.pkl'))
+        (lr1, lr2, lr3s) = load(join(introspect_dir, 'transformers.pkl'))
+        imgs, names = make_level3_imgs(lr3s)
+        imgs.to_filename(join(introspect_dir, 'classif.nii.gz'))
+        dump(names, join(introspect_dir, 'names.pkl'))
+        imgs2, snrs2 = make_level12_imgs(lr2)
+        snrs2.to_filename(join(introspect_dir, 'snr.nii.gz'))
+        imgs2.to_filename(join(introspect_dir, 'components.nii.gz'))
 
-    # compute_corr(lr3s, 'factored', plot_dir)
-    # compute_corr(lr3s_baseline, 'baseline', plot_dir)
 
-    names = load(join(introspect_dir, 'names.pkl'))
-    baseline_imgs = check_niimg(join(join(get_output_dir(), 'compare'),
-                                     'classif_baseline.nii.gz'))
-    imgs = check_niimg(join(introspect_dir,  'classif.nii.gz'))
+def plot(output_dir, baseline_output_dir, plot_components=True,
+         plot_classif=True, n_jobs=1):
+    introspect_dir = join(output_dir, 'maps')
+    baseline_introspect_dir = join(baseline_output_dir, 'maps')
+    plot_dir = join(introspect_dir, 'plot')
+    if not os.path.exists(plot_dir):
+        os.makedirs(plot_dir)
 
-    plot_face_to_face(imgs, baseline_imgs, names, plot_dir)
+    if plot_components:
+        components = check_niimg(join(introspect_dir, 'components.nii.gz'))
+        plot_all(components, plot_dir, 'components', n_jobs=n_jobs)
+        components = check_niimg(join(introspect_dir, 'snr.nii.gz'))
+        plot_all(components, plot_dir, 'snr')
+    if plot_classif:
+        names = load(join(introspect_dir, 'names.pkl'))
+        imgs = join(baseline_introspect_dir, 'classif.nii.gz')
+        baseline_imgs = join(baseline_introspect_dir, 'classif.nii.gz')
+        plot_face_to_face(imgs, baseline_imgs, names, plot_dir, n_jobs=n_jobs)
+
+
+def introspect_and_plot(output_dir, n_jobs=1):
+    introspect(output_dir, baseline=False)
+
+    baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
+    plot(output_dir, baseline_output_dir, n_jobs=n_jobs, plot_components=False)
 
 
 if __name__ == '__main__':
-    main()
+    baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
+    introspect(baseline_output_dir, baseline=True)
+    #
+    output_dir = join(get_output_dir(), 'multi_studies', '1969')
+    # output_dir = join(get_output_dir(), 'multi_studies', '2020')
+    introspect_and_plot(output_dir, n_jobs=3)

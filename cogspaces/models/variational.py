@@ -31,7 +31,6 @@ class DropoutLinear(nn.Linear):
 
     def reset_parameters(self):
         super().reset_parameters()
-        # self.weight.data = torch.abs(self.weight.data)
         if hasattr(self, 'log_alpha'):
             self.reset_dropout()
 
@@ -147,7 +146,7 @@ class AdaDropoutLinear(nn.Linear):
 
 class AdditiveAdaDropoutLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True, p=0.,
-                 l1_penalty=0., var_penalty=0., sparsify=False):
+                 l1_penalty=0., var_penalty=0., sparsify=True):
         super().__init__(in_features, out_features, bias)
         self.p = p
         self.log_sigma2 = Parameter(torch.Tensor(out_features, in_features))
@@ -743,7 +742,7 @@ class VarMultiStudyClassifier(BaseEstimator):
             with tempfile.SpooledTemporaryFile() as f:
                 f.write(dump)
                 f.seek(0)
-                if state['device'] == -1 or not torch.cuda.is_available():
+                if state['device'] > -1 and not torch.cuda.is_available():
                     val = torch.load(
                         f, map_location=lambda storage, loc: storage)
                     disable_cuda = True

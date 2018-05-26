@@ -14,6 +14,7 @@ from cogspaces.models.variational import VarMultiStudyClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
+from exps.analyse.maps import introspect_and_plot
 from joblib import dump
 from os.path import join
 from sacred import Experiment
@@ -32,14 +33,14 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'brainomics'],
+        studies='all',
         target_study='archi',
     )
     model = dict(
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter=100,
+        max_iter=10,
     )
     factored_fast = dict(
         optimizer='adam',
@@ -48,10 +49,10 @@ def default():
         epoch_counting='all',
 
         sampling='random',
-        batch_size=128,
+        batch_size=64,
         regularization=1e-1,
         dropout=0.5,
-        lr=5e-4,
+        lr=1e-3,
         input_dropout=0.25)
 
     factored_variational = dict(
@@ -62,8 +63,7 @@ def default():
         activation='linear',
         epoch_counting='all',
         sampling='random',
-        # rotation=True,
-        batch_size=128,
+        batch_size=64,
         dropout=0.75,
         lr=1e-3,
         input_dropout=0.25)
@@ -288,4 +288,7 @@ def get_study_weights(study_weight, train_data):
 if __name__ == '__main__':
     output_dir = join(get_output_dir(), 'multi_studies')
     exp.observers.append(OurFileStorageObserver.create(basedir=output_dir))
-    exp.run()
+    run = exp.run()
+    output_dir = join(output_dir, str(run._id))
+    introspect_and_plot(output_dir, n_jobs=3)
+
