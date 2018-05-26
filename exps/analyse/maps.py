@@ -256,13 +256,13 @@ def introspect_and_plot(output_dir, n_jobs=1):
     introspect(output_dir, baseline=False)
 
     baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
-    plot(output_dir, baseline_output_dir, n_jobs=n_jobs, plot_components=False)
+    plot(output_dir, baseline_output_dir, n_jobs=n_jobs, plot_classif=False)
 
 
 if __name__ == '__main__':
-    baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
-    introspect(baseline_output_dir, baseline=True)
-    #
-    output_dir = join(get_output_dir(), 'multi_studies', '1969')
-    # output_dir = join(get_output_dir(), 'multi_studies', '2020')
+    # baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
+    # introspect(baseline_output_dir, baseline=True)
+    # #
+    # output_dir = join(get_output_dir(), 'multi_studies', '1969')
+    output_dir = join(get_output_dir(), 'multi_studies', '2022')
     introspect_and_plot(output_dir, n_jobs=3)

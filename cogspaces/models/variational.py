@@ -72,7 +72,7 @@ class DropoutLinear(nn.Linear):
 class AdaDropoutLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True, p=0.,
                  level='layer', l1_penalty=0., var_penalty=0.,
-                 sparsify=False):
+                 sparsify=True):
         super().__init__(in_features, out_features, bias)
         self.p = p
         self.l1_penalty = l1_penalty

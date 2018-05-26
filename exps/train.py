@@ -40,7 +40,7 @@ def default():
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter=10,
+        max_iter=100,
     )
     factored_fast = dict(
         optimizer='adam',
