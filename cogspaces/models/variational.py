@@ -24,11 +24,9 @@ k3 = 1.48695
 
 
 class DropoutLinear(nn.Linear):
-    def __init__(self, in_features, out_features, bias=True, p=0.,
-                 l1_penalty=0.):
+    def __init__(self, in_features, out_features, bias=True, p=0.,):
         super().__init__(in_features, out_features, bias)
         self.p = p
-        self.l1_penalty = l1_penalty
 
     def reset_parameters(self):
         super().reset_parameters()
@@ -51,15 +49,7 @@ class DropoutLinear(nn.Linear):
             return F.linear(input, self.weight, self.bias)
 
     def penalty(self):
-        penalty = torch.tensor(0., device=self.weight.device,
-                               dtype=torch.float)
-        if self.l1_penalty != 0:
-            beta = 1000
-            l1_penalty = torch.sum((F.softplus(-beta * self.weight)
-                                    + F.softplus(
-                        beta * self.weight)) / beta)
-            penalty += self.l1_penalty * l1_penalty
-        return penalty
+        return 0.
 
     @property
     def density(self):
@@ -72,11 +62,10 @@ class DropoutLinear(nn.Linear):
 
 class AdaDropoutLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True, p=0.,
-                 level='layer', l1_penalty=0., var_penalty=0.,
+                 level='layer', var_penalty=0.,
                  sparsify=True):
         super().__init__(in_features, out_features, bias)
         self.p = p
-        self.l1_penalty = l1_penalty
         self.var_penalty = var_penalty
 
         self.sparsify = sparsify
@@ -124,12 +113,6 @@ class AdaDropoutLinear(nn.Linear):
                                   - .5 * F.softplus(-log_alpha)
                                   - 1).expand(*self.weight.shape).sum()
             penalty += var_penalty * self.var_penalty
-        if self.l1_penalty != 0:
-            beta = 1000
-            l1_penalty = torch.sum((F.softplus(-beta * self.weight)
-                                    + F.softplus(
-                        beta * self.weight)) / beta)
-            penalty += self.l1_penalty * l1_penalty
         return penalty
 
     @property
@@ -147,12 +130,11 @@ class AdaDropoutLinear(nn.Linear):
 
 class AdditiveAdaDropoutLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True, p=0.,
-                 l1_penalty=0., var_penalty=0., sparsify=True):
+                 var_penalty=0., sparsify=True):
         super().__init__(in_features, out_features, bias)
         self.p = p
         self.log_sigma2 = Parameter(torch.Tensor(out_features, in_features))
 
-        self.l1_penalty = l1_penalty
         self.var_penalty = var_penalty
 
         self.sparsify = sparsify
@@ -169,10 +151,10 @@ class AdditiveAdaDropoutLinear(nn.Linear):
         return self.log_sigma2 - torch.log(self.weight ** 2 + 1e-8)
 
     def reset_dropout(self):
-        # self.log_sigma2.data.fill_(-8)
         p = max(self.p, 1e-8)
         log_alpha = math.log(p) - math.log(1 - p)
-        self.log_sigma2.data = log_alpha + torch.log(self.weight.data ** 2 + 1e-8)
+        self.log_sigma2.data = log_alpha + torch.log(
+            self.weight.data ** 2 + 1e-8)
 
     def forward(self, input):
         if self.training:
@@ -187,7 +169,6 @@ class AdditiveAdaDropoutLinear(nn.Linear):
         else:
             return F.linear(input, self.sparse_weight, self.bias)
 
-
     def penalty(self):
         penalty = torch.tensor(0., device=self.weight.device,
                                dtype=torch.float)
@@ -197,12 +178,6 @@ class AdditiveAdaDropoutLinear(nn.Linear):
                                            (F.sigmoid(k2 + k3 * log_alpha)
                                             - .5 * F.softplus(-log_alpha) - 1))
             penalty += var_penalty * self.var_penalty
-        if self.l1_penalty != 0:
-            beta = 1000
-            l1_penalty = torch.sum((F.softplus(-beta * self.linear.weight)
-                                    + F.softplus(
-                        beta * self.linear.weight)) / beta)
-            penalty += self.l1_penalty * l1_penalty
         return penalty
 
     @property
@@ -227,14 +202,8 @@ class Embedder(nn.Module):
             self.linear = AdditiveAdaDropoutLinear(in_features,
                                                    latent_size, bias=True,
                                                    var_penalty=1. / length,
-                                                   l1_penalty=0,
-                                                   sparsify=True,
+                                                   sparsify=False,
                                                    p=dropout)
-            # self.linear = AdaDropoutLinear(in_features,
-            #                                latent_size, bias=True,
-            #                                var_penalty=1. / length,
-            #                                l1_penalty=0,
-            #                                p=dropout)
         else:
             self.linear = DropoutLinear(in_features, latent_size, bias=True)
         if activation == 'linear':
@@ -248,13 +217,16 @@ class Embedder(nn.Module):
     def reset_parameters(self):
         self.linear.reset_parameters()
 
+    def reset_dropout(self):
+        self.linear.reset_dropout()
+
     def penalty(self):
         return self.linear.penalty()
 
 
 class LatentClassifier(nn.Module):
     def __init__(self, latent_size, target_size, length,
-                 dropout=0., adaptive=False, l1_penalty=0.):
+                 dropout=0., adaptive=False):
         super().__init__()
 
         self.batch_norm = nn.BatchNorm1d(latent_size)
@@ -262,11 +234,9 @@ class LatentClassifier(nn.Module):
             self.linear = AdaDropoutLinear(latent_size,
                                            target_size, bias=True, p=dropout,
                                            var_penalty=1. / length,
-                                           l1_penalty=l1_penalty,
                                            level='layer')
         else:
             self.linear = DropoutLinear(latent_size, target_size, bias=True,
-                                        l1_penalty=l1_penalty,
                                         p=dropout)
 
     def forward(self, input):
@@ -286,8 +256,6 @@ class VarMultiStudyModule(nn.Module):
                  latent_size,
                  target_sizes,
                  lengths,
-                 embedder_reg=1.,
-                 l1_penalty=0.,
                  activation='linear',
                  input_dropout=0.,
                  latent_dropout=0.,
@@ -302,13 +270,12 @@ class VarMultiStudyModule(nn.Module):
         self.embedder = Embedder(in_features, latent_size,
                                  dropout=input_dropout,
                                  adaptive=embedder_adaptive,
-                                 length=total_length / embedder_reg,
+                                 length=total_length,
                                  activation=activation)
         classifier_adaptive = 'classifier' in adaptivity
         self.classifiers = {study: LatentClassifier(
             latent_size, target_size, dropout=latent_dropout,
             length=total_length,
-            l1_penalty=l1_penalty,
             adaptive=classifier_adaptive, )
             for study, target_size in target_sizes.items()}
         for study, classifier in self.classifiers.items():
@@ -359,8 +326,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                  sampling='cycle',
                  rotation=False,
                  patience=200,
-                 embedder_reg=1.,
-                 l1_penalty=0,
                  seed=None):
 
         self.latent_size = latent_size
@@ -369,8 +334,6 @@ class VarMultiStudyClassifier(BaseEstimator):
         self.dropout = dropout
 
         self.rotation = rotation
-
-        self.l1_penalty = l1_penalty
 
         self.sampling = sampling
         self.batch_size = batch_size
@@ -386,7 +349,6 @@ class VarMultiStudyClassifier(BaseEstimator):
         self.patience = patience
         self.max_iter = max_iter
 
-        self.embedder_reg = embedder_reg
 
         self.verbose = verbose
         self.device = device
@@ -436,8 +398,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                 input_dropout=self.input_dropout,
                 latent_dropout=self.dropout,
                 adaptivity='classifier',
-                l1_penalty=self.l1_penalty,
-                embedder_reg=self.embedder_reg,
                 activation=self.activation,
                 lengths=lengths,
                 latent_size=self.latent_size,
@@ -447,19 +407,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                 input_dropout=self.input_dropout,
                 latent_dropout=self.dropout,
                 lengths=lengths,
-                l1_penalty=self.l1_penalty,
-                embedder_reg=self.embedder_reg,
-                adaptivity='embedding+classifier',
-                activation=self.activation,
-                latent_size=self.latent_size,
-                target_sizes=target_sizes),
-            'refine': VarMultiStudyModule(
-                in_features=in_features,
-                input_dropout=self.input_dropout,
-                latent_dropout=self.dropout,
-                lengths=lengths,
-                l1_penalty=self.l1_penalty,
-                embedder_reg=self.embedder_reg,
                 adaptivity='embedding+classifier',
                 activation=self.activation,
                 latent_size=self.latent_size,
@@ -468,9 +415,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 in_features=in_features,
                 activation=self.activation,
                 latent_size=self.latent_size,
-                embedder_reg=self.embedder_reg,
                 input_dropout=0,
-                l1_penalty=0,
                 lengths=lengths,
                 adaptivity='embedding',
                 latent_dropout=self.dropout,
@@ -489,12 +434,12 @@ class VarMultiStudyClassifier(BaseEstimator):
         else:
             raise ValueError
 
-        if self.verbose != 0:
-            report_every = ceil(self.max_iter / self.verbose)
-        else:
-            report_every = None
-
         for phase in ['pretrain', 'sparsify']:
+            if self.verbose != 0:
+                report_every = ceil(self.max_iter[phase] / self.verbose)
+            else:
+                report_every = None
+
             print('Phase :', phase)
             print('------------------------------')
             self.module_ = module = modules[phase]
@@ -503,12 +448,8 @@ class VarMultiStudyClassifier(BaseEstimator):
             elif phase == 'sparsify':
                 module.load_state_dict(modules['pretrain'].state_dict(),
                                        strict=False)
-                module.embedder.linear.reset_dropout()
+                module.embedder.reset_dropout()
                 lr = self.lr
-            elif phase == 'refine':
-                module.load_state_dict(modules['sparsify'].state_dict(),
-                                       strict=False)
-                lr = self.lr * 0.1
             # Optimizers
             if self.optimizer == 'adam':
                 optimizer = Adam(module.parameters(), lr=lr, amsgrad=True)
@@ -539,12 +480,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                 loss += penalty
                 loss.backward()
                 optimizer.step()
-                if hasattr(module.embedder.linear, 'log_sigma2'):
-                    module.embedder.linear.log_sigma2.data = (
-                            torch.clamp(module.embedder.linear.
-                                        log_alpha.data, min=-8, max=8) +
-                            torch.log(module.embedder.linear.
-                                      weight.data ** 2 + 1e-8))
 
                 epoch_batch += 1
                 epoch_loss *= (1 - 1 / epoch_batch)
@@ -564,16 +499,12 @@ class VarMultiStudyClassifier(BaseEstimator):
                               ' density: %.4f'
                               % (epoch, epoch_loss, epoch_penalty, density))
                         p = {}
-                        s = {}
                         for study, classifier in self.module_.classifiers.items():
                             log_alpha = classifier.linear.log_alpha.item()
                             p[study] = 1 / (1 + math.exp(- log_alpha))
-                            s[study] = torch.sum(
-                                torch.abs(classifier.linear.weight.data))
-                        print('dropout/l1 weight', ' '.join('%s: %.2f/%.2f'
-                                                            % (study, p[study],
-                                                               s[study]) for
-                                                            study in p))
+                        print('dropout', ' '.join('%s: %.2f'
+                                                  % (study, p[study]) for
+                                                  study in p))
 
                         if callback is not None:
                             callback(self, epoch)
@@ -588,9 +519,9 @@ class VarMultiStudyClassifier(BaseEstimator):
                     epoch_penalty = 0
 
                     if (no_improvement > self.patience
-                            or epoch > self.max_iter):
-                        print('Stopping at epoch %.2f, best train loss'
-                              ' %.4f' % (epoch, best_loss))
+                            or epoch > self.max_iter[phase]):
+                        print('Stopping at epoch %.2f, train loss'
+                              ' %.4f' % (epoch, epoch_loss))
                         callback(self, epoch)
                         module.load_state_dict(best_state)
                         torch.save(module, join(get_output_dir(),
@@ -600,6 +531,7 @@ class VarMultiStudyClassifier(BaseEstimator):
 
         callback(self, self.max_iter)
 
+        phase = 'finetune'
         self.module_ = modules['finetune']
         self.module_.load_state_dict(modules['sparsify'].state_dict(),
                                      strict=False)
@@ -609,11 +541,11 @@ class VarMultiStudyClassifier(BaseEstimator):
             log_alpha = \
                 modules['sparsify'].classifiers[study].linear.log_alpha.item()
             p = 1 / (1 + math.exp(-log_alpha))
-            p = min(p, 0.75)
+            # p = min(p, 0.75)
             classifier.linear.p = p
         print('Final density %s' % self.module_.embedder.linear.density)
         self.module_.eval()
-        lr = self.lr
+        lr = self.lr * .1
         X_red = {}
         for study, this_X in X.items():
             print('Fine tuning %s' % study)
@@ -623,6 +555,7 @@ class VarMultiStudyClassifier(BaseEstimator):
             data = TensorDataset(X_red[study], y[study])
             data_loader = DataLoader(data, shuffle=True,
                                      batch_size=self.batch_size,
+                                     drop_last=False,
                                      pin_memory=device.type == 'cuda')
             module = self.module_.classifiers[study]
             module.train()
@@ -633,7 +566,7 @@ class VarMultiStudyClassifier(BaseEstimator):
             best_loss = float('inf')
             no_improvement = 0
             epoch = 0
-            for epoch in range(self.max_iter):
+            for epoch in range(self.max_iter[phase]):
                 epoch_batch = 0
                 epoch_loss = 0
                 for input, target in data_loader:
@@ -664,13 +597,12 @@ class VarMultiStudyClassifier(BaseEstimator):
                 else:
                     no_improvement = 0
                     best_loss = epoch_loss
-                    best_state = module.state_dict()
 
                 if no_improvement > self.patience:
                     break
             # module.load_state_dict(best_state)
-            print('Stopping at epoch %.2f, best train loss'
-                  ' %.4f' % (epoch, best_loss))
+            print('Stopping at epoch %.2f, train loss'
+                  ' %.4f' % (epoch, epoch_loss))
             print('-----------------------------------')
         callback(self, epoch)
         return self

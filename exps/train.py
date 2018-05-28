@@ -27,22 +27,35 @@ exp = Experiment('multi_studies')
 @exp.config
 def default():
     seed = 10
-    full = False
+    full = True
     system = dict(
         device=-1,
         verbose=2,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'la5c', 'brainomics'],
+        studies=['archi', 'brainomics'],
         target_study='archi',
     )
     model = dict(
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter=100,
+        max_iter={'pretrain': 300, 'sparsify': 300, 'finetune': 300},
     )
+    factored_variational = dict(
+        optimizer='adam',
+        latent_size=64,
+        activation='linear',
+        epoch_counting='all',
+        sampling='random',
+        batch_size=128,
+        dropout=0.5,
+        lr=1e-3,
+        input_dropout=0.25)
+
+
+
     factored_fast = dict(
         optimizer='adam',
         latent_size=128,
@@ -55,20 +68,6 @@ def default():
         dropout=0.5,
         lr=1e-3,
         input_dropout=0.25)
-
-    factored_variational = dict(
-        optimizer='adam',
-        latent_size=64,
-        l1_penalty=0,
-        embedder_reg=1.,
-        activation='linear',
-        epoch_counting='all',
-        sampling='random',
-        batch_size=128,
-        dropout=0.75,
-        lr=1e-3,
-        input_dropout=0.25)
-
     factored = dict(
         optimizer='adam',
         adapt_size=0,

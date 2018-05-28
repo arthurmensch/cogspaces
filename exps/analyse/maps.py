@@ -2,14 +2,15 @@ import json
 import numpy as np
 import os
 import re
-from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask, get_output_dir
 from joblib import load, Memory, dump, Parallel, delayed
 from nilearn._utils import check_niimg
 from nilearn.image import iter_img
 from nilearn.input_data import NiftiMasker
 from os.path import join, expanduser
 from sklearn.linear_model.base import LinearRegression
+
+from cogspaces.datasets.dictionaries import fetch_atlas_modl
+from cogspaces.datasets.utils import fetch_mask, get_output_dir
 
 
 class DenoisingLinearRegresion(LinearRegression):
@@ -168,8 +169,11 @@ def make_level3_imgs(lr3s):
 def make_level12_imgs(lr):
     mask = fetch_mask()['hcp']
     masker = NiftiMasker(mask_img=mask).fit()
-    snr = masker.inverse_transform(lr.coef_)
-    img = masker.inverse_transform(lr.snr_)
+    coef = lr.coef_
+    mean = coef.mean(axis=1)
+    coef[mean < 0] *= -1
+    img = masker.inverse_transform(coef)
+    snr = masker.inverse_transform(lr.snr_)
     return img, snr
 
 
@@ -264,5 +268,5 @@ if __name__ == '__main__':
     # introspect(baseline_output_dir, baseline=True)
     # #
     # output_dir = join(get_output_dir(), 'multi_studies', '1969')
-    output_dir = join(get_output_dir(), 'multi_studies', '2022')
+    output_dir = join(get_output_dir(), 'multi_studies', '1983')
     introspect_and_plot(output_dir, n_jobs=3)
