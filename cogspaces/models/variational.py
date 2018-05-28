@@ -7,15 +7,16 @@ import tempfile
 import torch
 import torch.nn.functional as F
 import warnings
-from cogspaces.datasets.utils import get_output_dir
-from cogspaces.models.factored import Identity
-from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
 from os.path import join
 from sklearn.base import BaseEstimator
 from torch import nn
 from torch.nn import Parameter
 from torch.optim import Adam, SGD
 from torch.utils.data import TensorDataset, DataLoader
+
+from cogspaces.datasets.utils import get_output_dir
+from cogspaces.models.factored import Identity
+from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
 
 k1 = 0.63576
 k2 = 1.87320
@@ -227,7 +228,7 @@ class Embedder(nn.Module):
                                                    latent_size, bias=True,
                                                    var_penalty=1. / length,
                                                    l1_penalty=0,
-                                                   sparsify=False,
+                                                   sparsify=True,
                                                    p=dropout)
             # self.linear = AdaDropoutLinear(in_features,
             #                                latent_size, bias=True,
@@ -430,7 +431,6 @@ class VarMultiStudyClassifier(BaseEstimator):
         loss_function = MultiStudyLoss(loss_study_weights, )
 
         modules = {
-
             'pretrain': VarMultiStudyModule(
                 in_features=in_features,
                 input_dropout=self.input_dropout,
@@ -443,6 +443,17 @@ class VarMultiStudyClassifier(BaseEstimator):
                 latent_size=self.latent_size,
                 target_sizes=target_sizes),
             'sparsify': VarMultiStudyModule(
+                in_features=in_features,
+                input_dropout=self.input_dropout,
+                latent_dropout=self.dropout,
+                lengths=lengths,
+                l1_penalty=self.l1_penalty,
+                embedder_reg=self.embedder_reg,
+                adaptivity='embedding+classifier',
+                activation=self.activation,
+                latent_size=self.latent_size,
+                target_sizes=target_sizes),
+            'refine': VarMultiStudyModule(
                 in_features=in_features,
                 input_dropout=self.input_dropout,
                 latent_dropout=self.dropout,
@@ -484,14 +495,20 @@ class VarMultiStudyClassifier(BaseEstimator):
             report_every = None
 
         for phase in ['pretrain', 'sparsify']:
+            print('Phase :', phase)
+            print('------------------------------')
             self.module_ = module = modules[phase]
             if phase == 'pretrain':
                 lr = self.lr
-            else:
+            elif phase == 'sparsify':
                 module.load_state_dict(modules['pretrain'].state_dict(),
                                        strict=False)
                 module.embedder.linear.reset_dropout()
                 lr = self.lr
+            elif phase == 'refine':
+                module.load_state_dict(modules['sparsify'].state_dict(),
+                                       strict=False)
+                lr = self.lr * 0.1
             # Optimizers
             if self.optimizer == 'adam':
                 optimizer = Adam(module.parameters(), lr=lr, amsgrad=True)
@@ -546,18 +563,17 @@ class VarMultiStudyClassifier(BaseEstimator):
                         print('Epoch %.2f, train loss: %.4f, penalty: %.4f,'
                               ' density: %.4f'
                               % (epoch, epoch_loss, epoch_penalty, density))
-                        if phase == 'sparsify':
-                            p = {}
-                            s = {}
-                            for study, classifier in self.module_.classifiers.items():
-                                log_alpha = classifier.linear.log_alpha.item()
-                                p[study] = 1 / (1 + math.exp(- log_alpha))
-                                s[study] = torch.sum(
-                                    torch.abs(classifier.linear.weight.data))
-                            print('dropout/l1 weight', ' '.join('%s: %.2f/%.2f'
-                                                                % (study, p[study],
-                                                                   s[study]) for
-                                                                study in p))
+                        p = {}
+                        s = {}
+                        for study, classifier in self.module_.classifiers.items():
+                            log_alpha = classifier.linear.log_alpha.item()
+                            p[study] = 1 / (1 + math.exp(- log_alpha))
+                            s[study] = torch.sum(
+                                torch.abs(classifier.linear.weight.data))
+                        print('dropout/l1 weight', ' '.join('%s: %.2f/%.2f'
+                                                            % (study, p[study],
+                                                               s[study]) for
+                                                            study in p))
 
                         if callback is not None:
                             callback(self, epoch)

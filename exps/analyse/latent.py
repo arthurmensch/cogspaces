@@ -1,7 +1,7 @@
 from os.path import join, expanduser
 
 
-output_dir = join(expanduser('/home/arthur/output/cogspaces/compare/'))
+output_dir = join(expanduser('/home/arthur/output/cogspaces/multi_studies/1974'))
 
 components = join(output_dir, 'components.nii.gz')
 

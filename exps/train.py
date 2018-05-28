@@ -3,6 +3,11 @@ from math import sqrt
 
 import numpy as np
 import pandas as pd
+from joblib import dump
+from os.path import join
+from sacred import Experiment
+from sklearn.metrics import accuracy_score
+
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.model_selection import train_test_split
@@ -15,10 +20,6 @@ from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
 from exps.analyse.maps import introspect_and_plot
-from joblib import dump
-from os.path import join
-from sacred import Experiment
-from sklearn.metrics import accuracy_score
 
 exp = Experiment('multi_studies')
 
@@ -33,14 +34,14 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies='all',
+        studies=['archi', 'la5c', 'brainomics'],
         target_study='archi',
     )
     model = dict(
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter=200,
+        max_iter=100,
     )
     factored_fast = dict(
         optimizer='adam',
@@ -57,13 +58,13 @@ def default():
 
     factored_variational = dict(
         optimizer='adam',
-        latent_size=128,
+        latent_size=64,
         l1_penalty=0,
         embedder_reg=1.,
         activation='linear',
         epoch_counting='all',
         sampling='random',
-        batch_size=64,
+        batch_size=128,
         dropout=0.75,
         lr=1e-3,
         input_dropout=0.25)
