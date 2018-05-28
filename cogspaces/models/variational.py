@@ -172,7 +172,8 @@ class AdditiveAdaDropoutLinear(nn.Linear):
         # self.log_sigma2.data.fill_(-8)
         p = max(self.p, 1e-8)
         log_alpha = math.log(p) - math.log(1 - p)
-        self.log_sigma2.data = log_alpha + torch.log(self.weight.data ** 2 + 1e-8)
+        self.log_sigma2.data = log_alpha + torch.log(
+            self.weight.data ** 2 + 1e-8)
 
     def forward(self, input):
         if self.training:
@@ -186,7 +187,6 @@ class AdditiveAdaDropoutLinear(nn.Linear):
             return output + eps * std
         else:
             return F.linear(input, self.sparse_weight, self.bias)
-
 
     def penalty(self):
         penalty = torch.tensor(0., device=self.weight.device,
@@ -306,28 +306,53 @@ class VarMultiStudyModule(nn.Module):
                                  activation=activation)
         classifier_adaptive = 'classifier' in adaptivity
         self.classifiers = {study: LatentClassifier(
-            latent_size, target_size, dropout=latent_dropout,
+            latent_size + 8, target_size, dropout=latent_dropout,
             length=total_length,
             l1_penalty=l1_penalty,
             adaptive=classifier_adaptive, )
             for study, target_size in target_sizes.items()}
+        self.local_embedders = {study: Embedder(in_features, 8,
+                                                dropout=input_dropout,
+                                                adaptive=embedder_adaptive,
+                                                length=total_length / embedder_reg,
+                                                activation=activation) for
+                                study in target_sizes}
+        for study, local_embedder in self.local_embedders.items():
+            self.add_module('local_embedder_%s' % study, local_embedder)
+
         for study, classifier in self.classifiers.items():
             self.add_module('classifier_%s' % study, classifier)
         self.reset_parameters()
 
     def reset_parameters(self):
         self.embedder.reset_parameters()
+        for local_embedder in self.local_embedders.values():
+            local_embedder.reset_parameters()
         for classifier in self.classifiers.values():
             classifier.reset_parameters()
 
+    def get_latent(self, inputs):
+        embeddings = {}
+        for study, input in inputs.items():
+            global_embedding = self.embedder(input)
+
+            local_embedding = self.local_embedders[study](input)
+
+            embeddings[study] = torch.cat([local_embedding, global_embedding],
+                                          dim=1)
+        return embeddings
+
     def forward(self, inputs):
         preds = {}
-        for study, input in inputs.items():
-            preds[study] = self.classifiers[study](self.embedder(input))
+        embeddings = self.get_latent(inputs)
+        for study, embedding in embeddings.items():
+            preds[study] = self.classifiers[study](embedding)
         return preds
 
     def penalty(self):
         return (self.embedder.penalty()
+                + sum(local_embedder.penalty()
+                      for local_embedder in self.local_embedders.values())
                 + sum(classifier.penalty()
                       for classifier in self.classifiers.values()))
 
@@ -504,6 +529,8 @@ class VarMultiStudyClassifier(BaseEstimator):
                 module.load_state_dict(modules['pretrain'].state_dict(),
                                        strict=False)
                 module.embedder.linear.reset_dropout()
+                for study in target_sizes:
+                    module.local_embedders[study].linear.reset_dropout()
                 lr = self.lr
             elif phase == 'refine':
                 module.load_state_dict(modules['sparsify'].state_dict(),
@@ -539,12 +566,12 @@ class VarMultiStudyClassifier(BaseEstimator):
                 loss += penalty
                 loss.backward()
                 optimizer.step()
-                if hasattr(module.embedder.linear, 'log_sigma2'):
-                    module.embedder.linear.log_sigma2.data = (
-                            torch.clamp(module.embedder.linear.
-                                        log_alpha.data, min=-8, max=8) +
-                            torch.log(module.embedder.linear.
-                                      weight.data ** 2 + 1e-8))
+                # if hasattr(module.embedder.linear, 'log_sigma2'):
+                #     module.embedder.linear.log_sigma2.data = (
+                #             torch.clamp(module.embedder.linear.
+                #                         log_alpha.data, min=-8, max=8) +
+                #             torch.log(module.embedder.linear.
+                #                       weight.data ** 2 + 1e-8))
 
                 epoch_batch += 1
                 epoch_loss *= (1 - 1 / epoch_batch)
@@ -619,7 +646,8 @@ class VarMultiStudyClassifier(BaseEstimator):
             print('Fine tuning %s' % study)
             this_X = this_X.to(device=device)
             with torch.no_grad():
-                X_red[study] = self.module_.embedder(this_X).to(device=device)
+                X_red[study] = self.module_.get_latent({study: this_X})[
+                    study].to(device=device)
             data = TensorDataset(X_red[study], y[study])
             data_loader = DataLoader(data, shuffle=True,
                                      batch_size=self.batch_size,
@@ -703,7 +731,7 @@ class VarMultiStudyClassifier(BaseEstimator):
             this_X = torch.from_numpy(this_X).float()
             this_X = this_X.to(device=device)
             with torch.no_grad():
-                latent = self.module_.embedder(this_X)
+                latent = self.module_.get_latent({study: this_X})[study]
             # latent = self.module_.classifiers[study].batch_norm(latent)
             latents[study] = latent.data.cpu().numpy()
         return latents
@@ -719,7 +747,7 @@ class VarMultiStudyClassifier(BaseEstimator):
             this_X = torch.from_numpy(this_X).float()
             this_X = this_X.to(device=device)
             with torch.no_grad():
-                latent = self.module_.embedder(this_X)
+                latent = self.module_.predict_latent({study: this_X})[study]
                 rec = torch.matmul(latent, back_proj)
             recs[study] = rec.cpu().numpy()
         return recs
