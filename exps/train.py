@@ -33,14 +33,14 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'hcp'],
+        studies=['archi', 'la5c'],
         target_study='archi',
     )
     model = dict(
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter={'pretrain': 100, 'sparsify': 100, 'finetune': 100},
+        max_iter={'pretrain': 50, 'sparsify': 50, 'finetune': 50},
     )
     factored_variational = dict(
         optimizer='adam',
@@ -49,7 +49,7 @@ def default():
         regularization=1,
         epoch_counting='all',
         sampling='random',
-        batch_size=64,
+        batch_size=128,
         seed=1,
         dropout=0.75,
         lr=1e-3,
