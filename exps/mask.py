@@ -1,15 +1,14 @@
-import os
-import re
-from os.path import join
-
 import numpy as np
+import os
 import pandas as pd
+import re
 from joblib import Parallel, delayed, dump, load
 from nibabel import Nifti1Image
 from nilearn._utils import check_niimg
 from nilearn.datasets import fetch_icbm152_brain_gm_mask
-from nilearn.image import resample_img
+from nilearn.image import resample_img, swap_img_hemispheres, iter_img
 from nilearn.input_data import NiftiMasker, MultiNiftiMasker
+from os.path import join
 from sklearn.utils import gen_batches
 
 from cogspaces.datasets.contrasts import fetch_all
@@ -61,7 +60,7 @@ def mask_all(output_dir: str or None, n_jobs: int=1, mask: str='icbm_gm'):
 
 
 def reduce_all(masked_dir, output_dir, n_jobs=1, lstsq=False,
-               mask: str = 'icbm_gm'):
+               mask: str = 'hcp'):
     batch_size = 200
 
     if not os.path.exists(output_dir):
@@ -72,6 +71,9 @@ def reduce_all(masked_dir, output_dir, n_jobs=1, lstsq=False,
     dictionary = modl_atlas['components512']
     masker = NiftiMasker(mask_img=mask).fit()
     components = masker.transform(dictionary)
+    dictionary_sym = list(map(swap_img_hemispheres, iter_img(dictionary)))
+    components_sym = masker.transform(dictionary_sym)
+    components = np.concatenate([components, components_sym], axis=0)
 
     expr = re.compile("data_(.*).pt")
 
@@ -126,11 +128,11 @@ def compute_icbm_mask(output_dir):
 
 
 def main():
-    masked_dir = join(get_data_dir(), 'masked_gm')
-    reduced_dir = join(get_data_dir(), 'reduced_512_gm_lstsq')
+    masked_dir = join(get_data_dir(), 'masked')
+    reduced_dir = join(get_data_dir(), 'reduced_512_sym')
     # mask_all(output_dir=masked_dir, n_jobs=30, mask='icbm_gm')
     reduce_all(output_dir=reduced_dir,
-               masked_dir=masked_dir, n_jobs=30, mask='icbm_gm', lstsq=True)
+               masked_dir=masked_dir, n_jobs=30, mask='hcp', lstsq=False)
     # Data can now be loaded using `cogspaces.utils.data.load_masked_data`
 
 

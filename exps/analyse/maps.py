@@ -77,7 +77,7 @@ def analyse(output_dir):
     estimator = load(join(output_dir, 'estimator.pkl'))
     target_encoder = load(join(output_dir, 'target_encoder.pkl'))
 
-    embedder_coef = estimator.module_.embedder.linear.sparse_weight.data.numpy()
+    embedder_coef = estimator.module_.embedder.linear.weight.data.numpy()
     lr2 = DenoisingLinearRegresion()
     snr = np.exp(
         - .5 * estimator.module_.embedder.linear.log_alpha.data.numpy())
@@ -123,6 +123,33 @@ def plot_single(img, name, output_dir):
     plt.close(fig)
 
 
+def plot_single_3d(img, name, output_dir):
+    import matplotlib
+    matplotlib.use('agg')
+    import matplotlib.pyplot as plt
+    from nilearn import surface
+    from nilearn import datasets
+    from nilearn.plotting import plot_surf_stat_map
+    fsaverage = datasets.fetch_surf_fsaverage5()
+
+    fig = plt.figure(figsize=(16, 6))
+    ax1 = fig.add_subplot(121, projection='3d')
+    ax2 = fig.add_subplot(122, projection='3d')
+
+    texture = surface.vol_to_surf(img, fsaverage.pial_right)
+    plot_surf_stat_map(fsaverage.infl_right, texture, hemi='right',
+                       bg_map=fsaverage.sulc_right, threshold=1e-4,
+                       fig=fig, axes=ax1,
+                       cmap='cold_hot')
+    texture = surface.vol_to_surf(img, fsaverage.pial_left)
+    plot_surf_stat_map(fsaverage.infl_left, texture, hemi='left',
+                       bg_map=fsaverage.sulc_right, threshold=1e-4,
+                       fig=fig, axes=ax2,
+                       cmap='cold_hot')
+    plt.savefig(join(output_dir, '%s.png' % name))
+    plt.close(fig)
+
+
 def plot_double(img, img2, name, output_dir):
     import matplotlib
     matplotlib.use('agg')
@@ -144,6 +171,14 @@ def plot_all(imgs, output_dir, name, n_jobs=1):
     Parallel(n_jobs=n_jobs)(
         delayed(plot_single)(img,
                              ('%s_%i' % (name, i)), output_dir)
+        for i, img in
+        enumerate(iter_img(imgs)))
+
+
+def plot_all_3d(imgs, output_dir, name, n_jobs=1):
+    Parallel(n_jobs=n_jobs)(
+        delayed(plot_single_3d)(img,
+                                ('%s_%i' % (name, i)), output_dir)
         for i, img in
         enumerate(iter_img(imgs)))
 
@@ -170,8 +205,8 @@ def make_level12_imgs(lr):
     mask = fetch_mask()['hcp']
     masker = NiftiMasker(mask_img=mask).fit()
     coef = lr.coef_
-    mean = coef.mean(axis=1)
-    coef[mean < 0] *= -1
+    # pos = np.sum(coef > 0, axis=1) - np.sum(coef < 0, axis=1)
+    # coef[pos < 0] *= -1
     img = masker.inverse_transform(coef)
     snr = masker.inverse_transform(lr.snr_)
     return img, snr
@@ -237,7 +272,7 @@ def introspect(output_dir, baseline=False):
 
 
 def plot(output_dir, baseline_output_dir, plot_components=True,
-         plot_classif=True, n_jobs=1):
+         plot_classif=True, plot_components_3d=True, n_jobs=1):
     introspect_dir = join(output_dir, 'maps')
     baseline_introspect_dir = join(baseline_output_dir, 'maps')
     plot_dir = join(introspect_dir, 'plot')
@@ -249,6 +284,9 @@ def plot(output_dir, baseline_output_dir, plot_components=True,
         plot_all(components, plot_dir, 'components', n_jobs=n_jobs)
         components = check_niimg(join(introspect_dir, 'snr.nii.gz'))
         plot_all(components, plot_dir, 'snr')
+    if plot_components_3d:
+        components = check_niimg(join(introspect_dir, 'components.nii.gz'))
+        plot_all_3d(components, plot_dir, 'components_3d', n_jobs=n_jobs)
     if plot_classif:
         names = load(join(introspect_dir, 'names.pkl'))
         imgs = join(baseline_introspect_dir, 'classif.nii.gz')
@@ -260,7 +298,8 @@ def introspect_and_plot(output_dir, n_jobs=1):
     introspect(output_dir, baseline=False)
 
     baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
-    plot(output_dir, baseline_output_dir, n_jobs=n_jobs, plot_classif=False)
+    plot(output_dir, baseline_output_dir, n_jobs=n_jobs, plot_classif=False,
+         plot_components=True, plot_components_3d=False)
 
 
 if __name__ == '__main__':
@@ -268,5 +307,8 @@ if __name__ == '__main__':
     # introspect(baseline_output_dir, baseline=True)
     # #
     # output_dir = join(get_output_dir(), 'multi_studies', '1969')
-    output_dir = join(get_output_dir(), 'multi_studies', '1983')
-    introspect_and_plot(output_dir, n_jobs=3)
+    output_dir = join(get_output_dir(), 'multi_studies', '2004')
+    introspect_and_plot(output_dir, n_jobs=20)
+    # baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
+    # plot(output_dir, baseline_output_dir, n_jobs=20, plot_classif=False,
+    #      plot_components=False, plot_components_3d=True)

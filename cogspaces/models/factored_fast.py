@@ -8,7 +8,6 @@ import tempfile
 import torch
 import torch.nn.functional as F
 import warnings
-from cogspaces.models.factored import Identity
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_random_state
 from torch import nn
@@ -16,6 +15,8 @@ from torch.autograd import Variable
 from torch.optim import Adam, SGD, Optimizer
 from torch.utils.data import DataLoader, TensorDataset
 from typing import Dict, Tuple
+
+from cogspaces.models.factored import Identity
 
 
 def infinite_iter(iterable):
@@ -485,14 +486,16 @@ class MultiStudyClassifier(BaseEstimator):
             if name != 'embedder.linear.weight':
                 params.append(param)
         if self.optimizer == 'adam':
-            optimizer = OurAdam([dict(params=params,
-                                      # soft_thresholding=self.regularization
-                                      ),
-                                 dict(params=embedder_weight,
-                                      soft_thresholding=0,
-                                      clip='none')
-                                 ],
-                                lr=self.lr)
+            optimizer = Adam(self.module_.parameters(), lr=self.lr,
+                             amsgrad=True)
+            # optimizer = OurAdam([dict(params=params,
+            #                           # soft_thresholding=self.regularization
+            #                           ),
+            #                      dict(params=embedder_weight,
+            #                           soft_thresholding=0,
+            #                           clip='none')
+            #                      ],
+            #                     lr=self.lr)
         elif self.optimizer == 'sgd':
             optimizer = SGD(self.module_.parameters(), lr=self.lr, )
         else:
@@ -525,9 +528,9 @@ class MultiStudyClassifier(BaseEstimator):
         best_loss = float('inf')
         no_improvement = 0
         n_elem = self.module_.embedder.linear.weight.view(-1).shape[0]
-        random_features = check_random_state(10).permutation(n_elem)[
+        indices = check_random_state(10).permutation(n_elem)[
                           :100].tolist()
-        weights = []
+        self.recorded_ = []
         for inputs, targets in data_loader:
             batch_size = sum(input.shape[0] for input in inputs.values())
             seen_samples += batch_size
@@ -550,6 +553,9 @@ class MultiStudyClassifier(BaseEstimator):
 
             epoch = floor(seen_samples / n_samples)
             if epoch > old_epoch:
+                self.recorded_.append(self.module_.embedder.linear.weight
+                                      .detach().view((-1))[
+                                          indices].numpy())
                 old_epoch = epoch
                 epoch_batch = 0
 
@@ -579,9 +585,8 @@ class MultiStudyClassifier(BaseEstimator):
                     callback(self, epoch)
                     print('----------------------------------')
                     break
-        # weights = np.concatenate([weight[None, :] for weight in weights], axis=0)
-        # np.save('weights_7.npy', weights)
-
+        self.recorded_ = np.concatenate([record[None, :] for
+                                         record in self.recorded_], axis=0)
         X_red = {}
         self.module_.embedder.input_dropout.p = 0
         for study, this_X in X.items():

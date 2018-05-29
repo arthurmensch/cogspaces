@@ -19,7 +19,6 @@ from cogspaces.models.variational import VarMultiStudyClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
-from exps.analyse.maps import introspect_and_plot
 
 exp = Experiment('multi_studies')
 
@@ -27,51 +26,51 @@ exp = Experiment('multi_studies')
 @exp.config
 def default():
     seed = 10
-    full = True
+    full = False
     system = dict(
         device=-1,
         verbose=2,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'brainomics'],
+        studies=['archi', 'hcp'],
         target_study='archi',
     )
     model = dict(
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter={'pretrain': 300, 'sparsify': 300, 'finetune': 300},
+        max_iter={'pretrain': 100, 'sparsify': 100, 'finetune': 100},
     )
     factored_variational = dict(
         optimizer='adam',
-        latent_size=64,
+        latent_size=128,
         activation='linear',
+        regularization=1,
         epoch_counting='all',
         sampling='random',
-        batch_size=128,
-        dropout=0.5,
+        batch_size=64,
+        seed=1,
+        dropout=0.75,
         lr=1e-3,
         input_dropout=0.25)
-
-
 
     factored_fast = dict(
         optimizer='adam',
         latent_size=128,
         activation='linear',
         epoch_counting='all',
-
         sampling='random',
-        batch_size=64,
-        regularization=1e-1,
-        dropout=0.5,
+        batch_size=128,
+        regularization=1e-2,
+        dropout=0.75,
         lr=1e-3,
         input_dropout=0.25)
+
     factored = dict(
         optimizer='adam',
         adapt_size=0,
-        shared_latent_size=64,
+        shared_latent_size=128,
         private_latent_size=0,
         shared_latent='hard',
         skip_connection=False,
@@ -114,7 +113,8 @@ def default():
 
 @exp.capture
 def save_output(target_encoder, standard_scaler, estimator,
-                test_preds, test_latents, train_latents, _run):
+                test_preds, test_latents, train_latents,
+                recorded, _run):
     if not _run.unobserved:
         try:
             observer = next(filter(lambda x:
@@ -128,6 +128,7 @@ def save_output(target_encoder, standard_scaler, estimator,
         dump(test_preds, join(observer.dir, 'test_preds.pkl'))
         dump(test_latents, join(observer.dir, 'test_latents.pkl'))
         dump(train_latents, join(observer.dir, 'train_latents.pkl'))
+        dump(recorded, join(observer.dir, 'recorded.pkl'))
 
 
 @exp.capture(prefix='data')
@@ -142,8 +143,6 @@ def load_data(source_dir, studies, target_study):
         studies = [studies]
     elif not isinstance(studies, list):
         raise ValueError("Studies should be a list or 'all'")
-    # studies.remove(target_study)
-    # studies = [target_study] + studies
     data = {study: data[study] for study in studies}
     target = {study: target[study] for study in studies}
     return data, target
@@ -188,15 +187,14 @@ def train(system, model, factored, factored_cv, trace, logistic,
                                          **factored_cv)
     elif model['estimator'] == 'factored_fast':
         estimator = MultiStudyClassifier(verbose=system['verbose'],
-                                            device=system['device'],
-                                            max_iter=model['max_iter'],
-                                            seed=_seed,
-                                            **factored_fast)
+                                         device=system['device'],
+                                         max_iter=model['max_iter'],
+                                         seed=_seed,
+                                         **factored_fast)
     elif model['estimator'] == 'factored_variational':
         estimator = VarMultiStudyClassifier(verbose=system['verbose'],
                                             device=system['device'],
                                             max_iter=model['max_iter'],
-                                            seed=_seed,
                                             **factored_variational)
     elif model['estimator'] == 'trace':
         estimator = TraceClassifier(verbose=system['verbose'],
@@ -226,7 +224,6 @@ def train(system, model, factored, factored_cv, trace, logistic,
                   callback=callback
                   )
 
-    # _run.info['embedder_density'] = estimator.embedder_density_
 
     if model['estimator'] == 'factored_cv':
         target = list(test_data.keys())[0]
@@ -256,7 +253,8 @@ def train(system, model, factored, factored_cv, trace, logistic,
                                       axis=1,
                                       keys=['pred', 'true'], names=['target'])
     save_output(target_encoder, standard_scaler, estimator, test_preds,
-                test_latents, train_latents)
+                test_latents, train_latents, estimator.recorded_)
+
     return test_scores
 
 
@@ -290,5 +288,4 @@ if __name__ == '__main__':
     exp.observers.append(OurFileStorageObserver.create(basedir=output_dir))
     run = exp.run()
     output_dir = join(output_dir, str(run._id))
-    introspect_and_plot(output_dir, n_jobs=3)
-
+    # introspect_and_plot(output_dir, n_jobs=3)
