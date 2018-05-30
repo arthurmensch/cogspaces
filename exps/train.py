@@ -33,24 +33,23 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'la5c'],
+        studies='all',
         target_study='archi',
     )
     model = dict(
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter={'pretrain': 50, 'sparsify': 50, 'finetune': 50},
+        max_iter={'pretrain': 100, 'sparsify': 100, 'finetune': 100},
     )
     factored_variational = dict(
         optimizer='adam',
         latent_size=128,
         activation='linear',
-        regularization=1,
+        # regularization=1,
         epoch_counting='all',
         sampling='random',
         batch_size=128,
-        seed=1,
         dropout=0.75,
         lr=1e-3,
         input_dropout=0.25)
@@ -74,7 +73,7 @@ def default():
         private_latent_size=0,
         shared_latent='hard',
         skip_connection=False,
-        activation='linear',
+        activation='relu',
         epoch_counting='all',
         sampling='cycle',
         fine_tune=True,
@@ -138,7 +137,7 @@ def load_data(source_dir, studies, target_study):
         this_target['all_contrast'] = study + '_' + this_target['contrast']
 
     if studies == 'all':
-        studies = list(data.keys())
+        studies = list(sorted(data.keys()))
     elif isinstance(studies, str):
         studies = [studies]
     elif not isinstance(studies, list):
@@ -195,6 +194,7 @@ def train(system, model, factored, factored_cv, trace, logistic,
         estimator = VarMultiStudyClassifier(verbose=system['verbose'],
                                             device=system['device'],
                                             max_iter=model['max_iter'],
+                                            seed=_seed,
                                             **factored_variational)
     elif model['estimator'] == 'trace':
         estimator = TraceClassifier(verbose=system['verbose'],
@@ -223,7 +223,6 @@ def train(system, model, factored, factored_cv, trace, logistic,
                   study_weights=study_weights,
                   callback=callback
                   )
-
 
     if model['estimator'] == 'factored_cv':
         target = list(test_data.keys())[0]

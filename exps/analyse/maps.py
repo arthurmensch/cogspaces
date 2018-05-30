@@ -79,11 +79,12 @@ def analyse(output_dir):
 
     embedder_coef = estimator.module_.embedder.linear.weight.data.numpy()
     lr2 = DenoisingLinearRegresion()
-    snr = np.exp(
-        - .5 * estimator.module_.embedder.linear.log_alpha.data.numpy())
-    snr *= np.sign(embedder_coef)
-    lr2.snr_ = snr.dot(lr1.coef_)
+    # snr = (estimator.module_.embedder.linear.weight /
+    #              torch.exp(.5 * estimator.module_.embedder.linear.log_sigma2))
+    # snr = snr.detach().numpy()
+    # lr2.snr_ = snr.dot(lr1.coef_)
     lr2.coef_ = embedder_coef.dot(lr1.coef_)
+    lr2.snr_ = lr2.coef_
     lr2.intercept_ = estimator.module_.embedder.linear.bias.data.numpy()
 
     lr3s = {}
@@ -168,7 +169,7 @@ def plot_double(img, img2, name, output_dir):
 
 
 def plot_all(imgs, output_dir, name, n_jobs=1):
-    Parallel(n_jobs=n_jobs)(
+    Parallel(n_jobs=n_jobs, verbose=10)(
         delayed(plot_single)(img,
                              ('%s_%i' % (name, i)), output_dir)
         for i, img in
@@ -176,7 +177,7 @@ def plot_all(imgs, output_dir, name, n_jobs=1):
 
 
 def plot_all_3d(imgs, output_dir, name, n_jobs=1):
-    Parallel(n_jobs=n_jobs)(
+    Parallel(n_jobs=n_jobs, verbose=10)(
         delayed(plot_single_3d)(img,
                                 ('%s_%i' % (name, i)), output_dir)
         for i, img in
@@ -184,7 +185,7 @@ def plot_all_3d(imgs, output_dir, name, n_jobs=1):
 
 
 def plot_face_to_face(imgs, imgs_baseline, names, output_dir, n_jobs=1):
-    Parallel(n_jobs=n_jobs)(
+    Parallel(n_jobs=n_jobs, verbose=10)(
         delayed(plot_double)(img, img_baseline,
                              '%3i_%s' % (i, name), output_dir)
         for i, (img, img_baseline, name) in
@@ -282,8 +283,8 @@ def plot(output_dir, baseline_output_dir, plot_components=True,
     if plot_components:
         components = check_niimg(join(introspect_dir, 'components.nii.gz'))
         plot_all(components, plot_dir, 'components', n_jobs=n_jobs)
-        components = check_niimg(join(introspect_dir, 'snr.nii.gz'))
-        plot_all(components, plot_dir, 'snr')
+        # components = check_niimg(join(introspect_dir, 'snr.nii.gz'))
+        # plot_all(components, plot_dir, 'snr')
     if plot_components_3d:
         components = check_niimg(join(introspect_dir, 'components.nii.gz'))
         plot_all_3d(components, plot_dir, 'components_3d', n_jobs=n_jobs)
@@ -298,6 +299,7 @@ def introspect_and_plot(output_dir, n_jobs=1):
     introspect(output_dir, baseline=False)
 
     baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
+    print('Plotting')
     plot(output_dir, baseline_output_dir, n_jobs=n_jobs, plot_classif=False,
          plot_components=True, plot_components_3d=False)
 
@@ -307,7 +309,7 @@ if __name__ == '__main__':
     # introspect(baseline_output_dir, baseline=True)
     # #
     # output_dir = join(get_output_dir(), 'multi_studies', '1969')
-    output_dir = join(get_output_dir(), 'multi_studies', '2004')
+    output_dir = join(get_output_dir(), 'multi_studies', '2035')
     introspect_and_plot(output_dir, n_jobs=20)
     # baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
     # plot(output_dir, baseline_output_dir, n_jobs=20, plot_classif=False,

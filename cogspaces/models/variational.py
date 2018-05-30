@@ -7,7 +7,7 @@ import tempfile
 import torch
 import torch.nn.functional as F
 import warnings
-from os.path import join
+from os.path import join, expanduser
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_random_state
 from torch import nn
@@ -46,8 +46,9 @@ class DropoutLinear(nn.Linear):
                                        requires_grad=adaptive)
         elif level == 'additive':
             assert adaptive
-            self.log_sigma = Parameter(torch.Tensor(out_features, in_features),
-                                       requires_grad=True)
+            self.log_sigma2 = Parameter(
+                torch.Tensor(out_features, in_features),
+                requires_grad=True)
         else:
             raise ValueError()
 
@@ -63,13 +64,15 @@ class DropoutLinear(nn.Linear):
             self.reset_dropout()
 
     def reset_dropout(self):
-            log_alpha = math.log(self.p) - math.log(1 - self.p)
+        log_alpha = math.log(self.p) - math.log(1 - self.p)
 
-            if self.level != 'additive':
-                self.log_alpha.data.fill_(log_alpha)
-            else:
-                self.log_sigma2.data = log_alpha + torch.log(
-                    self.weight.data ** 2 + 1e-8)
+        if self.level != 'additive':
+            self.log_alpha.data.fill_(log_alpha)
+        else:
+            self.log_sigma2.data = log_alpha + torch.log(
+                self.weight.data ** 2 + 1e-8)
+            # self.log_sigma2.data.fill_(torch.mean(log_alpha + torch.log(
+            #     self.weight.data ** 2 + 1e-8).item()))
 
     def make_additive(self):
         assert self.level != 'additive'
@@ -79,8 +82,16 @@ class DropoutLinear(nn.Linear):
         out_features, in_features = self.weight.shape
         self.log_sigma2 = Parameter(torch.Tensor(out_features, in_features),
                                     requires_grad=True)
-        self.log_sigma2.data = (self.log_alpha.data.expand(*self.weight.shape)
-                                + torch.log(self.weight.data ** 2 + 1e-8))
+        self.log_sigma2.data = (self.log_alpha.expand(*self.weight.shape)
+                                + torch.log(self.weight ** 2 + 1e-8)
+                                ).detach()
+
+        # self.sigma = Parameter(torch.Tensor(out_features, in_features),
+        #                        requires_grad=True)
+        # self.sigma.data = torch.sqrt(
+        #     (torch.exp(self.log_alpha) * self.weight ** 2) + 1e-8).detach()
+        self.log_alpha.requires_grad = False
+        print(np.array2string(self.get_p().detach().numpy(), precision=3))
 
     def make_non_adaptative(self):
         assert self.level != 'additive'
@@ -88,16 +99,37 @@ class DropoutLinear(nn.Linear):
         self.adaptive = False
         self.log_alpha.requires_grad = False
 
+    def make_adaptive(self):
+        assert self.level != 'additive'
+        assert not self.adaptive
+        self.adaptive = True
+        self.log_alpha.requires_grad = True
+
+    def get_var_weight(self):
+        if self.level == 'additive':
+            return torch.exp(self.log_sigma2)
+            # return self.sigma ** 2
+        else:
+            return torch.exp(self.log_alpha) * self.weight ** 2
+
+    def get_log_alpha(self):
+        if self.level == 'additive':
+            return torch.clamp(self.log_sigma2 - torch.log(self.weight ** 2 + 1e-8), -8, 8)
+            # return torch.log(self.sigma ** 2 + 1e-8) - torch.log(
+            #     self.weight ** 2 + 1e-8)
+        else:
+            return torch.clamp(self.log_alpha, -8, 8)
+
+    def get_p(self):
+        return 1 / (1 + torch.exp(-self.get_log_alpha()))
+
     def forward(self, input):
         if self.training:
             output = F.linear(input, self.weight, self.bias)
             # Local reparemtrization trick: gaussian dropout noise on input
             # <-> gaussian noise on output
-            if self.level == 'additive':
-                var_weight = torch.exp(self.log_sigma2)
-            else:
-                var_weight = torch.exp(self.log_alpha) * self.weight ** 2
-            std = torch.sqrt(F.linear(input ** 2, var_weight, None) + 1e-8)
+            std = torch.sqrt(
+                F.linear(input ** 2, self.get_var_weight(), None) + 1e-8)
             eps = torch.randn_like(output, requires_grad=False)
             return output + std * eps
         else:
@@ -112,11 +144,7 @@ class DropoutLinear(nn.Linear):
             return torch.tensor(0., device=self.weight.device,
                                 dtype=torch.float)
         else:
-            if self.level == 'additive':
-                log_alpha = self.log_sigma2 - torch.log(
-                    self.weight ** 2 + 1e-8)
-            else:
-                log_alpha = self.log_alpha.expand(*self.weight.shape)
+            log_alpha = self.get_log_alpha()
             var_penalty = - k1 * (F.sigmoid(k2 + k3 * log_alpha)
                                   - .5 * F.softplus(-log_alpha)
                                   - 1).expand(*self.weight.shape).sum()
@@ -128,11 +156,7 @@ class DropoutLinear(nn.Linear):
 
     @property
     def sparse_weight(self):
-        if self.level == 'additive':
-            log_alpha = self.log_sigma2 - torch.log(self.weight ** 2 + 1e-8)
-        else:
-            log_alpha = self.log_alpha.expand(*self.weight.shape)
-        mask = log_alpha > 1
+        mask = self.get_p() > 0.95
         return self.weight.masked_fill(mask, 0)
 
 
@@ -159,7 +183,7 @@ class Embedder(nn.Module):
     def reset_parameters(self):
         self.linear.reset_parameters()
         self.linear.weight.data = torch.from_numpy(
-            np.load('loadings.npy')[0].T)
+            np.load(expanduser('~/work/repos/cogspaces/exps/loadings_128.npy'))[0].T)
         self.linear.reset_dropout()
 
     def penalty(self):
@@ -199,23 +223,30 @@ class VarMultiStudyModule(nn.Module):
                  input_dropout=0.,
                  regularization=1.,
                  latent_dropout=0.,
-                 adaptivity='embedding+classifier',
+                 adaptive='embedding+classifier',
                  ):
         super().__init__()
 
-        embedder_adaptive = 'embedding' in adaptivity
+        embedder_adaptive = 'embedding' in adaptive
 
-        total_length = sum(iter(lengths.values()))
+        lengths_arr = np.array(list(lengths.values())).astype('float')
+        inv_total_length = 1 / np.sum(lengths_arr)
 
+        # var_penalties = np.sum(np.sqrt(lengths_arr)) / np.sqrt(lengths_arr)
+        # var_penalties = {study: coef for study, coef in zip(lengths.keys(),
+        #                                                     var_penalties)}
+        # total_length = sum(iter(lengths.values()))
+        # inv_total_length = np.sum(np.float_power(lengths_arr, -.5)) / np.sum(np.float_power(lengths_arr, .5))
+        # inv_total_length = np.sum(np.float_power(lengths_arr, .5)) / np.sum(np.float_power(lengths_arr, 1.5))
         self.embedder = Embedder(in_features, latent_size,
                                  dropout=input_dropout,
                                  adaptive=embedder_adaptive,
-                                 var_penalty=regularization / total_length,
+                                 var_penalty=regularization * inv_total_length,
                                  activation=activation)
-        classifier_adaptive = 'classifier' in adaptivity
+        classifier_adaptive = 'classifier' in adaptive
         self.classifiers = {study: LatentClassifier(
             latent_size, target_size, dropout=latent_dropout,
-            var_penalty=regularization / total_length,
+            var_penalty=regularization * inv_total_length,
             adaptive=classifier_adaptive, )
             for study, target_size in target_sizes.items()}
         for study, classifier in self.classifiers.items():
@@ -258,7 +289,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                  batch_size=128, optimizer='sgd',
                  epoch_counting='all',
                  lr=0.001,
-                 fine_tune=False,
                  dropout=0.5, input_dropout=0.25,
                  max_iter=10000, verbose=0,
                  device=-1,
@@ -283,8 +313,6 @@ class VarMultiStudyClassifier(BaseEstimator):
 
         self.optimizer = optimizer
         self.lr = lr
-
-        self.fine_tune = fine_tune
 
         self.variational = variational
 
@@ -332,7 +360,7 @@ class VarMultiStudyClassifier(BaseEstimator):
             in_features=in_features,
             input_dropout=self.input_dropout,
             latent_dropout=self.dropout,
-            adaptivity='classifier',
+            adaptive='classifier',
             regularization=self.regularization,
             activation=self.activation,
             lengths=lengths,
@@ -374,13 +402,11 @@ class VarMultiStudyClassifier(BaseEstimator):
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         module.parameters()),
                                  lr=self.lr, amsgrad=True)
-            else: # phase == 'sparsify':
+            else:  # phase == 'sparsify':
                 module.embedder.linear.make_additive()
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         module.parameters()),
                                  lr=self.lr, amsgrad=True)
-                # optimizer.add_param_group(
-                #     {'params': self.module_.embedder.linear.log_sigma2})
 
             best_state = module.state_dict()
 
@@ -393,27 +419,6 @@ class VarMultiStudyClassifier(BaseEstimator):
             no_improvement = 0
             epoch_penalty = 0
             for inputs, targets in data_loader:
-                batch_size = sum(input.shape[0] for input in inputs.values())
-                seen_samples += batch_size
-                module.train()
-                optimizer.zero_grad()
-
-                preds = module(inputs)
-                loss = loss_function(preds, targets)
-                penalty = module.penalty(all_studies)
-                # penalty = module.penalty(inputs)
-                loss += penalty
-                loss.backward()
-                optimizer.step()
-
-                epoch_batch += 1
-                epoch_loss *= (1 - 1 / epoch_batch)
-                epoch_loss += loss.item() / epoch_batch
-
-                epoch_penalty *= (1 - 1 / epoch_batch)
-                epoch_penalty += penalty.item() / epoch_batch
-
-                epoch = floor(seen_samples / n_samples)
                 if epoch > old_epoch:
                     old_epoch = epoch
                     epoch_batch = 0
@@ -428,12 +433,15 @@ class VarMultiStudyClassifier(BaseEstimator):
                               % (epoch, epoch_loss, epoch_penalty, density))
                         p = {}
                         for study, classifier in self.module_.classifiers.items():
-                            log_alpha = classifier.linear.log_alpha.item()
-                            p[study] = 1 / (1 + np.exp(- log_alpha))
-                        print('dropout', ' '.join('%s: %.2f'
+                            p[
+                                study] = classifier.linear.get_p().detach().numpy()
+                        print('Dropout', ' '.join('%s: %.2f'
                                                   % (study, p[study]) for
                                                   study in p))
-
+                        p = module.embedder.linear.get_p().detach().numpy()
+                        print('Input dropout', np.array2string(p, precision=3,
+                                                               suppress_small=True,
+                                                               edgeitems=5))
                         if callback is not None:
                             callback(self, epoch)
 
@@ -456,80 +464,106 @@ class VarMultiStudyClassifier(BaseEstimator):
                                                 'model_%s.pkl' % phase))
                         print('-----------------------------------')
                         break
+
+                batch_size = sum(input.shape[0] for input in inputs.values())
+                seen_samples += batch_size
+                optimizer.zero_grad()
+                module.train()
+                preds = module(inputs)
+                loss = loss_function(preds, targets)
+                penalty = module.penalty(all_studies)
+                # penalty = module.penalty(inputs)
+                loss += penalty
+                loss.backward()
+                optimizer.step()
+
+                epoch_batch += 1
+                epoch_loss *= (1 - 1 / epoch_batch)
+                epoch_loss += loss.item() / epoch_batch
+
+                epoch_penalty *= (1 - 1 / epoch_batch)
+                epoch_penalty += penalty.item() / epoch_batch
+
+                epoch = floor(seen_samples / n_samples)
         self.recorded_ = np.concatenate([record[None, :] for
                                          record in self.recorded_], axis=0)
-        callback(self, self.max_iter)
-
         print('Final density %s' % module.embedder.linear.density)
-        # module.embedder.linear.sparsify = True
-        module.eval()
-        lr = self.lr
-        X_red = {}
-        for study, this_X in X.items():
-            print('Fine tuning %s' % study)
-            this_X = this_X.to(device=device)
-            with torch.no_grad():
-                X_red[study] = self.module_.embedder(this_X).to(device=device)
-            data = TensorDataset(X_red[study], y[study])
-            data_loader = DataLoader(data, shuffle=True,
-                                     batch_size=self.batch_size,
-                                     drop_last=False,
-                                     pin_memory=device.type == 'cuda')
-            this_module = module.classifiers[study]
-            this_module.train()
-            this_module.linear.make_non_adaptative()
-            optimizer = Adam(filter(lambda p: p.requires_grad,
-                                    this_module.parameters()),
-                             lr=lr, amsgrad=True)
-            loss_function = F.nll_loss
 
-            seen_samples = 0
-            best_loss = float('inf')
-            no_improvement = 0
-            epoch = 0
-            for epoch in range(self.max_iter[phase]):
-                epoch_batch = 0
-                epoch_penalty = 0
-                epoch_loss = 0
-                for input, target in data_loader:
-                    batch_size = input.shape[0]
-                    input = input.to(device=device)
-                    target = target.to(device=device)
+        if self.max_iter['finetune'] > 0:
+            X_red = {}
+            for study, this_X in X.items():
+                print('Fine tuning %s' % study)
+                this_X = this_X.to(device=device)
+                with torch.no_grad():
+                    self.module_.embedder.eval()
+                    X_red[study] = self.module_.embedder(this_X).to(
+                        device=device)
+                data = TensorDataset(X_red[study], y[study])
+                data_loader = DataLoader(data, shuffle=True,
+                                         batch_size=self.batch_size,
+                                         drop_last=False,
+                                         pin_memory=device.type == 'cuda')
+                this_module = module.classifiers[study]
+                if this_module.linear.adaptive:
+                    this_module.linear.make_non_adaptative()
+                    p = this_module.linear.get_p().item()
+                    if p > 0.75:
+                        this_module.linear.log_alpha.fill_(np.log(0.75 /
+                                                                  (1 - 0.75)))
+                optimizer = Adam(filter(lambda p: p.requires_grad,
+                                        this_module.parameters()),
+                                 lr=self.lr, amsgrad=True)
+                loss_function = F.nll_loss
 
-                    module.train()
-                    optimizer.zero_grad()
-                    pred = this_module(input)
-                    loss = loss_function(pred, target)
-                    penalty = this_module.penalty()
-                    loss += penalty
-                    loss.backward()
-                    optimizer.step()
+                seen_samples = 0
+                best_loss = float('inf')
+                no_improvement = 0
+                epoch = 0
+                for epoch in range(self.max_iter['finetune']):
+                    epoch_batch = 0
+                    epoch_penalty = 0
+                    epoch_loss = 0
+                    for input, target in data_loader:
+                        batch_size = input.shape[0]
+                        input = input.to(device=device)
+                        target = target.to(device=device)
 
-                    seen_samples += batch_size
-                    epoch_batch += 1
-                    epoch_loss *= (1 - 1 / epoch_batch)
-                    epoch_loss = loss.item() / epoch_batch
-                    epoch_penalty *= (1 - 1 / epoch_batch)
-                    epoch_penalty += penalty.item() / epoch_batch
+                        module.train()
+                        optimizer.zero_grad()
+                        this_module.train()
+                        pred = this_module(input)
+                        loss = loss_function(pred, target)
+                        penalty = this_module.penalty()
+                        loss += penalty
+                        loss.backward()
+                        optimizer.step()
 
-                if (report_every is not None
-                        and epoch % report_every == 0):
-                    print('Epoch %.2f, train loss: %.4f, penalty: %.4f'
-                          % (epoch, epoch_loss, epoch_penalty))
+                        seen_samples += batch_size
+                        epoch_batch += 1
+                        epoch_loss *= (1 - epoch_batch)
+                        epoch_loss = loss.item() / epoch_batch
+                        epoch_penalty *= (1 - 1 / epoch_batch)
+                        epoch_penalty += penalty.item() / epoch_batch
 
-                if epoch_loss > best_loss:
-                    no_improvement += 1
-                else:
-                    no_improvement = 0
-                    best_loss = epoch_loss
+                    if (report_every is not None
+                            and epoch % report_every == 0):
+                        print('Epoch %.2f, train loss: %.4f, penalty: %.4f, p: %.2f'
+                              % (epoch, epoch_loss, epoch_penalty, this_module.linear.get_p().item()))
 
-                if no_improvement > self.patience:
-                    break
-            # module.load_state_dict(best_state)
-            print('Stopping at epoch %.2f, train loss'
-                  ' %.4f' % (epoch, epoch_loss))
-            print('-----------------------------------')
-        callback(self, epoch)
+                    if epoch_loss > best_loss:
+                        no_improvement += 1
+                    else:
+                        no_improvement = 0
+                        best_loss = epoch_loss
+
+                    if no_improvement > self.patience:
+                        break
+                # module.load_state_dict(best_state)
+                print('Stopping at epoch %.2f, train loss'
+                      ' %.4f' % (epoch, epoch_loss))
+                print('-----------------------------------')
+        if callback is not None:
+            callback(self, epoch)
         return self
 
     def _check_device(self):

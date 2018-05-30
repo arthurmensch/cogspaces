@@ -34,19 +34,20 @@ def variational():
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter=100,
+        max_iter={'pretrain': 200, 'sparsify': 200, 'finetune': 400},
     )
     factored_variational = dict(
         optimizer='adam',
         latent_size=128,
         activation='linear',
+        # regularization=1,
         epoch_counting='all',
         sampling='random',
-        batch_size=128,
+        batch_size=64,
         dropout=0.75,
-        l1_penalty=0,
         lr=1e-3,
-        input_dropout=0.25,)
+        input_dropout=0.25)
+
 
 
 def run_exp(output_dir, config_updates, _id, mock=False):
@@ -68,10 +69,8 @@ if __name__ == '__main__':
     if grid == 'variational':
         output_dir = join(get_output_dir(), 'variational_2')
         exp.config(variational)
-        seeds = check_random_state(1).randint(0, 100000, size=4)
-        config_updates = ParameterGrid({'seed': seeds,
-                                        'factored_variational.embedder_reg':
-                                            [1., 3., 4., 5., 10.]})
+        seeds = check_random_state(1).randint(0, 100000, size=20)
+        config_updates = ParameterGrid({'seed': seeds})
     else:
         raise ValueError('Wrong argument')
 
