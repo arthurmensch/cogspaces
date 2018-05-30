@@ -1,5 +1,6 @@
 import sys
 
+import os
 from joblib import Parallel, delayed
 from os.path import join
 from sklearn.model_selection import ParameterGrid
@@ -67,7 +68,9 @@ def run_exp(output_dir, config_updates, _id, mock=False):
 if __name__ == '__main__':
     grid = sys.argv[1]
     if grid == 'variational':
-        output_dir = join(get_output_dir(), 'variational_2')
+        output_dir = join(get_output_dir(), 'variational_3')
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
         exp.config(variational)
         seeds = check_random_state(1).randint(0, 100000, size=20)
         config_updates = ParameterGrid({'seed': seeds})

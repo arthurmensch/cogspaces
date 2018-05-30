@@ -7,7 +7,7 @@ import tempfile
 import torch
 import torch.nn.functional as F
 import warnings
-from os.path import join, expanduser
+from os.path import join
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_random_state
 from torch import nn
@@ -182,8 +182,8 @@ class Embedder(nn.Module):
 
     def reset_parameters(self):
         self.linear.reset_parameters()
-        self.linear.weight.data = torch.from_numpy(
-            np.load(expanduser('~/work/repos/cogspaces/exps/loadings_128.npy'))[0].T)
+        # self.linear.weight.data = torch.from_numpy(
+        #     np.load(expanduser('~/work/repos/cogspaces/exps/loadings_128.npy'))[0].T)
         self.linear.reset_dropout()
 
     def penalty(self):
@@ -283,6 +283,10 @@ def regularization_schedule(start_value, stop_value, warmup, cooldown,
         return start_value * (1 - alpha) + stop_value * alpha
 
 
+class DeviceWarning(object):
+    pass
+
+
 class VarMultiStudyClassifier(BaseEstimator):
     def __init__(self, latent_size=30,
                  activation='linear',
@@ -325,6 +329,7 @@ class VarMultiStudyClassifier(BaseEstimator):
         self.seed = seed
 
     def fit(self, X, y, study_weights=None, callback=None):
+        torch.set_num_threads(1)
         device = self._check_device()
 
         torch.manual_seed(self.seed)
@@ -567,7 +572,7 @@ class VarMultiStudyClassifier(BaseEstimator):
         return self
 
     def _check_device(self):
-        if self.device == -1 or not torch.cuda.is_available():
+        if self.device == -1:
             device = torch.device('cpu')
         else:
             device = torch.device('cuda:%i' % self.device)
@@ -628,6 +633,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                      subject=0))
         return dfs
 
+
     def __getstate__(self):
         state = self.__dict__.copy()
         for key in ['module_']:
@@ -641,6 +647,11 @@ class VarMultiStudyClassifier(BaseEstimator):
         return state
 
     def __setstate__(self, state):
+        def uses_cuda(device):
+            if isinstance(device, torch.device):
+                device = device.type
+            return device.startswith('cuda')
+
         disable_cuda = False
         for key in ['module_']:
             if key not in state:
@@ -649,17 +660,21 @@ class VarMultiStudyClassifier(BaseEstimator):
             with tempfile.SpooledTemporaryFile() as f:
                 f.write(dump)
                 f.seek(0)
-                if state['device'] > -1 and not torch.cuda.is_available():
+                if (
+                        uses_cuda(state['device']) and
+                        not torch.cuda.is_available()
+                ):
+                    disable_cuda = True
                     val = torch.load(
                         f, map_location=lambda storage, loc: storage)
-                    disable_cuda = True
                 else:
                     val = torch.load(f)
             state[key] = val
         if disable_cuda:
             warnings.warn(
                 "Model configured to use CUDA but no CUDA devices "
-                "available. Loading on CPU instead.")
-            state['device'] = -1
+                "available. Loading on CPU instead.",
+                DeviceWarning)
+            state['device'] = 'cpu'
 
         self.__dict__.update(state)
