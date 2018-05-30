@@ -188,8 +188,8 @@ class Embedder(nn.Module):
 
     def reset_parameters(self):
         self.linear.reset_parameters()
-        self.linear.weight.data = torch.from_numpy(
-            np.load('loadings.npy')[0].T)
+        # self.linear.weight.data = torch.from_numpy(
+        #     np.load('loadings_128.npy')[0].T)
         # self.linear.weight.data.fill_(0.)
 
     def reset_dropout(self):
@@ -248,7 +248,7 @@ class VarMultiStudyModule(nn.Module):
         classifier_adaptive = 'classifier' in adaptivity
         self.classifiers = {study: LatentClassifier(
             latent_size, target_size, dropout=latent_dropout,
-            var_penalty=regularization / lengths[study],
+            var_penalty=regularization / total_length,
             adaptive=classifier_adaptive, )
             for study, target_size in target_sizes.items()}
         for study, classifier in self.classifiers.items():
@@ -454,7 +454,7 @@ class VarMultiStudyClassifier(BaseEstimator):
 
                 preds = module(inputs)
                 loss = loss_function(preds, targets)
-                penalty = module.penalty(inputs)
+                penalty = module.penalty(all_studies)
                 loss += penalty
                 loss.backward()
                 optimizer.step()
