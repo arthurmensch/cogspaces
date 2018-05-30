@@ -7,7 +7,7 @@ import tempfile
 import torch
 import torch.nn.functional as F
 import warnings
-from os.path import join
+from os.path import join, expanduser
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_random_state
 from torch import nn
@@ -71,8 +71,6 @@ class DropoutLinear(nn.Linear):
         else:
             self.log_sigma2.data = log_alpha + torch.log(
                 self.weight.data ** 2 + 1e-8)
-            # self.log_sigma2.data.fill_(torch.mean(log_alpha + torch.log(
-            #     self.weight.data ** 2 + 1e-8).item()))
 
     def make_additive(self):
         assert self.level != 'additive'
@@ -86,10 +84,6 @@ class DropoutLinear(nn.Linear):
                                 + torch.log(self.weight ** 2 + 1e-8)
                                 ).detach()
 
-        # self.sigma = Parameter(torch.Tensor(out_features, in_features),
-        #                        requires_grad=True)
-        # self.sigma.data = torch.sqrt(
-        #     (torch.exp(self.log_alpha) * self.weight ** 2) + 1e-8).detach()
         self.log_alpha.requires_grad = False
         print(np.array2string(self.get_p().detach().numpy(), precision=3))
 
@@ -115,8 +109,6 @@ class DropoutLinear(nn.Linear):
     def get_log_alpha(self):
         if self.level == 'additive':
             return torch.clamp(self.log_sigma2 - torch.log(self.weight ** 2 + 1e-8), -8, 8)
-            # return torch.log(self.sigma ** 2 + 1e-8) - torch.log(
-            #     self.weight ** 2 + 1e-8)
         else:
             return torch.clamp(self.log_alpha, -8, 8)
 
@@ -125,13 +117,18 @@ class DropoutLinear(nn.Linear):
 
     def forward(self, input):
         if self.training:
-            output = F.linear(input, self.weight, self.bias)
-            # Local reparemtrization trick: gaussian dropout noise on input
-            # <-> gaussian noise on output
-            std = torch.sqrt(
-                F.linear(input ** 2, self.get_var_weight(), None) + 1e-8)
-            eps = torch.randn_like(output, requires_grad=False)
-            return output + std * eps
+            if self.adaptive:
+                output = F.linear(input, self.weight, self.bias)
+                # Local reparemtrization trick: gaussian dropout noise on input
+                # <-> gaussian noise on output
+                std = torch.sqrt(
+                    F.linear(input ** 2, self.get_var_weight(), None) + 1e-8)
+                eps = torch.randn_like(output, requires_grad=False)
+                return output + std * eps
+            else:
+                eps = torch.randn_like(input, requires_grad=False)
+                input = input * (1 + torch.exp(.5 * self.get_log_alpha()) * eps)
+                return F.linear(input, self.weight, self.bias)
         else:
             if self.sparsify:
                 weight = self.sparse_weight
@@ -182,8 +179,8 @@ class Embedder(nn.Module):
 
     def reset_parameters(self):
         self.linear.reset_parameters()
-        # self.linear.weight.data = torch.from_numpy(
-        #     np.load(expanduser('~/work/repos/cogspaces/exps/loadings_128.npy'))[0].T)
+        self.linear.weight.data = torch.from_numpy(
+            np.load(expanduser('~/work/repos/cogspaces/exps/loadings_128.npy'))[0].T)
         self.linear.reset_dropout()
 
     def penalty(self):
@@ -411,7 +408,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 module.embedder.linear.make_additive()
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         module.parameters()),
-                                 lr=self.lr, amsgrad=True)
+                                 lr=self.lr * .1, amsgrad=True)
 
             best_state = module.state_dict()
 

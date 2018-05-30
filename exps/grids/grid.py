@@ -68,7 +68,7 @@ def run_exp(output_dir, config_updates, _id, mock=False):
 if __name__ == '__main__':
     grid = sys.argv[1]
     if grid == 'variational':
-        output_dir = join(get_output_dir(), 'variational_3')
+        output_dir = join(get_output_dir(), 'variational_4')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         exp.config(variational)
