@@ -5,6 +5,7 @@ import numpy as np
 import os
 import pandas as pd
 import re
+import seaborn as sns
 from matplotlib import gridspec
 from os.path import expanduser, join
 
@@ -62,62 +63,64 @@ def summarize_baseline():
 
 
 def summarize_variational():
-    # output_dir = [expanduser('~/output/cogspaces/variational'), ]
-    #
-    # regex = re.compile(r'[0-9]+$')
-    # res = []
-    # for this_output_dir in output_dir:
-    #     for this_dir in filter(regex.match, os.listdir(this_output_dir)):
-    #         this_exp_dir = join(this_output_dir, this_dir)
-    #         this_dir = int(this_dir)
-    #         try:
-    #             config = json.load(
-    #                 open(join(this_exp_dir, 'config.json'), 'r'))
-    #             run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
-    #             info = json.load(
-    #                 open(join(this_exp_dir, 'info.json'), 'r'))
-    #         except (FileNotFoundError, json.decoder.JSONDecodeError):
-    #             print('Skipping exp %i' % this_dir)
-    #             continue
-    #         test_scores = run['result']
-    #         if test_scores is None:
-    #             print('Skipping exp %i' % this_dir)
-    #             continue
-    #         seed = config['seed']
-    #         this_res = dict(seed=seed, **test_scores)
-    #         res.append(this_res)
-    # res = pd.DataFrame(res)
-    # res = res.set_index('seed')
-    # pd.to_pickle(res, join(expanduser('~/output/cogspaces/variational.pkl')))
+    output_dir = [expanduser('~/output/cogspaces/variational_3'), ]
+
+    regex = re.compile(r'[0-9]+$')
+    res = []
+    for this_output_dir in output_dir:
+        for this_dir in filter(regex.match, os.listdir(this_output_dir)):
+            this_exp_dir = join(this_output_dir, this_dir)
+            this_dir = int(this_dir)
+            try:
+                config = json.load(
+                    open(join(this_exp_dir, 'config.json'), 'r'))
+                run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
+                info = json.load(
+                    open(join(this_exp_dir, 'info.json'), 'r'))
+            except (FileNotFoundError, json.decoder.JSONDecodeError):
+                print('Skipping exp %i' % this_dir)
+                continue
+            test_scores = run['result']
+            if test_scores is None:
+                print('Skipping exp %i' % this_dir)
+                continue
+            seed = config['seed']
+            this_res = dict(seed=seed, **test_scores)
+            res.append(this_res)
+    res = pd.DataFrame(res)
+    res = res.set_index('seed')
+    pd.to_pickle(res, join(expanduser('~/output/cogspaces/variational_3.pkl')))
     res = pd.read_pickle(
-        join(expanduser('~/output/cogspaces/variational.pkl')))
+        join(expanduser('~/output/cogspaces/variational_3.pkl')))
     studies = res.columns
     res = [res[study] for study in studies]
     res = pd.concat(res, keys=studies, names=['study'])
     pd.to_pickle(res,
-                 join(expanduser('~/output/cogspaces/variational_seed.pkl')))
+                 join(expanduser('~/output/cogspaces/variational_seed_3.pkl')))
     res = res.groupby('study').aggregate(['mean', 'std'])
     pd.to_pickle(res,
-                 join(expanduser('~/output/cogspaces/variational_avg.pkl')))
+                 join(expanduser('~/output/cogspaces/variational_avg_3.pkl')))
 
 
 def compare_variational():
     variational = pd.read_pickle(
-        join(expanduser('~/output/cogspaces/variational_seed.pkl')))
+        join(expanduser('~/output/cogspaces/variational_seed_3.pkl')))
     baseline = pd.read_pickle(
-        join(expanduser('~/output/cogspaces/baseline_seed.pkl')))
+        join(expanduser('~/output/cogspaces/baseline_seed.pkl')))['test_score']
+    print(baseline)
+    print(variational)
     variational = pd.DataFrame(data=dict(score=variational))
     baseline = pd.DataFrame(data=dict(score=baseline))
     joined = variational.join(baseline, how='inner', lsuffix='_variational',
                      rsuffix='_baseline')
     joined['diff'] = joined['score_variational'] - joined['score_baseline']
     joined = joined.groupby('study').aggregate(['mean', 'std'])
-    pd.to_pickle(joined, (expanduser('~/output/cogspaces/joined.pkl')))
+    pd.to_pickle(joined, (expanduser('~/output/cogspaces/joined_3.pkl')))
 
 
 def plot_variational():
     output_dir = expanduser('~/output/cogspaces/')
-    data = pd.read_pickle(join(output_dir, 'joined.pkl'))
+    data = pd.read_pickle(join(output_dir, 'joined_3.pkl'))
     data = data.sort_values(('diff', 'mean'), ascending=False)
     gs = gridspec.GridSpec(2, 1,
                            height_ratios=[1, 2]
@@ -166,7 +169,7 @@ def plot_variational():
     ax1.legend((rects1[0], rects2[0], rects[0]),
                ('Baseline', 'Transfer', 'Diff'))
     sns.despine(fig)
-    plt.savefig(join(output_dir, 'comparison_variational.pdf'))
+    plt.savefig(join(output_dir, 'comparison_variational_3.pdf'))
     # plt.show()
 
 
@@ -372,10 +375,10 @@ def plot():
 
 
 if __name__ == '__main__':
-    # summarize_variational()
-    summarize_baseline()
-    # compare_variational()
-    # plot_variational()
+    summarize_variational()
+    # summarize_baseline()
+    compare_variational()
+    plot_variational()
     # summarize_factored    ()
     # summarize_study_selection()
     # plot_study_selection()

@@ -246,7 +246,7 @@ class VarMultiStudyModule(nn.Module):
         classifier_adaptive = 'classifier' in adaptive
         self.classifiers = {study: LatentClassifier(
             latent_size, target_size, dropout=latent_dropout,
-            var_penalty=regularization * inv_total_length,
+            var_penalty=regularization / lengths[study],
             adaptive=classifier_adaptive, )
             for study, target_size in target_sizes.items()}
         for study, classifier in self.classifiers.items():
@@ -476,7 +476,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 module.train()
                 preds = module(inputs)
                 loss = loss_function(preds, targets)
-                penalty = module.penalty(all_studies)
+                penalty = module.penalty(inputs)
                 # penalty = module.penalty(inputs)
                 loss += penalty
                 loss.backward()

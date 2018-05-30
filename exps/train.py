@@ -29,7 +29,7 @@ def default():
     full = False
     system = dict(
         device=-1,
-        verbose=2,
+        verbose=10,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
@@ -51,7 +51,7 @@ def default():
         sampling='random',
         batch_size=128,
         dropout=0.75,
-        lr=1e-3,
+        lr=5e-3,
         input_dropout=0.25)
 
     factored_fast = dict(
