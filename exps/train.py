@@ -34,7 +34,7 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies='archi',
+        studies='all',
         target_study='archi',
     )
     model = dict(
@@ -52,7 +52,7 @@ def default():
         sampling='random',
         batch_size=128,
         dropout=0.75,
-        lr=1e-3,
+        lr=1e-2,
         input_dropout=0.25)
 
     factored_fast = dict(

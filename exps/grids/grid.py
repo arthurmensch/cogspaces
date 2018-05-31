@@ -74,14 +74,16 @@ if __name__ == '__main__':
         exp.config(variational)
         seeds = check_random_state(1).randint(0, 100000, size=20)
         config_updates = ParameterGrid({'seed': seeds})
-    if grid == 'variational_full':
-        output_dir = join(get_output_dir(), 'variational_full_2')
+    if grid == 'variational_2':
+        output_dir = join(get_output_dir(), 'variational_sym')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         exp.config(variational)
         seeds = check_random_state(1).randint(0, 100000, size=20)
-        full = [True]
-        config_updates = ParameterGrid({'seed': seeds, 'full': full})
+        full = [False]
+        lr = [1e-3, 1e-2]
+        config_updates = ParameterGrid({'seed': seeds, 'full': full,
+                                        'factored_variational.lr': lr})
     else:
         raise ValueError('Wrong argument')
 

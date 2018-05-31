@@ -177,8 +177,11 @@ class Embedder(nn.Module):
 
     def reset_parameters(self):
         self.linear.reset_parameters()
-        self.linear.weight.data = torch.from_numpy(
-            np.load(expanduser('~/work/repos/cogspaces/exps/loadings_128.npy'))[0].T)
+        assign = np.load(expanduser('~/work/repos/cogspaces/exps/assign.npy')).tolist()
+        self.linear.weight.data += self.linear.weight.data[:, assign]
+        self.linear.weight.data /= 2
+        # self.linear.weight.data = torch.from_numpy(
+        #     np.load(expanduser('~/work/repos/cogspaces/exps/loadings_128.npy'))[0].T)
         self.linear.reset_dropout()
 
     def penalty(self):
@@ -235,6 +238,8 @@ class VarMultiStudyModule(nn.Module):
         # print(total_length)
         # inv_total_length = np.sum(np.float_power(lengths_arr, .5)) / np.sum(np.float_power(lengths_arr, 1.5))
         # print(1 / inv_total_length)
+        weight = np.sum(np.sqrt(lengths_arr)) / np.sqrt(lengths_arr)
+        weight = {study: this_weight for study, this_weight in zip(target_sizes, weight)}
         self.embedder = Embedder(in_features, latent_size,
                                  dropout=input_dropout,
                                  adaptive=embedder_adaptive,
@@ -243,7 +248,7 @@ class VarMultiStudyModule(nn.Module):
         classifier_adaptive = 'classifier' in adaptive
         self.classifiers = {study: LatentClassifier(
             latent_size, target_size, dropout=latent_dropout,
-            var_penalty=regularization / lengths[study],
+            var_penalty=regularization / total_length * weight[study],
             adaptive=classifier_adaptive, )
             for study, target_size in target_sizes.items()}
         for study, classifier in self.classifiers.items():
@@ -326,7 +331,7 @@ class VarMultiStudyClassifier(BaseEstimator):
         self.seed = seed
 
     def fit(self, X, y, study_weights=None, callback=None):
-        torch.set_num_threads(4)
+        torch.set_num_threads(1)
         device = self._check_device()
 
         torch.manual_seed(self.seed)
@@ -503,7 +508,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 print('Fine tuning %s' % study)
                 this_X = this_X.to(device=device)
                 with torch.no_grad():
-                    self.module_.embedder.linear.sparsify = False
+                    self.module_.embedder.linear.sparsify = True
                     self.module_.embedder.eval()
                     X_red[study] = self.module_.embedder(this_X).to(
                         device=device)
@@ -521,7 +526,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                                                                   (1 - 0.75)))
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         this_module.parameters()),
-                                 lr=self.lr * .1, amsgrad=True)
+                                 lr=self.lr, amsgrad=True)
                 loss_function = F.nll_loss
 
                 seen_samples = 0

@@ -85,7 +85,8 @@ def analyse(output_dir):
 
     embedder_coef = estimator.module_.embedder.linear.weight.data
 
-    mask = estimator.module_.embedder.linear.get_log_alpha() > 1
+    mask = estimator.module_.embedder.linear.get_log_alpha() > 3
+    print(mask.float().mean())
     embedder_coef = embedder_coef.masked_fill(mask, 0)
     embedder_coef = embedder_coef.detach().numpy()
     lr2.coef_ = embedder_coef.dot(lr1.coef_)
