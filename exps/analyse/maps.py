@@ -2,6 +2,7 @@ import json
 import numpy as np
 import os
 import re
+import torch
 from joblib import load, Memory, dump, Parallel, delayed
 from nilearn._utils import check_niimg
 from nilearn.image import iter_img
@@ -11,6 +12,9 @@ from sklearn.linear_model.base import LinearRegression
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir
+
+cachedir = expanduser('~/cache_local')
+# cachedir = expanduser('~/cache')
 
 
 class DenoisingLinearRegresion(LinearRegression):
@@ -42,7 +46,7 @@ def analyse_unsupervised():
 
 
 def analyse_baseline(output_dir):
-    mem = Memory(cachedir=expanduser('~/cache'))
+    mem = Memory(cachedir=cachedir)
 
     lr1 = mem.cache(analyse_unsupervised)()
 
@@ -70,21 +74,27 @@ def analyse_baseline(output_dir):
 
 
 def analyse(output_dir):
-    mem = Memory(cachedir=expanduser('~/cache'))
+    mem = Memory(cachedir=cachedir)
 
     lr1 = mem.cache(analyse_unsupervised)()
 
     estimator = load(join(output_dir, 'estimator.pkl'))
     target_encoder = load(join(output_dir, 'target_encoder.pkl'))
 
-    embedder_coef = estimator.module_.embedder.linear.weight.data.numpy()
     lr2 = DenoisingLinearRegresion()
-    # snr = (estimator.module_.embedder.linear.weight /
-    #              torch.exp(.5 * estimator.module_.embedder.linear.log_sigma2))
-    # snr = snr.detach().numpy()
-    # lr2.snr_ = snr.dot(lr1.coef_)
+
+    embedder_coef = estimator.module_.embedder.linear.weight.data
+
+    mask = estimator.module_.embedder.linear.get_log_alpha() > 1
+    embedder_coef = embedder_coef.masked_fill(mask, 0)
+    embedder_coef = embedder_coef.detach().numpy()
     lr2.coef_ = embedder_coef.dot(lr1.coef_)
-    lr2.snr_ = lr2.coef_
+
+    snr = torch.exp(- .5 * estimator.module_.embedder.linear.get_log_alpha().
+                    expand(*estimator.module_.embedder.linear.weight.shape))
+    snr = snr.detach().numpy()
+    lr2.snr_ = snr.dot(lr1.coef_)
+
     lr2.intercept_ = estimator.module_.embedder.linear.bias.data.numpy()
 
     lr3s = {}

@@ -6,11 +6,13 @@ import os
 import pandas as pd
 import re
 import seaborn as sns
+from joblib import Parallel, delayed
 from matplotlib import gridspec, ticker
 from os.path import expanduser, join
 
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir
+from exps.analyse.maps import introspect
 
 idx = pd.IndexSlice
 
@@ -49,8 +51,8 @@ def summarize_baseline():
     res = pd.read_pickle(join(expanduser('~/output/cogspaces/baseline.pkl')))
     res = res.set_index(['study', 'seed', 'l2_penalty'])
     idxmax = \
-    res.groupby(level=['study', 'l2_penalty']).aggregate('mean').groupby(
-        level='study').aggregate('idxmax')['test_score']
+        res.groupby(level=['study', 'l2_penalty']).aggregate('mean').groupby(
+            level='study').aggregate('idxmax')['test_score']
     res['l2_penalty_'] = res.index.get_level_values(level='l2_penalty')
     idxmax = idxmax.values.tolist()
     best_res = []
@@ -59,7 +61,7 @@ def summarize_baseline():
     best = pd.concat(best_res, keys=[study for study, _ in idxmax],
                      names=['study'])[['test_score', 'l2_penalty_']]
     pd.to_pickle(best, join(expanduser('~/output/cogspaces/'
-                                      'baseline_seed.pkl')))
+                                       'baseline_seed.pkl')))
     res = best.groupby('study').aggregate(['mean', 'std'])
     pd.to_pickle(res, join(expanduser('~/output/cogspaces/'
                                       'baseline_avg.pkl')))
@@ -115,14 +117,15 @@ def compare_variational():
     variational = pd.DataFrame(data=dict(score=variational))
     baseline = pd.DataFrame(data=dict(score=baseline))
     joined = variational.join(baseline, how='inner', lsuffix='_variational',
-                     rsuffix='_baseline')
+                              rsuffix='_baseline')
     joined['diff'] = joined['score_variational'] - joined['score_baseline']
     joined = joined.groupby('study').aggregate(['mean', 'std'])
     pd.to_pickle(joined, (expanduser('~/output/cogspaces/joined_4.pkl')))
 
 
 def plot_variational():
-    _, target = load_data_from_dir(data_dir=join(get_data_dir(), 'reduced_512'))
+    _, target = load_data_from_dir(
+        data_dir=join(get_data_dir(), 'reduced_512'))
 
     chance_level = {}
     n_subjects = {}
@@ -169,18 +172,21 @@ def plot_variational():
     rects1 = ax2.bar(ind, data[('score_baseline', 'mean')], width,
                      color=baseline_color, alpha=.8)
     errorbar = ax2.errorbar(ind, data[('score_baseline', 'mean')],
-                            yerr=data[('score_baseline', 'std')], elinewidth=1.5,
+                            yerr=data[('score_baseline', 'std')],
+                            elinewidth=1.5,
                             capsize=2, linewidth=0, ecolor=baseline_color,
                             alpha=.3)
     rects2 = ax2.bar(ind + width, data[('score_variational', 'mean')], width,
                      color=transfer_color, alpha=.8)
     errorbar = ax2.errorbar(ind + width, data[('score_variational', 'mean')],
-                            yerr=data[('score_variational', 'std')], elinewidth=1.5,
+                            yerr=data[('score_variational', 'std')],
+                            elinewidth=1.5,
                             capsize=2, linewidth=0, ecolor=transfer_color,
                             alpha=.3)
 
-    lines = ax2.hlines([chance_level[study] for study in data.index.values], ind - width / 2, ind + 3 * width / 2, colors='r',
-               linewidth=1, linestyles='--')
+    lines = ax2.hlines([chance_level[study] for study in data.index.values],
+                       ind - width / 2, ind + 3 * width / 2, colors='r',
+                       linewidth=1, linestyles='--')
 
     ax2.set_ylim([0., 0.95])
     ax2.yaxis.set_major_locator(ticker.MultipleLocator(0.2))
@@ -203,7 +209,7 @@ def plot_variational():
     std = data[('diff', 'std')]
     ax3.scatter(n_subjects, mean, color=diff_color, s=20, zorder=100)
     ax3.errorbar(n_subjects, mean, yerr=std, linewidth=0, elinewidth=1.5,
-                capsize=2, ecolor=diff_color, alpha=0.3, zorder=101)
+                 capsize=2, ecolor=diff_color, alpha=0.3, zorder=101)
     ax3.set_xlabel('# subjects in dataset')
     ax3.set_ylim([-0.025, 0.2])
     ax3.set_xscale('log')
@@ -427,11 +433,27 @@ def plot():
     plt.show()
 
 
+def map_variational():
+    output_dir = [expanduser('~/output_local/cogspaces/variational_full'), ]
+
+    regex = re.compile(r'[0-9]+$')
+    exp_dirs = []
+    for this_output_dir in output_dir:
+        for this_dir in filter(regex.match, os.listdir(this_output_dir)):
+            this_exp_dir = join(this_output_dir, this_dir)
+            if os.path.exists(join(this_exp_dir, 'estimator.pkl')):
+                exp_dirs.append(this_exp_dir)
+    print(exp_dirs)
+    Parallel(n_jobs=1, verbose=10)(delayed(introspect)(exp_dir)
+                                   for exp_dir in exp_dirs)
+#
+
 if __name__ == '__main__':
     # summarize_variational()
+    map_variational()
     # summarize_baseline()
     # compare_variational()
-    plot_variational()
+    # plot_variational()
     # summarize_factored    ()
     # summarize_study_selection()
     # plot_study_selection()

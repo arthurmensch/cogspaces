@@ -87,15 +87,13 @@ class DropoutLinear(nn.Linear):
         self.log_alpha.requires_grad = False
         print(np.array2string(self.get_p().detach().numpy(), precision=3))
 
-    def make_non_adaptative(self):
+    def make_non_adaptive(self):
         assert self.level != 'additive'
-        assert self.adaptive
         self.adaptive = False
         self.log_alpha.requires_grad = False
 
     def make_adaptive(self):
         assert self.level != 'additive'
-        assert not self.adaptive
         self.adaptive = True
         self.log_alpha.requires_grad = True
 
@@ -153,7 +151,7 @@ class DropoutLinear(nn.Linear):
 
     @property
     def sparse_weight(self):
-        mask = self.get_p() > 0.95
+        mask = self.get_log_alpha() > 3
         return self.weight.masked_fill(mask, 0)
 
 
@@ -227,18 +225,20 @@ class VarMultiStudyModule(nn.Module):
         embedder_adaptive = 'embedding' in adaptive
 
         lengths_arr = np.array(list(lengths.values())).astype('float')
-        inv_total_length = 1 / np.sum(lengths_arr)
 
         # var_penalties = np.sum(np.sqrt(lengths_arr)) / np.sqrt(lengths_arr)
         # var_penalties = {study: coef for study, coef in zip(lengths.keys(),
         #                                                     var_penalties)}
-        # total_length = sum(iter(lengths.values()))
-        # inv_total_length = np.sum(np.float_power(lengths_arr, -.5)) / np.sum(np.float_power(lengths_arr, .5))
+        total_length = sum(iter(lengths.values()))
+        # print(total_length)
+        # total_length = np.sum(np.float_power(lengths_arr, .5)) / np.sum(np.float_power(lengths_arr, -.5)) * len(lengths_arr)
+        # print(total_length)
         # inv_total_length = np.sum(np.float_power(lengths_arr, .5)) / np.sum(np.float_power(lengths_arr, 1.5))
+        # print(1 / inv_total_length)
         self.embedder = Embedder(in_features, latent_size,
                                  dropout=input_dropout,
                                  adaptive=embedder_adaptive,
-                                 var_penalty=regularization * inv_total_length,
+                                 var_penalty=regularization / total_length,
                                  activation=activation)
         classifier_adaptive = 'classifier' in adaptive
         self.classifiers = {study: LatentClassifier(
@@ -326,7 +326,7 @@ class VarMultiStudyClassifier(BaseEstimator):
         self.seed = seed
 
     def fit(self, X, y, study_weights=None, callback=None):
-        torch.set_num_threads(1)
+        torch.set_num_threads(4)
         device = self._check_device()
 
         torch.manual_seed(self.seed)
@@ -393,6 +393,8 @@ class VarMultiStudyClassifier(BaseEstimator):
         self.recorded_ = []
 
         for phase in ['pretrain', 'sparsify']:
+            if self.max_iter[phase] == 0:
+                continue
             if self.verbose != 0:
                 report_every = ceil(self.max_iter[phase] / self.verbose)
             else:
@@ -408,14 +410,14 @@ class VarMultiStudyClassifier(BaseEstimator):
                 module.embedder.linear.make_additive()
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         module.parameters()),
-                                 lr=self.lr * .1, amsgrad=True)
+                                 lr=self.lr, amsgrad=True)
 
             best_state = module.state_dict()
 
             old_epoch = -1
             epoch = 0
             seen_samples = 0
-            epoch_loss = 0
+            epoch_loss = float('inf')
             epoch_batch = 0
             best_loss = float('inf')
             no_improvement = 0
@@ -492,11 +494,16 @@ class VarMultiStudyClassifier(BaseEstimator):
         print('Final density %s' % module.embedder.linear.density)
 
         if self.max_iter['finetune'] > 0:
+            if self.verbose != 0:
+                report_every = ceil(self.max_iter['finetune'] / self.verbose)
+            else:
+                report_every = None
             X_red = {}
             for study, this_X in X.items():
                 print('Fine tuning %s' % study)
                 this_X = this_X.to(device=device)
                 with torch.no_grad():
+                    self.module_.embedder.linear.sparsify = False
                     self.module_.embedder.eval()
                     X_red[study] = self.module_.embedder(this_X).to(
                         device=device)
@@ -507,14 +514,14 @@ class VarMultiStudyClassifier(BaseEstimator):
                                          pin_memory=device.type == 'cuda')
                 this_module = module.classifiers[study]
                 if this_module.linear.adaptive:
-                    this_module.linear.make_non_adaptative()
+                    this_module.linear.make_non_adaptive()
                     p = this_module.linear.get_p().item()
                     if p > 0.75:
                         this_module.linear.log_alpha.fill_(np.log(0.75 /
                                                                   (1 - 0.75)))
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         this_module.parameters()),
-                                 lr=self.lr, amsgrad=True)
+                                 lr=self.lr * .1, amsgrad=True)
                 loss_function = F.nll_loss
 
                 seen_samples = 0
@@ -645,6 +652,7 @@ class VarMultiStudyClassifier(BaseEstimator):
 
     def __setstate__(self, state):
         def uses_cuda(device):
+            return False
             if isinstance(device, torch.device):
                 device = device.type
             return device.startswith('cuda')
