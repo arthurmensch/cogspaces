@@ -1,12 +1,12 @@
 import glob
 import os
-import re
-from os.path import join
-
 import pandas as pd
-from cogspaces.datasets.utils import get_data_dir
+import re
 from hcp_builder.dataset import fetch_hcp as hcp_builder_fetch_hcp
+from os.path import join
 from sklearn.utils import Bunch
+
+from cogspaces.datasets.utils import get_data_dir
 
 idx = pd.IndexSlice
 
@@ -308,7 +308,9 @@ def fetch_hcp(data_dir=None, n_subjects=None, subjects=None,
     contrasts = contrasts[['z_map']]
     # Replace symlink
     contrasts['z_map'] = contrasts['z_map'].map(lambda x:
-        x.replace('/storage/store/data/HCP900', source_dir))
+                                                x.replace(
+                                                    '/storage/store/data/HCP900',
+                                                    source_dir))
     contrasts.reset_index(inplace=True)
     contrasts['study'] = 'hcp'
     contrasts.set_index(

@@ -74,6 +74,13 @@ if __name__ == '__main__':
         exp.config(variational)
         seeds = check_random_state(1).randint(0, 100000, size=20)
         config_updates = ParameterGrid({'seed': seeds})
+    if grid == 'variational_full':
+        output_dir = join(get_output_dir(), 'variational_full')
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        exp.config(variational)
+        seeds = check_random_state(1).randint(0, 100000, size=20)
+        config_updates = ParameterGrid({'seed': seeds})
     else:
         raise ValueError('Wrong argument')
 

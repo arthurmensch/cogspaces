@@ -6,8 +6,11 @@ import os
 import pandas as pd
 import re
 import seaborn as sns
-from matplotlib import gridspec
+from matplotlib import gridspec, ticker
 from os.path import expanduser, join
+
+from cogspaces.data import load_data_from_dir
+from cogspaces.datasets.utils import get_data_dir
 
 idx = pd.IndexSlice
 
@@ -63,7 +66,7 @@ def summarize_baseline():
 
 
 def summarize_variational():
-    output_dir = [expanduser('~/output/cogspaces/variational_3'), ]
+    output_dir = [expanduser('~/output/cogspaces/variational_4'), ]
 
     regex = re.compile(r'[0-9]+$')
     res = []
@@ -89,22 +92,22 @@ def summarize_variational():
             res.append(this_res)
     res = pd.DataFrame(res)
     res = res.set_index('seed')
-    pd.to_pickle(res, join(expanduser('~/output/cogspaces/variational_3.pkl')))
+    pd.to_pickle(res, join(expanduser('~/output/cogspaces/variational_4.pkl')))
     res = pd.read_pickle(
-        join(expanduser('~/output/cogspaces/variational_3.pkl')))
+        join(expanduser('~/output/cogspaces/variational_4.pkl')))
     studies = res.columns
     res = [res[study] for study in studies]
     res = pd.concat(res, keys=studies, names=['study'])
     pd.to_pickle(res,
-                 join(expanduser('~/output/cogspaces/variational_seed_3.pkl')))
+                 join(expanduser('~/output/cogspaces/variational_seed_4.pkl')))
     res = res.groupby('study').aggregate(['mean', 'std'])
     pd.to_pickle(res,
-                 join(expanduser('~/output/cogspaces/variational_avg_3.pkl')))
+                 join(expanduser('~/output/cogspaces/variational_avg_4.pkl')))
 
 
 def compare_variational():
     variational = pd.read_pickle(
-        join(expanduser('~/output/cogspaces/variational_seed_3.pkl')))
+        join(expanduser('~/output/cogspaces/variational_seed_4.pkl')))
     baseline = pd.read_pickle(
         join(expanduser('~/output/cogspaces/baseline_seed.pkl')))['test_score']
     print(baseline)
@@ -115,20 +118,29 @@ def compare_variational():
                      rsuffix='_baseline')
     joined['diff'] = joined['score_variational'] - joined['score_baseline']
     joined = joined.groupby('study').aggregate(['mean', 'std'])
-    pd.to_pickle(joined, (expanduser('~/output/cogspaces/joined_3.pkl')))
+    pd.to_pickle(joined, (expanduser('~/output/cogspaces/joined_4.pkl')))
 
 
 def plot_variational():
+    _, target = load_data_from_dir(data_dir=join(get_data_dir(), 'reduced_512'))
+
+    chance_level = {}
+    n_subjects = {}
+    for study, this_target in target.items():
+        chance_level[study] = 1. / len(this_target['contrast'].unique())
+        n_subjects[study] = len(this_target['subject'].unique())
+
     output_dir = expanduser('~/output/cogspaces/')
-    data = pd.read_pickle(join(output_dir, 'joined_3.pkl'))
+    data = pd.read_pickle(join(output_dir, 'joined_4.pkl'))
     data = data.sort_values(('diff', 'mean'), ascending=False)
-    gs = gridspec.GridSpec(2, 1,
-                           height_ratios=[1, 2]
+    gs = gridspec.GridSpec(2, 2,
+                           height_ratios=[1, 2],
+                           width_ratios=[3, 1]
                            )
     gs.update(top=0.98, bottom=0.3, left=0.1, right=0.98)
-    fig = plt.figure(figsize=(10, 7))
-    ax2 = fig.add_subplot(gs[1])
-    ax1 = fig.add_subplot(gs[0], sharex=ax2)
+    fig = plt.figure(figsize=(11, 6))
+    ax2 = fig.add_subplot(gs[1, 0])
+    ax1 = fig.add_subplot(gs[0, 0], sharex=ax2)
     n_study = data.shape[0]
 
     ind = np.arange(n_study) * 2 + .5
@@ -141,10 +153,15 @@ def plot_variational():
     errorbar = ax1.errorbar(ind, data[('diff', 'mean')],
                             yerr=data[('diff', 'std')], elinewidth=1.5,
                             capsize=2, linewidth=0, ecolor=diff_color,
-                            alpha=.8)
-    ax1.set_ylabel('Transfer gain')
+                            alpha=.3)
+    ax1.set_ylabel('Accuracy gain')
     ax1.spines['bottom'].set_position('zero')
     plt.setp(ax1.get_xticklabels(), visible=False)
+
+    ax1.set_ylim([-0.025, 0.2])
+    ax1.yaxis.set_major_locator(ticker.MultipleLocator(0.1))
+    ax1.yaxis.set_minor_locator(ticker.MultipleLocator(0.025))
+    ax1.yaxis.set_major_formatter(ticker.PercentFormatter(xmax=1, decimals=0))
 
     ind = np.arange(n_study) * 2
 
@@ -154,23 +171,59 @@ def plot_variational():
     errorbar = ax2.errorbar(ind, data[('score_baseline', 'mean')],
                             yerr=data[('score_baseline', 'std')], elinewidth=1.5,
                             capsize=2, linewidth=0, ecolor=baseline_color,
-                            alpha=.8)
+                            alpha=.3)
     rects2 = ax2.bar(ind + width, data[('score_variational', 'mean')], width,
                      color=transfer_color, alpha=.8)
     errorbar = ax2.errorbar(ind + width, data[('score_variational', 'mean')],
                             yerr=data[('score_variational', 'std')], elinewidth=1.5,
                             capsize=2, linewidth=0, ecolor=transfer_color,
-                            alpha=.8)
-    ax2.set_ylabel('Test accuracy')
+                            alpha=.3)
+
+    lines = ax2.hlines([chance_level[study] for study in data.index.values], ind - width / 2, ind + 3 * width / 2, colors='r',
+               linewidth=1, linestyles='--')
+
+    ax2.set_ylim([0., 0.95])
+    ax2.yaxis.set_major_locator(ticker.MultipleLocator(0.2))
+    ax2.yaxis.set_minor_locator(ticker.MultipleLocator(0.05))
+    ax2.yaxis.set_major_formatter(ticker.PercentFormatter(xmax=1))
+    ax2.set_ylabel('Decoding accuracy on test set')
+
     ax2.set_xticks(ind + width / 2)
     ax2.set_xticklabels(data.index.values, rotation=60, ha='right',
                         va='top')
-    ax2.set_ylim([0.1, 0.94])
-    ax1.legend((rects1[0], rects2[0], rects[0]),
-               ('Baseline', 'Transfer', 'Diff'))
-    sns.despine(fig)
-    plt.savefig(join(output_dir, 'comparison_variational_3.pdf'))
+    # plt.savefig(join(output_dir, 'comparison_variational_4.pdf'))
+    # plt.close(fig)
     # plt.show()
+
+    ax3 = fig.add_subplot(gs[0, 1], sharey=ax1)
+    ax3.spines['bottom'].set_position('zero')
+
+    n_subjects = [n_subjects[study] for study in data.index.values]
+    mean = data[('diff', 'mean')]
+    std = data[('diff', 'std')]
+    ax3.scatter(n_subjects, mean, color=diff_color, s=20, zorder=100)
+    ax3.errorbar(n_subjects, mean, yerr=std, linewidth=0, elinewidth=1.5,
+                capsize=2, ecolor=diff_color, alpha=0.3, zorder=101)
+    ax3.set_xlabel('# subjects in dataset')
+    ax3.set_ylim([-0.025, 0.2])
+    ax3.set_xscale('log')
+    ax3.set_xticks([8, 16, 32, 100, 500])
+    ax3.set_xticklabels([8, 16, 32, 100, 500])
+
+    # ax3.set_ylim([-0.025, 0.2])
+    # ax3.yaxis.set_major_locator(ticker.MultipleLocator(0.1))
+    # ax3.yaxis.set_minor_locator(ticker.MultipleLocator(0.025))
+    # ax3.yaxis.set_major_formatter(ticker.PercentFormatter(xmax=1, decimals=0))
+
+    ax3.legend((rects1[0], rects2[0], rects[0], lines),
+               ('Single study decoding', 'Multi-study decoding',
+                'Accuracy gain', 'Chance level'), bbox_to_anchor=(0.5, -.5),
+               loc='upper center')
+
+    sns.despine(fig)
+
+    plt.savefig(join(output_dir, 'gain_vs_size.pdf'))
+    plt.close(fig)
 
 
 def summarize_factored():
@@ -375,9 +428,9 @@ def plot():
 
 
 if __name__ == '__main__':
-    summarize_variational()
+    # summarize_variational()
     # summarize_baseline()
-    compare_variational()
+    # compare_variational()
     plot_variational()
     # summarize_factored    ()
     # summarize_study_selection()
