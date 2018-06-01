@@ -351,10 +351,12 @@ class VarMultiStudyClassifier(BaseEstimator):
         study_weights /= np.sum(study_weights)
         study_weights = {study: study_weight for study, study_weight
                          in zip(lengths, study_weights)}
-        eff_lengths = {study: total_length * study_weight for
-                       study, study_weight
-                       in study_weights.items()}
-        print(eff_lengths)
+        if self.sampling == 'random':
+            eff_lengths = {study: total_length * study_weight for
+                           study, study_weight
+                           in study_weights.items()}
+        else:
+            eff_lengths = lengths
 
         data_loader = MultiStudyLoader(data, sampling=self.sampling,
                                        batch_size=self.batch_size,
