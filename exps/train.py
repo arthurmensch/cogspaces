@@ -51,9 +51,9 @@ def default():
         sampling='random',
         weight_power=0.6,
         batch_size=128,
-        dropout=0.75,
+        dropout=0.5,
         lr=1e-3,
-        input_dropout=0.25)
+        input_dropout=0.1)
 
     factored_fast = dict(
         optimizer='adam',

@@ -47,9 +47,9 @@ def variational():
         sampling='random',
         weight_power=0.6,
         batch_size=128,
-        dropout=0.75,
-        lr=5e-4,
-        input_dropout=0.25)
+        dropout=0.5,
+        lr=1e-3,
+        input_dropout=0.1)
 
 
 
