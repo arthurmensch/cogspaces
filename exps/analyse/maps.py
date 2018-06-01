@@ -130,11 +130,11 @@ def plot_single(img, name, output_dir):
     vmax = np.abs(img.get_data()).max()
     cut_coords = find_xyz_cut_coords(img, activation_threshold=vmax / 3)
     fig = plt.figure(figsize=(8, 8))
-    plot_stat_map(img, figure=fig, threshold=vmax / 3, cut_coords=cut_coords)
+    plot_stat_map(img, figure=fig, threshold=0, cut_coords=cut_coords)
     plt.savefig(join(output_dir, '%s.png' % name))
     plt.close(fig)
     fig = plt.figure(figsize=(8, 8))
-    plot_glass_brain(img, figure=fig, threshold=vmax / 3, cut_coords=cut_coords,
+    plot_glass_brain(img, figure=fig, threshold=0, cut_coords=cut_coords,
                      plot_abs=False)
     plt.savefig(join(output_dir, '%s_glass.png' % name))
     plt.close(fig)
@@ -223,8 +223,8 @@ def make_level12_imgs(lr):
     mask = fetch_mask()['hcp']
     masker = NiftiMasker(mask_img=mask).fit()
     coef = lr.coef_
-    # pos = np.sum(coef > 0, axis=1) - np.sum(coef < 0, axis=1)
-    # coef[pos < 0] *= -1
+    swap = np.max(coef, axis=1) < - np.min(coef, axis=1)
+    coef[swap] *= -1
     img = masker.inverse_transform(coef)
     snr = masker.inverse_transform(lr.snr_)
     return img, snr
@@ -325,7 +325,7 @@ if __name__ == '__main__':
     # baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
     # introspect(baseline_output_dir, baseline=True)
     # #
-    output_dir = join(get_output_dir(), 'multi_studies', '447')
+    output_dir = join(get_output_dir(), 'multi_studies', '452')
     # output_dir = join(get_output_dir(), 'variational_full', '3')
     introspect(output_dir, baseline=False)
     plot(output_dir, output_dir, n_jobs=3, plot_classif=False,

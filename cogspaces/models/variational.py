@@ -160,7 +160,7 @@ class DropoutLinear(nn.Linear):
 class Embedder(nn.Module):
     def __init__(self, in_features, latent_size, var_penalty,
                  activation='linear', dropout=0., adaptive=False,
-                 init='dict_128'):
+                 init='sym'):
         super().__init__()
 
         self.init = init
@@ -299,7 +299,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                  variational=False,
                  sampling='cycle',
                  rotation=False,
-                 n_jobs=8,
+                 n_jobs=2,
                  patience=200,
                  seed=None):
 
@@ -337,7 +337,6 @@ class VarMultiStudyClassifier(BaseEstimator):
         device = self._check_device()
 
         torch.manual_seed(self.seed)
-
         # Data
         X = {study: torch.from_numpy(this_X).float()
              for study, this_X in X.items()}

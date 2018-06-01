@@ -36,19 +36,21 @@ def variational():
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter={'pretrain': 20, 'sparsify': 20, 'finetune': 20},
+        max_iter={'pretrain': 400, 'sparsify': 400, 'finetune': 400},
     )
     factored_variational = dict(
         optimizer='adam',
         latent_size=128,
         activation='linear',
+        regularization=1,
         epoch_counting='all',
         sampling='random',
-        batch_size=64,
         weight_power=0.6,
+        batch_size=128,
         dropout=0.5,
         lr=5e-4,
         input_dropout=0.1)
+
 
 
 
@@ -70,7 +72,7 @@ def run_exp(output_dir, config_updates, _id, sleep, mock=False):
 if __name__ == '__main__':
     grid = sys.argv[1]
     if grid == 'full':
-        output_dir = join(get_output_dir(), 'full')
+        output_dir = join(get_output_dir(), 'full_long')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         exp.config(variational)
