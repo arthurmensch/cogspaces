@@ -299,7 +299,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                  variational=False,
                  sampling='cycle',
                  rotation=False,
-                 n_jobs=2,
+                 n_jobs=1,
                  patience=200,
                  seed=None):
 

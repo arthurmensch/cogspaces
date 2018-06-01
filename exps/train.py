@@ -39,7 +39,8 @@ def default():
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter={'pretrain': 10, 'sparsify': 0, 'finetune': 100},
+        max_iter={'pretrain': 300, 'sparsify': 0, 'finetune': 100},
+        seed=10,
     )
     factored_variational = dict(
         optimizer='adam',
@@ -52,7 +53,7 @@ def default():
         batch_size=128,
         dropout=0.75,
         lr=1e-3,
-        input_dropout=0.5)
+        input_dropout=0.25)
 
     factored_fast = dict(
         optimizer='adam',
@@ -193,7 +194,7 @@ def train(system, model, factored, factored_cv, trace, logistic,
         estimator = VarMultiStudyClassifier(verbose=system['verbose'],
                                             device=system['device'],
                                             max_iter=model['max_iter'],
-                                            seed=_seed,
+                                            seed=model['seed'],
                                             **factored_variational)
     elif model['estimator'] == 'trace':
         estimator = TraceClassifier(verbose=system['verbose'],

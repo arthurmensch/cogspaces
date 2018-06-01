@@ -71,13 +71,13 @@ def run_exp(output_dir, config_updates, _id, sleep, mock=False):
 
 if __name__ == '__main__':
     grid = sys.argv[1]
-    if grid == 'full':
+    if grid == 'big_gamble':
         output_dir = join(get_output_dir(), 'big_gamble')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         exp.config(variational)
         seeds = check_random_state(1).randint(0, 100000, size=200)
-        config_updates = ParameterGrid({'seed': seeds, 'full': [True]})
+        config_updates = ParameterGrid({'model.seed': seeds, 'full': [True]})
     elif grid == 'weight_power':
         output_dir = join(get_output_dir(), 'weight_power')
         if not os.path.exists(output_dir):
@@ -91,7 +91,7 @@ if __name__ == '__main__':
         raise ValueError('Wrong argument')
 
     _id = get_id(output_dir)
-    Parallel(n_jobs=25, verbose=100)(delayed(run_exp)(output_dir,
+    Parallel(n_jobs=40, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       mock=False,
                                                       sleep=i,
