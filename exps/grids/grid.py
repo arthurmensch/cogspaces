@@ -1,4 +1,5 @@
 import sys
+import time
 
 import os
 from joblib import Parallel, delayed
@@ -35,23 +36,22 @@ def variational():
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter={'pretrain': 200, 'sparsify': 200, 'finetune': 400},
+        max_iter={'pretrain': 100, 'sparsify': 100, 'finetune': 100},
     )
     factored_variational = dict(
         optimizer='adam',
         latent_size=128,
         activation='linear',
-        # regularization=1,
         epoch_counting='all',
         sampling='random',
-        batch_size=64,
-        dropout=0.75,
+        batch_size=128,
+        dropout=0.5,
         lr=1e-3,
-        input_dropout=0.25)
+        input_dropout=0.1)
 
 
 
-def run_exp(output_dir, config_updates, _id, mock=False):
+def run_exp(output_dir, config_updates, _id, sleep, mock=False):
     """Boiler plate function that has to be put in every multiple
         experiment script, as exp does not pickle."""
     if not mock:
@@ -60,6 +60,7 @@ def run_exp(output_dir, config_updates, _id, mock=False):
         run = exp._create_run(config_updates=config_updates, )
         run._id = _id
         run.observers.append(observer)
+        time.sleep(sleep)
         run()
     else:
         exp.run_command('print_config', config_updates=config_updates, )
@@ -74,23 +75,23 @@ if __name__ == '__main__':
         exp.config(variational)
         seeds = check_random_state(1).randint(0, 100000, size=20)
         config_updates = ParameterGrid({'seed': seeds})
-    if grid == 'variational_2':
-        output_dir = join(get_output_dir(), 'variational_sym')
+    if grid == 'weight_power':
+        output_dir = join(get_output_dir(), 'weight_power')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         exp.config(variational)
-        seeds = check_random_state(1).randint(0, 100000, size=20)
-        full = [False]
-        lr = [1e-3, 1e-2]
-        config_updates = ParameterGrid({'seed': seeds, 'full': full,
-                                        'factored_variational.lr': lr})
+        seeds = check_random_state(1).randint(0, 100000, size=5)
+        weight_power = [0, 0.25, 0.5, 0.71, 1]
+        config_updates = ParameterGrid({'seed': seeds,
+                                        'factored_variational.weight_power': weight_power})
     else:
         raise ValueError('Wrong argument')
 
     _id = get_id(output_dir)
-    Parallel(n_jobs=20, verbose=100)(delayed(run_exp)(output_dir,
+    Parallel(n_jobs=25, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       mock=False,
+                                                      sleep=i,
                                                       _id=_id + i)
                                      for i, config_update
                                      in enumerate(config_updates))

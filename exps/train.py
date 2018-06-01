@@ -1,7 +1,5 @@
 # Load data
-from math import sqrt
 
-import numpy as np
 import pandas as pd
 from joblib import dump
 from os.path import join
@@ -50,10 +48,11 @@ def default():
         regularization=1,
         epoch_counting='all',
         sampling='random',
+        weight_power=0.6,
         batch_size=128,
-        dropout=0.75,
-        lr=1e-2,
-        input_dropout=0.25)
+        dropout=0.5,
+        lr=1e-3,
+        input_dropout=0.1)
 
     factored_fast = dict(
         optimizer='adam',
@@ -171,7 +170,6 @@ def train(system, model, factored, factored_cv, trace, logistic,
     else:
         standard_scaler = None
 
-    study_weights = get_study_weights(model['study_weight'], train_data)
 
     if model['estimator'] == 'factored':
         estimator = FactoredClassifier(verbose=system['verbose'],
@@ -220,10 +218,7 @@ def train(system, model, factored, factored_cv, trace, logistic,
     _run.info['train_scores'] = train_callback.scores_
     _run.info['test_scores'] = test_callback.scores_
 
-    estimator.fit(train_data, train_targets,
-                  study_weights=study_weights,
-                  callback=callback
-                  )
+    estimator.fit(train_data, train_targets, callback=callback)
 
     if model['estimator'] == 'factored_cv':
         target = list(test_data.keys())[0]
@@ -256,32 +251,6 @@ def train(system, model, factored, factored_cv, trace, logistic,
                 test_latents, train_latents, estimator.recorded_)
 
     return test_scores
-
-
-def get_study_weights(study_weight, train_data):
-    if study_weight == 'sqrt_sample':
-        study_weights = np.array(
-            [sqrt(len(train_data[study])) for study in train_data])
-        s = np.sum(study_weights)
-        study_weights /= s / len(train_data)
-        study_weights = {study: weight for study, weight in zip(train_data,
-                                                                study_weights)}
-    elif study_weight == 'sample':
-        study_weights = np.array(
-            [float(len(train_data[study])) for study in train_data])
-        s = float(np.sum(study_weights))
-        study_weights /= s / len(train_data)
-        study_weights = {study: weight for study, weight in zip(train_data,
-                                                                study_weights)}
-    elif study_weight == 'study':
-        study_weights = {study: 1. for study in train_data}
-    elif study_weight == 'target':
-        study_weights = {study: 1. if i == 0 else 1. / (len(train_data) - 1)
-                         for i, study in enumerate(train_data)}
-    else:
-        raise ValueError
-    return study_weights
-
 
 if __name__ == '__main__':
     output_dir = join(get_output_dir(), 'multi_studies')

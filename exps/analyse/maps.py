@@ -85,7 +85,7 @@ def analyse(output_dir):
 
     embedder_coef = estimator.module_.embedder.linear.weight.data
 
-    mask = estimator.module_.embedder.linear.get_log_alpha() > 3
+    mask = estimator.module_.embedder.linear.get_log_alpha() > 1
     print(mask.float().mean())
     embedder_coef = embedder_coef.masked_fill(mask, 0)
     embedder_coef = embedder_coef.detach().numpy()
@@ -150,13 +150,13 @@ def plot_single_3d(img, name, output_dir):
 
     texture = surface.vol_to_surf(img, fsaverage.pial_right)
     plot_surf_stat_map(fsaverage.infl_right, texture, hemi='right',
-                       bg_map=fsaverage.sulc_right, threshold=1e-4,
-                       fig=fig, axes=ax1,
+                       bg_map=fsaverage.sulc_right, threshold=5e-4,
+                       fig=fig, axes=ax2,
                        cmap='cold_hot')
     texture = surface.vol_to_surf(img, fsaverage.pial_left)
     plot_surf_stat_map(fsaverage.infl_left, texture, hemi='left',
-                       bg_map=fsaverage.sulc_right, threshold=1e-4,
-                       fig=fig, axes=ax2,
+                       bg_map=fsaverage.sulc_left, threshold=5e-4,
+                       fig=fig, axes=ax1,
                        cmap='cold_hot')
     plt.savefig(join(output_dir, '%s.png' % name))
     plt.close(fig)
@@ -319,9 +319,12 @@ if __name__ == '__main__':
     # baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
     # introspect(baseline_output_dir, baseline=True)
     # #
-    # output_dir = join(get_output_dir(), 'multi_studies', '1969')
-    output_dir = join(get_output_dir(), 'multi_studies', '2035')
-    introspect_and_plot(output_dir, n_jobs=20)
+    output_dir = join(get_output_dir(), 'multi_studies', '3')
+    # output_dir = join(get_output_dir(), 'variational_full', '3')
+    # introspect(output_dir, baseline=False)
+    plot(output_dir, output_dir, n_jobs=30, plot_classif=False,
+         plot_components=True, plot_components_3d=True)
+    # introspect_and_plot(output_dir, n_jobs=20)
     # baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
     # plot(output_dir, baseline_output_dir, n_jobs=20, plot_classif=False,
     #      plot_components=False, plot_components_3d=True)

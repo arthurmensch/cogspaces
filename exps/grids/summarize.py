@@ -68,7 +68,7 @@ def summarize_baseline():
 
 
 def summarize_variational():
-    output_dir = [expanduser('~/output/cogspaces/variational_4'), ]
+    output_dir = [expanduser('~/output/cogspaces/variational_sym_2'), ]
 
     regex = re.compile(r'[0-9]+$')
     res = []
@@ -90,26 +90,28 @@ def summarize_variational():
                 print('Skipping exp %i' % this_dir)
                 continue
             seed = config['seed']
-            this_res = dict(seed=seed, **test_scores)
-            res.append(this_res)
+            penalty_weighting = config['factored_variational']['penalty_weighting']
+            if penalty_weighting == 'normal':
+                this_res = dict(seed=seed, **test_scores)
+                res.append(this_res)
     res = pd.DataFrame(res)
     res = res.set_index('seed')
-    pd.to_pickle(res, join(expanduser('~/output/cogspaces/variational_4.pkl')))
+    pd.to_pickle(res, join(expanduser('~/output/cogspaces/variational_sym_2.pkl')))
     res = pd.read_pickle(
-        join(expanduser('~/output/cogspaces/variational_4.pkl')))
+        join(expanduser('~/output/cogspaces/variational_sym_2.pkl')))
     studies = res.columns
     res = [res[study] for study in studies]
     res = pd.concat(res, keys=studies, names=['study'])
     pd.to_pickle(res,
-                 join(expanduser('~/output/cogspaces/variational_seed_4.pkl')))
+                 join(expanduser('~/output/cogspaces/variational_seed_sym_2.pkl')))
     res = res.groupby('study').aggregate(['mean', 'std'])
     pd.to_pickle(res,
-                 join(expanduser('~/output/cogspaces/variational_avg_4.pkl')))
+                 join(expanduser('~/output/cogspaces/variational_avg_sym_2.pkl')))
 
 
 def compare_variational():
     variational = pd.read_pickle(
-        join(expanduser('~/output/cogspaces/variational_seed_4.pkl')))
+        join(expanduser('~/output/cogspaces/variational_seed_sym_2.pkl')))
     baseline = pd.read_pickle(
         join(expanduser('~/output/cogspaces/baseline_seed.pkl')))['test_score']
     print(baseline)
@@ -120,7 +122,7 @@ def compare_variational():
                               rsuffix='_baseline')
     joined['diff'] = joined['score_variational'] - joined['score_baseline']
     joined = joined.groupby('study').aggregate(['mean', 'std'])
-    pd.to_pickle(joined, (expanduser('~/output/cogspaces/joined_4.pkl')))
+    pd.to_pickle(joined, (expanduser('~/output/cogspaces/joined_sym_2.pkl')))
 
 
 def plot_variational():
@@ -134,7 +136,7 @@ def plot_variational():
         n_subjects[study] = len(this_target['subject'].unique())
 
     output_dir = expanduser('~/output/cogspaces/')
-    data = pd.read_pickle(join(output_dir, 'joined_4.pkl'))
+    data = pd.read_pickle(join(output_dir, 'joined_sym_2.pkl'))
     data = data.sort_values(('diff', 'mean'), ascending=False)
     gs = gridspec.GridSpec(2, 2,
                            height_ratios=[1, 2],
@@ -197,7 +199,7 @@ def plot_variational():
     ax2.set_xticks(ind + width / 2)
     ax2.set_xticklabels(data.index.values, rotation=60, ha='right',
                         va='top')
-    # plt.savefig(join(output_dir, 'comparison_variational_4.pdf'))
+    # plt.savefig(join(output_dir, 'comparison_variational_sym_2.pdf'))
     # plt.close(fig)
     # plt.show()
 
@@ -228,7 +230,7 @@ def plot_variational():
 
     sns.despine(fig)
 
-    plt.savefig(join(output_dir, 'gain_vs_size.pdf'))
+    plt.savefig(join(output_dir, 'gain_vs_size_normal.pdf'))
     plt.close(fig)
 
 
@@ -434,7 +436,7 @@ def plot():
 
 
 def map_variational():
-    output_dir = [expanduser('~/output_local/cogspaces/variational_4'), ]
+    output_dir = [expanduser('~/output/cogspaces/variational_sym_2'), ]
 
     regex = re.compile(r'[0-9]+$')
     exp_dirs = []
@@ -449,9 +451,9 @@ def map_variational():
 #
 
 if __name__ == '__main__':
-    # summarize_variational()
     map_variational()
     # summarize_baseline()
+    # summarize_variational()
     # compare_variational()
     # plot_variational()
     # summarize_factored    ()

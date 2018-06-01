@@ -106,7 +106,8 @@ class DropoutLinear(nn.Linear):
 
     def get_log_alpha(self):
         if self.level == 'additive':
-            return torch.clamp(self.log_sigma2 - torch.log(self.weight ** 2 + 1e-8), -8, 8)
+            return torch.clamp(
+                self.log_sigma2 - torch.log(self.weight ** 2 + 1e-8), -8, 8)
         else:
             return torch.clamp(self.log_alpha, -8, 8)
 
@@ -125,7 +126,8 @@ class DropoutLinear(nn.Linear):
                 return output + std * eps
             else:
                 eps = torch.randn_like(input, requires_grad=False)
-                input = input * (1 + torch.exp(.5 * self.get_log_alpha()) * eps)
+                input = input * (
+                        1 + torch.exp(.5 * self.get_log_alpha()) * eps)
                 return F.linear(input, self.weight, self.bias)
         else:
             if self.sparsify:
@@ -177,11 +179,14 @@ class Embedder(nn.Module):
 
     def reset_parameters(self):
         self.linear.reset_parameters()
-        assign = np.load(expanduser('~/work/repos/cogspaces/exps/assign.npy')).tolist()
-        self.linear.weight.data += self.linear.weight.data[:, assign]
-        self.linear.weight.data /= 2
-        # self.linear.weight.data = torch.from_numpy(
-        #     np.load(expanduser('~/work/repos/cogspaces/exps/loadings_128.npy'))[0].T)
+        # assign = np.load(
+        #     expanduser('~/work/repos/cogspaces/exps/assign.npy')).tolist()
+        # self.linear.weight.data[:] += self.linear.weight.data[:, assign]
+        # self.linear.weight.data /= 10
+        self.linear.weight.data = torch.from_numpy(
+            np.load(
+                expanduser('~/work/repos/cogspaces/exps/loadings_128.npy'))[
+                0].T)
         self.linear.reset_dropout()
 
     def penalty(self):
@@ -227,19 +232,7 @@ class VarMultiStudyModule(nn.Module):
 
         embedder_adaptive = 'embedding' in adaptive
 
-        lengths_arr = np.array(list(lengths.values())).astype('float')
-
-        # var_penalties = np.sum(np.sqrt(lengths_arr)) / np.sqrt(lengths_arr)
-        # var_penalties = {study: coef for study, coef in zip(lengths.keys(),
-        #                                                     var_penalties)}
-        total_length = sum(iter(lengths.values()))
-        # print(total_length)
-        # total_length = np.sum(np.float_power(lengths_arr, .5)) / np.sum(np.float_power(lengths_arr, -.5)) * len(lengths_arr)
-        # print(total_length)
-        # inv_total_length = np.sum(np.float_power(lengths_arr, .5)) / np.sum(np.float_power(lengths_arr, 1.5))
-        # print(1 / inv_total_length)
-        weight = np.sum(np.sqrt(lengths_arr)) / np.sqrt(lengths_arr)
-        weight = {study: this_weight for study, this_weight in zip(target_sizes, weight)}
+        total_length = sum(list(lengths.values()))
         self.embedder = Embedder(in_features, latent_size,
                                  dropout=input_dropout,
                                  adaptive=embedder_adaptive,
@@ -248,12 +241,11 @@ class VarMultiStudyModule(nn.Module):
         classifier_adaptive = 'classifier' in adaptive
         self.classifiers = {study: LatentClassifier(
             latent_size, target_size, dropout=latent_dropout,
-            var_penalty=regularization / total_length * weight[study],
+            var_penalty=regularization / lengths[study],
             adaptive=classifier_adaptive, )
             for study, target_size in target_sizes.items()}
         for study, classifier in self.classifiers.items():
             self.add_module('classifier_%s' % study, classifier)
-        self.reset_parameters()
 
     def reset_parameters(self):
         self.embedder.reset_parameters()
@@ -299,9 +291,11 @@ class VarMultiStudyClassifier(BaseEstimator):
                  max_iter=10000, verbose=0,
                  device=-1,
                  regularization=1.,
+                 weight_power=0.5,
                  variational=False,
                  sampling='cycle',
                  rotation=False,
+                 n_jobs=8,
                  patience=200,
                  seed=None):
 
@@ -320,6 +314,8 @@ class VarMultiStudyClassifier(BaseEstimator):
         self.optimizer = optimizer
         self.lr = lr
 
+        self.weight_power = weight_power
+
         self.variational = variational
 
         self.epoch_counting = epoch_counting
@@ -330,8 +326,10 @@ class VarMultiStudyClassifier(BaseEstimator):
         self.device = device
         self.seed = seed
 
-    def fit(self, X, y, study_weights=None, callback=None):
-        torch.set_num_threads(1)
+        self.n_jobs = n_jobs
+
+    def fit(self, X, y, callback=None):
+        torch.set_num_threads(self.n_jobs)
         device = self._check_device()
 
         torch.manual_seed(self.seed)
@@ -344,8 +342,17 @@ class VarMultiStudyClassifier(BaseEstimator):
         data = {study: TensorDataset(X[study], y[study]) for study in X}
         lengths = {study: len(this_data)
                    for study, this_data in data.items()}
+        lengths_arr = np.array(list(lengths.values()))
+        total_length = np.sum(lengths_arr)
+        study_weights = np.float_power(lengths_arr, self.weight_power)
+        study_weights /= np.sum(study_weights)
+        study_weights = {study: study_weight for study, study_weight
+                         in zip(lengths, study_weights)}
+        eff_lengths = {study: total_length * study_weight for
+                       study, study_weight
+                       in study_weights.items()}
+        print(eff_lengths)
 
-        all_studies = list(data.keys())
         data_loader = MultiStudyLoader(data, sampling=self.sampling,
                                        batch_size=self.batch_size,
                                        seed=self.seed,
@@ -357,7 +364,7 @@ class VarMultiStudyClassifier(BaseEstimator):
         in_features = next(iter(X.values())).shape[1]
 
         # Loss
-        if study_weights is None or self.sampling == 'random':
+        if self.sampling == 'random':
             loss_study_weights = {study: 1. for study in X}
         else:
             loss_study_weights = study_weights
@@ -370,7 +377,7 @@ class VarMultiStudyClassifier(BaseEstimator):
             adaptive='classifier',
             regularization=self.regularization,
             activation=self.activation,
-            lengths=lengths,
+            lengths=eff_lengths,
             latent_size=self.latent_size,
             target_sizes=target_sizes)
 
@@ -464,10 +471,9 @@ class VarMultiStudyClassifier(BaseEstimator):
                     epoch_penalty = 0
 
                     if (no_improvement > self.patience
-                            or epoch > self.max_iter[phase]):
+                            or epoch >= self.max_iter[phase]):
                         print('Stopping at epoch %.2f, train loss'
                               ' %.4f' % (epoch, epoch_loss))
-                        callback(self, epoch)
                         module.load_state_dict(best_state)
                         torch.save(module, join(get_output_dir(),
                                                 'model_%s.pkl' % phase))
@@ -520,10 +526,9 @@ class VarMultiStudyClassifier(BaseEstimator):
                 this_module = module.classifiers[study]
                 if this_module.linear.adaptive:
                     this_module.linear.make_non_adaptive()
-                    p = this_module.linear.get_p().item()
-                    if p > 0.75:
-                        this_module.linear.log_alpha.fill_(np.log(0.75 /
-                                                                  (1 - 0.75)))
+                    this_module.linear.log_alpha.fill_(np.log(self.dropout /
+                                                              (1 - self.dropout)
+                                                              ))
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         this_module.parameters()),
                                  lr=self.lr, amsgrad=True)
@@ -533,6 +538,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 best_loss = float('inf')
                 no_improvement = 0
                 epoch = 0
+                best_state = module.state_dict()
                 for epoch in range(self.max_iter['finetune']):
                     epoch_batch = 0
                     epoch_penalty = 0
@@ -561,18 +567,20 @@ class VarMultiStudyClassifier(BaseEstimator):
 
                     if (report_every is not None
                             and epoch % report_every == 0):
-                        print('Epoch %.2f, train loss: %.4f, penalty: %.4f, p: %.2f'
-                              % (epoch, epoch_loss, epoch_penalty, this_module.linear.get_p().item()))
+                        print(
+                            'Epoch %.2f, train loss: %.4f, penalty: %.4f, p: %.2f'
+                            % (epoch, epoch_loss, epoch_penalty,
+                               this_module.linear.get_p().item()))
 
                     if epoch_loss > best_loss:
                         no_improvement += 1
                     else:
                         no_improvement = 0
                         best_loss = epoch_loss
-
+                        best_state = module.state_dict()
                     if no_improvement > self.patience:
                         break
-                # module.load_state_dict(best_state)
+                module.load_state_dict(best_state)
                 print('Stopping at epoch %.2f, train loss'
                       ' %.4f' % (epoch, epoch_loss))
                 print('-----------------------------------')
@@ -641,7 +649,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                      all_contrast=0,
                      subject=0))
         return dfs
-
 
     def __getstate__(self):
         state = self.__dict__.copy()
