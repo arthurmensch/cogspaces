@@ -436,7 +436,7 @@ def plot():
 
 
 def map_variational():
-    output_dir = [expanduser('~/output/cogspaces/variational_sym_2'), ]
+    output_dir = [expanduser('~/output_pd/cogspaces/full'), ]
 
     regex = re.compile(r'[0-9]+$')
     exp_dirs = []

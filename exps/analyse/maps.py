@@ -125,13 +125,18 @@ def plot_single(img, name, output_dir):
     import matplotlib
     matplotlib.use('agg')
     import matplotlib.pyplot as plt
-    from nilearn.plotting import plot_stat_map, find_xyz_cut_coords
+    from nilearn.plotting import plot_stat_map, find_xyz_cut_coords, plot_glass_brain
 
-    vmax = img.get_data().max()
+    vmax = np.abs(img.get_data()).max()
     cut_coords = find_xyz_cut_coords(img, activation_threshold=vmax / 3)
     fig = plt.figure(figsize=(8, 8))
-    plot_stat_map(img, figure=fig, threshold=0, cut_coords=cut_coords)
+    plot_stat_map(img, figure=fig, threshold=vmax / 3, cut_coords=cut_coords)
     plt.savefig(join(output_dir, '%s.png' % name))
+    plt.close(fig)
+    fig = plt.figure(figsize=(8, 8))
+    plot_glass_brain(img, figure=fig, threshold=vmax / 3, cut_coords=cut_coords,
+                     plot_abs=False)
+    plt.savefig(join(output_dir, '%s_glass.png' % name))
     plt.close(fig)
 
 
@@ -149,13 +154,14 @@ def plot_single_3d(img, name, output_dir):
     ax2 = fig.add_subplot(122, projection='3d')
 
     texture = surface.vol_to_surf(img, fsaverage.pial_right)
+    vmax = np.abs(check_niimg(img).get_data()).max()
     plot_surf_stat_map(fsaverage.infl_right, texture, hemi='right',
-                       bg_map=fsaverage.sulc_right, threshold=5e-4,
+                       bg_map=fsaverage.sulc_right, threshold=vmax / 10,
                        fig=fig, axes=ax2,
                        cmap='cold_hot')
     texture = surface.vol_to_surf(img, fsaverage.pial_left)
     plot_surf_stat_map(fsaverage.infl_left, texture, hemi='left',
-                       bg_map=fsaverage.sulc_left, threshold=5e-4,
+                       bg_map=fsaverage.sulc_left, threshold=vmax / 10,
                        fig=fig, axes=ax1,
                        cmap='cold_hot')
     plt.savefig(join(output_dir, '%s.png' % name))
@@ -167,7 +173,7 @@ def plot_double(img, img2, name, output_dir):
     matplotlib.use('agg')
     import matplotlib.pyplot as plt
     from nilearn.plotting import plot_stat_map, find_xyz_cut_coords
-    vmax = img.get_data().max()
+    vmax = np.abs(img.get_data()).max()
     cut_coords = find_xyz_cut_coords(img, activation_threshold=vmax / 3)
     fig, axes = plt.subplots(2, 1, figsize=(8, 8))
     plot_stat_map(img, title=name, figure=fig, axes=axes[0], threshold=0,
@@ -273,11 +279,11 @@ def introspect(output_dir, baseline=False):
         baseline_imgs.to_filename(join(introspect_dir, 'classif.nii.gz'))
     else:
         lr1, lr2, lr3s = analyse(output_dir)
-        dump((lr1, lr2, lr3s), join(introspect_dir, 'transformers.pkl'))
-        (lr1, lr2, lr3s) = load(join(introspect_dir, 'transformers.pkl'))
-        imgs, names = make_level3_imgs(lr3s)
-        imgs.to_filename(join(introspect_dir, 'classif.nii.gz'))
-        dump(names, join(introspect_dir, 'names.pkl'))
+        # dump((lr1, lr2, lr3s), join(introspect_dir, 'transformers.pkl'))
+        # (lr1, lr2, lr3s) = load(join(introspect_dir, 'transformers.pkl'))
+        # imgs, names = make_level3_imgs(lr3s)
+        # imgs.to_filename(join(introspect_dir, 'classif.nii.gz'))
+        # dump(names, join(introspect_dir, 'names.pkl'))
         imgs2, snrs2 = make_level12_imgs(lr2)
         snrs2.to_filename(join(introspect_dir, 'snr.nii.gz'))
         imgs2.to_filename(join(introspect_dir, 'components.nii.gz'))
@@ -319,11 +325,11 @@ if __name__ == '__main__':
     # baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
     # introspect(baseline_output_dir, baseline=True)
     # #
-    output_dir = join(get_output_dir(), 'multi_studies', '3')
+    output_dir = join(get_output_dir(), 'multi_studies', '447')
     # output_dir = join(get_output_dir(), 'variational_full', '3')
-    # introspect(output_dir, baseline=False)
-    plot(output_dir, output_dir, n_jobs=30, plot_classif=False,
-         plot_components=True, plot_components_3d=True)
+    introspect(output_dir, baseline=False)
+    plot(output_dir, output_dir, n_jobs=3, plot_classif=False,
+         plot_components=True, plot_components_3d=False)
     # introspect_and_plot(output_dir, n_jobs=20)
     # baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
     # plot(output_dir, baseline_output_dir, n_jobs=20, plot_classif=False,

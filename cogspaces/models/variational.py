@@ -153,14 +153,17 @@ class DropoutLinear(nn.Linear):
 
     @property
     def sparse_weight(self):
-        mask = self.get_log_alpha() > 3
+        mask = self.get_log_alpha() > 1
         return self.weight.masked_fill(mask, 0)
 
 
 class Embedder(nn.Module):
     def __init__(self, in_features, latent_size, var_penalty,
-                 activation='linear', dropout=0., adaptive=False):
+                 activation='linear', dropout=0., adaptive=False,
+                 init='dict_128'):
         super().__init__()
+
+        self.init = init
 
         self.linear = DropoutLinear(in_features, latent_size,
                                     adaptive=adaptive,
@@ -179,14 +182,15 @@ class Embedder(nn.Module):
 
     def reset_parameters(self):
         self.linear.reset_parameters()
-        # assign = np.load(
-        #     expanduser('~/work/repos/cogspaces/exps/assign.npy')).tolist()
-        # self.linear.weight.data[:] += self.linear.weight.data[:, assign]
-        # self.linear.weight.data /= 10
-        self.linear.weight.data = torch.from_numpy(
-            np.load(
-                expanduser('~/work/repos/cogspaces/exps/loadings_128.npy'))[
-                0].T)
+
+        if self.init == 'sym':
+            assign = np.load(
+                expanduser('~/work/repos/cogspaces/exps/assign.npy')).tolist()
+            self.linear.weight.data[:] += self.linear.weight.data[:, assign]
+            self.linear.weight.data /= 2
+        elif self.init == 'dict_128':
+            self.linear.weight.data = torch.from_numpy(
+                np.load(expanduser('~/work/repos/cogspaces/exps/loadings_128.npy'))[0].T)
         self.linear.reset_dropout()
 
     def penalty(self):
