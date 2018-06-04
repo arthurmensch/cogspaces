@@ -1,4 +1,5 @@
 import math
+from modl import DictFact
 
 import json
 import matplotlib.pyplot as plt
@@ -14,7 +15,6 @@ from cogspaces.preprocessing import MultiTargetEncoder
 from cogspaces.utils.dict_learning import dict_learning
 from exps.train import load_data
 from joblib import load, delayed, Parallel, Memory
-from modl import DictFact
 from nilearn._utils import check_niimg
 from nilearn.image import index_img, iter_img
 from nilearn.input_data import NiftiMasker

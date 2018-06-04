@@ -216,7 +216,7 @@ def compute_components(coefs, init='rest', symmetric_init=True,
         indices = random_state.permutation(len(coefs))[:128]
         dict_init = coefs[indices]
     if symmetric_init:
-        assign = np.load(expanduser('~/work/repos/cogspaces/exps/assign.npy'))
+        assign = np.load(expanduser('~/work/repos/cogspaces/exps/assign_512.npy'))
         dict_init += dict_init[:, assign]
         dict_init /= 2
 
@@ -287,8 +287,9 @@ def plot_all(imgs, exp_vars, dest_dir, n_jobs=1):
 
 
 if __name__ == '__main__':
-    output_dir = join(expanduser('~/output_pd/cogspaces'), 'big_gamble_2')
-    # compute_pca(output_dir)
+    output_dir = join(expanduser('~/output_pd/cogspaces'), 'seed_split_init')
+    compute_coefs(output_dir)
+    compute_pca(output_dir)
     # print('------------------ random init -----------------')
     # compute_components_and_plot(output_dir, init='random', proj_principal=False,
     #                             alpha=1e-3)

@@ -1,14 +1,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from cogspaces.datasets.dictionaries import fetch_atlas_modl
+from cogspaces.datasets.utils import fetch_mask
 from joblib import Memory
 from nilearn.input_data import MultiNiftiMasker
 from nilearn.plotting import plot_stat_map
 from os.path import expanduser, join
 from scipy.linalg import orthogonal_procrustes
 from sklearn.utils.linear_assignment_ import linear_assignment
-
-from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask
 
 
 def relative_stability(comp1, comp2):

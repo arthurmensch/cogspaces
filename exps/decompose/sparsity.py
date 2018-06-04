@@ -1,9 +1,7 @@
 import numpy as np
-
-from nilearn.input_data import NiftiMasker
-
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask
+from nilearn.input_data import NiftiMasker
 
 mask = fetch_mask()
 modl_atlas = fetch_atlas_modl()

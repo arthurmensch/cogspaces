@@ -1,6 +1,7 @@
 from nilearn.datasets.utils import _fetch_files
 from sklearn.datasets.base import Bunch
-from .utils import _get_dataset_dir
+
+from .utils import _get_dataset_dir, get_data_dir
 
 
 def fetch_atlas_modl(data_dir=None, url=None,
@@ -20,10 +21,12 @@ def fetch_atlas_modl(data_dir=None, url=None,
 
     files = [
         'components_16.nii.gz',
-        'components_64.nii.gz',
         'components_128.nii.gz',
+        'components_208.nii.gz',
         'components_512.nii.gz',
+        'components_256_gm.nii.gz',
         'components_512_gm.nii.gz',
+        'loadings_128.npy',
     ]
 
     if isinstance(url, str):
@@ -31,6 +34,7 @@ def fetch_atlas_modl(data_dir=None, url=None,
 
     files = [(f, u + f, {}) for f, u in zip(files, url)]
 
+    data_dir = get_data_dir()
     dataset_name = 'modl'
     data_dir = _get_dataset_dir(dataset_name, data_dir=data_dir,
                                 verbose=verbose)
@@ -41,10 +45,12 @@ def fetch_atlas_modl(data_dir=None, url=None,
              'from HCP900 data'
 
     keys = ['components16',
-            'components64',
             'components128',
+            'components208'
             'components512',
-            'components512_gm'
+            'components256_gm'
+            'components512_gm',
+            'loadings128',
             ]
 
     params = dict(zip(keys, files_))

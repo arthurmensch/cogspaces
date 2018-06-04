@@ -1,9 +1,8 @@
+from cogspaces.datasets.dictionaries import fetch_atlas_modl
+from cogspaces.datasets.utils import fetch_mask
 from joblib import Memory
 from nilearn.input_data import NiftiMasker
 from os.path import expanduser
-
-from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask
 
 modl_atlas = fetch_atlas_modl()
 mask = fetch_mask()['hcp']

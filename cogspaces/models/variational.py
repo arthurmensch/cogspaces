@@ -64,7 +64,7 @@ class DropoutLinear(nn.Linear):
         elif self.init == 'symmetric':
             super().reset_parameters()
             assign = np.load(expanduser(
-                '~/work/repos/cogspaces/exps/assign.npy')).tolist()
+                '~/work/repos/cogspaces/exps/assign_512.npy')).tolist()
             self.weight.data += self.weight.data[:, assign]
             self.weight.data /= 2
         elif self.init == 'orthogonal':

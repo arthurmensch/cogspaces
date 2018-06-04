@@ -3,15 +3,14 @@ import sys
 import numpy as np
 import os
 import pandas as pd
-from joblib import Parallel, delayed
-from os.path import join, expanduser
-from sklearn.model_selection import ParameterGrid
-from sklearn.utils import check_random_state
-
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.utils.sacred import get_id, OurFileStorageObserver
 from exps.train import exp
+from joblib import Parallel, delayed
+from os.path import join, expanduser
+from sklearn.model_selection import ParameterGrid
+from sklearn.utils import check_random_state
 
 
 @exp.config

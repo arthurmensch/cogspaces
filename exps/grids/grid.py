@@ -11,17 +11,9 @@ from sklearn.model_selection import ParameterGrid
 from sklearn.utils import check_random_state
 
 
-@exp.config
-def base():
-    seed = 0
-    data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['hcp']
-    )
-
-
-def variational():
+def seed_split_init():
     seed = 10
+    full = False
     system = dict(
         device=-1,
         verbose=0,
@@ -51,8 +43,6 @@ def variational():
         input_dropout=0.25)
 
 
-
-
 def run_exp(output_dir, config_updates, _id, sleep, mock=False):
     """Boiler plate function that has to be put in every multiple
         experiment script, as exp does not pickle."""
@@ -70,24 +60,15 @@ def run_exp(output_dir, config_updates, _id, sleep, mock=False):
 
 if __name__ == '__main__':
     grid = sys.argv[1]
-    if grid == 'big_gamble':
-        output_dir = join(get_output_dir(), 'big_gamble_2')
+    if grid == 'seed_split_init':
+        output_dir = join(get_output_dir(), 'seed_split_init')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        exp.config(variational)
-        model_seeds = check_random_state(1).randint(0, 100000, size=200)
-        seeds = check_random_state(2).randint(0, 100000, size=4)
+        exp.config(seed_split_init)
+        model_seeds = check_random_state(42).randint(0, 100000, size=100)
+        seeds = check_random_state(43).randint(0, 100000, size=20)
         config_updates = ParameterGrid({'model.seed': model_seeds,
                                         'full': [False]})
-    elif grid == 'weight_power':
-        output_dir = join(get_output_dir(), 'weight_power')
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        exp.config(variational)
-        seeds = check_random_state(1).randint(0, 100000, size=5)
-        weight_power = [0, 0.25, 0.5, 0.71, 1]
-        config_updates = ParameterGrid({'seed': seeds,
-                                        'factored_variational.weight_power': weight_power})
     else:
         raise ValueError('Wrong argument')
 

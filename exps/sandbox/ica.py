@@ -1,8 +1,7 @@
+from cogspaces.datasets.utils import fetch_mask
 from nilearn import datasets
 from nilearn.input_data import NiftiMasker
 from os.path import join, expanduser
-
-from cogspaces.datasets.utils import fetch_mask
 
 output_dir = join(expanduser('~/output/cogspaces/multi_studies/1974/maps'))
 
