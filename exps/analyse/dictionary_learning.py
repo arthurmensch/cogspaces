@@ -224,6 +224,7 @@ def compute_components(coefs, init='rest', symmetric_init=True,
         random_state = check_random_state(0)
         sign = (random_state.randint(0, 2, size=(128, 512)) - .5) * 2
         dict_init *= sign
+    print(dict_init)
 
     random_state = check_random_state(1)
     indices = random_state.permutation(len(coefs))[:500]

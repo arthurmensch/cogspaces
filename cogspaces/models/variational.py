@@ -26,6 +26,7 @@ k3 = 1.48695
 class DropoutLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True, p=1e-8,
                  level='layer', var_penalty=0., adaptive=False,
+                 init='normal',
                  sparsify=False):
         super().__init__(in_features, out_features, bias)
 
@@ -58,7 +59,27 @@ class DropoutLinear(nn.Linear):
         self.reset_dropout()
 
     def reset_parameters(self):
-        super().reset_parameters()
+        if self.init == 'normal':
+            super().reset_parameters()
+        elif self.init == 'symmetric':
+            super().reset_parameters()
+            assign = np.load(expanduser(
+                '~/work/repos/cogspaces/exps/assign.npy')).tolist()
+            self.weight.data += self.weight.data[:, assign]
+            self.weight.data /= 2
+        elif self.init == 'orthogonal':
+            nn.init.orthogonal_(self.weight.data,
+                                gain=1 / math.sqrt(self.weight.shape[1]))
+        elif self.init == 'loadings_128':
+            self.weight.data = torch.from_numpy(
+                np.load(expanduser('~/work/repos/cogspaces/exps/'
+                                   'loadings_128.npy')))
+        else:
+            try:
+                weight = np.load(self.init)
+                self.weight.data = torch.from_numpy(weight)
+            except:
+                raise FileNotFoundError('Wrong init path %s' % self.init)
         if hasattr(self, 'level'):
             self.reset_dropout()
 
@@ -181,25 +202,6 @@ class Embedder(nn.Module):
 
     def reset_parameters(self):
         self.linear.reset_parameters()
-
-        if self.init == 'sym':
-            assign = np.load(
-                expanduser('~/work/repos/cogspaces/exps/assign.npy')).tolist()
-            self.linear.weight.data += self.linear.weight.data[:, assign]
-            self.linear.weight.data /= 2
-        elif self.init == 'normal':
-            pass
-        elif self.init == 'dict_128':
-            self.linear.weight.data = torch.from_numpy(
-                np.load(expanduser('~/work/repos/cogspaces/exps/loadings_128.npy')))
-        elif self.init == 'gamble_rest':
-            self.linear.weight.data = torch.from_numpy(np.load(expanduser('~/output/cogspaces/big_gamble_2/'
-                                                                          'dl_rest.npy')))
-        elif self.init == 'gamble_random':
-            self.linear.weight.data = torch.from_numpy(
-                np.load(expanduser('~/output/cogspaces/big_gamble_2/'
-                                   'dl_random_our.npy')))
-
         self.linear.reset_dropout()
 
     def penalty(self):
