@@ -2,14 +2,13 @@ import sys
 import time
 
 import os
+from cogspaces.datasets.utils import get_data_dir, get_output_dir
+from cogspaces.utils.sacred import get_id, OurFileStorageObserver
+from exps.train import exp
 from joblib import Parallel, delayed
 from os.path import join
 from sklearn.model_selection import ParameterGrid
 from sklearn.utils import check_random_state
-
-from cogspaces.datasets.utils import get_data_dir, get_output_dir
-from cogspaces.utils.sacred import get_id, OurFileStorageObserver
-from exps.train import exp
 
 
 @exp.config
@@ -22,7 +21,7 @@ def base():
 
 
 def variational():
-    seed = 1
+    seed = 10
     system = dict(
         device=-1,
         verbose=0,
@@ -36,7 +35,7 @@ def variational():
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter={'pretrain': 300, 'sparsify': 0, 'finetune': 0},
+        max_iter={'pretrain': 300, 'sparsify': 0, 'finetune': 200},
     )
     factored_variational = dict(
         optimizer='adam',
@@ -49,7 +48,7 @@ def variational():
         batch_size=128,
         dropout=0.5,
         lr=1e-3,
-        input_dropout=0.1)
+        input_dropout=0.25)
 
 
 
@@ -72,12 +71,14 @@ def run_exp(output_dir, config_updates, _id, sleep, mock=False):
 if __name__ == '__main__':
     grid = sys.argv[1]
     if grid == 'big_gamble':
-        output_dir = join(get_output_dir(), 'big_gamble')
+        output_dir = join(get_output_dir(), 'big_gamble_2')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         exp.config(variational)
-        seeds = check_random_state(1).randint(0, 100000, size=200)
-        config_updates = ParameterGrid({'model.seed': seeds, 'full': [True]})
+        model_seeds = check_random_state(1).randint(0, 100000, size=200)
+        seeds = check_random_state(2).randint(0, 100000, size=4)
+        config_updates = ParameterGrid({'model.seed': model_seeds,
+                                        'full': [False]})
     elif grid == 'weight_power':
         output_dir = join(get_output_dir(), 'weight_power')
         if not os.path.exists(output_dir):

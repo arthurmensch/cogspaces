@@ -7,6 +7,9 @@ import tempfile
 import torch
 import torch.nn.functional as F
 import warnings
+from cogspaces.datasets.utils import get_output_dir
+from cogspaces.models.factored import Identity
+from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
 from os.path import join, expanduser
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_random_state
@@ -14,10 +17,6 @@ from torch import nn
 from torch.nn import Parameter
 from torch.optim import Adam
 from torch.utils.data import TensorDataset, DataLoader
-
-from cogspaces.datasets.utils import get_output_dir
-from cogspaces.models.factored import Identity
-from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
 
 k1 = 0.63576
 k2 = 1.87320
@@ -160,7 +159,7 @@ class DropoutLinear(nn.Linear):
 class Embedder(nn.Module):
     def __init__(self, in_features, latent_size, var_penalty,
                  activation='linear', dropout=0., adaptive=False,
-                 init='sym'):
+                 init='gamble_rest'):
         super().__init__()
 
         self.init = init
@@ -186,11 +185,21 @@ class Embedder(nn.Module):
         if self.init == 'sym':
             assign = np.load(
                 expanduser('~/work/repos/cogspaces/exps/assign.npy')).tolist()
-            self.linear.weight.data[:] += self.linear.weight.data[:, assign]
+            self.linear.weight.data += self.linear.weight.data[:, assign]
             self.linear.weight.data /= 2
+        elif self.init == 'normal':
+            pass
         elif self.init == 'dict_128':
             self.linear.weight.data = torch.from_numpy(
-                np.load(expanduser('~/work/repos/cogspaces/exps/loadings_128.npy'))[0].T)
+                np.load(expanduser('~/work/repos/cogspaces/exps/loadings_128.npy')))
+        elif self.init == 'gamble_rest':
+            self.linear.weight.data = torch.from_numpy(np.load(expanduser('~/output/cogspaces/big_gamble_2/'
+                                                                          'dl_rest.npy')))
+        elif self.init == 'gamble_random':
+            self.linear.weight.data = torch.from_numpy(
+                np.load(expanduser('~/output/cogspaces/big_gamble_2/'
+                                   'dl_random_our.npy')))
+
         self.linear.reset_dropout()
 
     def penalty(self):
@@ -395,7 +404,7 @@ class VarMultiStudyClassifier(BaseEstimator):
         if self.epoch_counting == 'all':
             n_samples = sum(len(this_X) for this_X in X.values())
         elif self.epoch_counting == 'target':
-            if self.sampling == 'weighted_random':
+            if self.sampling == 'random':
                 multiplier = (sum(study_weights.values()) /
                               next(iter(study_weights.values())))
             else:
@@ -505,8 +514,8 @@ class VarMultiStudyClassifier(BaseEstimator):
                 epoch_penalty += penalty.item() / epoch_batch
 
                 epoch = floor(seen_samples / n_samples)
-        self.recorded_ = np.concatenate([record[None, :] for
-                                         record in self.recorded_], axis=0)
+        # self.recorded_ = np.concatenate([record[None, :] for
+        #                                  record in self.recorded_], axis=0)
         print('Final density %s' % module.embedder.linear.density)
 
         if self.max_iter['finetune'] > 0:
@@ -531,9 +540,9 @@ class VarMultiStudyClassifier(BaseEstimator):
                 this_module = module.classifiers[study]
                 if this_module.linear.adaptive:
                     this_module.linear.make_non_adaptive()
-                    this_module.linear.log_alpha.fill_(np.log(self.dropout /
-                                                              (1 - self.dropout)
-                                                              ))
+                    # this_module.linear.log_alpha.fill_(np.log(self.dropout /
+                    #                                           (1 - self.dropout)
+                    #                                           ))
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         this_module.parameters()),
                                  lr=self.lr, amsgrad=True)

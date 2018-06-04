@@ -1,20 +1,56 @@
 # Baseline logistic
+import json
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
 import re
 import seaborn as sns
+from cogspaces.data import load_data_from_dir
+from cogspaces.datasets.utils import get_data_dir
+from exps.analyse.maps import introspect
 from joblib import Parallel, delayed
 from matplotlib import gridspec, ticker
 from os.path import expanduser, join
 
-from cogspaces.data import load_data_from_dir
-from cogspaces.datasets.utils import get_data_dir
-from exps.analyse.maps import introspect
-
 idx = pd.IndexSlice
 
+def summarize_big_gamble():
+    output_dir = [expanduser('~/output_pd/cogspaces/big_gamble_half'), ]
+
+    regex = re.compile(r'[0-9]+$')
+    res = []
+    for this_output_dir in output_dir:
+        for this_dir in filter(regex.match, os.listdir(this_output_dir)):
+            this_exp_dir = join(this_output_dir, this_dir)
+            this_dir = int(this_dir)
+            try:
+                config = json.load(
+                    open(join(this_exp_dir, 'config.json'), 'r'))
+                run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
+                info = json.load(
+                    open(join(this_exp_dir, 'info.json'), 'r'))
+            except (FileNotFoundError, json.decoder.JSONDecodeError):
+                print('Skipping exp %i' % this_dir)
+                continue
+            test_scores = run['result']
+            if test_scores is None:
+                print('Skipping exp %i' % this_dir)
+                continue
+            seed = config['seed']
+            this_res = dict(seed=seed, **test_scores)
+            res.append(this_res)
+
+    res = pd.DataFrame(res)
+
+    # Transpose
+    studies = res.columns
+    res = [res[study] for study in studies]
+    res = pd.concat(res, keys=studies, names=['study'])
+    res = res.groupby('study').aggregate(['mean', 'std'])
+
+    pd.to_pickle(res, join(expanduser('~/output_pd/cogspaces/big_gamble.pkl')))
+    print(res)
 
 def summarize():
     # output_dir = [expanduser('~/output/cogspaces/weight_power'), ]
@@ -203,9 +239,10 @@ if __name__ == '__main__':
     # map_variational()
     # summarize_baseline()
     # summarize()
-    for weight_power in ['0.0', '0.25', '0.5', '0.71', '1.0']:
-        plot(weight_power)
+    # for weight_power in ['0.0', '0.25', '0.5', '0.71', '1.0']:
+    #     plot(weight_power)
     # summarize_factored    ()
     # summarize_study_selection()
     # plot_study_selection()
     # plot()
+    summarize_big_gamble()

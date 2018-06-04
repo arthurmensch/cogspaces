@@ -1,11 +1,6 @@
 # Load data
 
 import pandas as pd
-from joblib import dump
-from os.path import join
-from sacred import Experiment
-from sklearn.metrics import accuracy_score
-
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.model_selection import train_test_split
@@ -17,7 +12,10 @@ from cogspaces.models.variational import VarMultiStudyClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
-from exps.analyse.maps import introspect_and_plot
+from joblib import dump
+from os.path import join
+from sacred import Experiment
+from sklearn.metrics import accuracy_score
 
 exp = Experiment('multi_studies')
 
@@ -32,15 +30,15 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies='all',
+        studies=['archi', 'brainomics', 'amalric2012mathematicians'],
         target_study='archi',
     )
     model = dict(
         normalize=False,
         estimator='factored_variational',
         study_weight='sqrt_sample',
-        max_iter={'pretrain': 300, 'sparsify': 0, 'finetune': 100},
-        seed=10,
+        max_iter={'pretrain': 0, 'sparsify': 0, 'finetune': 500},
+        seed=200,
     )
     factored_variational = dict(
         optimizer='adam',
@@ -53,7 +51,7 @@ def default():
         batch_size=128,
         dropout=0.5,
         lr=1e-3,
-        input_dropout=0.1)
+        input_dropout=0.25)
 
     factored_fast = dict(
         optimizer='adam',
@@ -258,4 +256,4 @@ if __name__ == '__main__':
     exp.observers.append(OurFileStorageObserver.create(basedir=output_dir))
     run = exp.run()
     output_dir = join(output_dir, str(run._id))
-    introspect_and_plot(output_dir, n_jobs=3)
+    # introspect_and_plot(output_dir, n_jobs=3)

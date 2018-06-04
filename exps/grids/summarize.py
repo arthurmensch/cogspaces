@@ -6,13 +6,12 @@ import os
 import pandas as pd
 import re
 import seaborn as sns
-from joblib import Parallel, delayed
-from matplotlib import gridspec, ticker
-from os.path import expanduser, join
-
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir
 from exps.analyse.maps import introspect
+from joblib import Parallel, delayed
+from matplotlib import gridspec, ticker
+from os.path import expanduser, join
 
 idx = pd.IndexSlice
 
@@ -436,7 +435,7 @@ def plot():
 
 
 def map_variational():
-    output_dir = [expanduser('~/output_pd/cogspaces/full_long'), ]
+    output_dir = [expanduser('~/output_pd/cogspaces/big_gamble_half'), ]
 
     regex = re.compile(r'[0-9]+$')
     exp_dirs = []
