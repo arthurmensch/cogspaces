@@ -7,16 +7,17 @@ import tempfile
 import torch
 import torch.nn.functional as F
 import warnings
-from cogspaces.datasets.utils import get_output_dir
-from cogspaces.models.factored import Identity
-from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
-from os.path import join, expanduser
+from os.path import join
 from sklearn.base import BaseEstimator
-from sklearn.utils import check_random_state
 from torch import nn
 from torch.nn import Parameter
 from torch.optim import Adam
 from torch.utils.data import TensorDataset, DataLoader
+
+from cogspaces.datasets.dictionaries import fetch_atlas_modl
+from cogspaces.datasets.utils import get_output_dir
+from cogspaces.models.factored import Identity
+from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
 
 k1 = 0.63576
 k2 = 1.87320
@@ -56,30 +57,37 @@ class DropoutLinear(nn.Linear):
         self.adaptive = adaptive
         self.level = level
 
+        self.init = init
+
         self.reset_dropout()
 
     def reset_parameters(self):
-        if self.init == 'normal':
-            super().reset_parameters()
-        elif self.init == 'symmetric':
-            super().reset_parameters()
-            assign = np.load(expanduser(
-                '~/work/repos/cogspaces/exps/assign_512.npy')).tolist()
-            self.weight.data += self.weight.data[:, assign]
-            self.weight.data /= 2
-        elif self.init == 'orthogonal':
-            nn.init.orthogonal_(self.weight.data,
-                                gain=1 / math.sqrt(self.weight.shape[1]))
-        elif self.init == 'loadings_128':
-            self.weight.data = torch.from_numpy(
-                np.load(expanduser('~/work/repos/cogspaces/exps/'
-                                   'loadings_128.npy')))
-        else:
-            try:
-                weight = np.load(self.init)
+        if hasattr(self, 'init'):
+            if self.init == 'normal':
+                super().reset_parameters()
+            elif self.init == 'symmetric':
+                super().reset_parameters()
+                dataset = fetch_atlas_modl()
+                assign = dataset['assign512']
+                assign = np.load(assign).tolist()
+                self.weight.data += self.weight.data[:, assign]
+                self.weight.data /= 2
+            elif self.init == 'orthogonal':
+                nn.init.orthogonal_(self.weight.data,
+                                    gain=1 / math.sqrt(self.weight.shape[1]))
+            elif self.init == 'loadings_modl':
+                assert self.out_features == 128
+                dataset = fetch_atlas_modl()
+                weight = np.load(dataset['loadings_128'])
                 self.weight.data = torch.from_numpy(weight)
-            except:
-                raise FileNotFoundError('Wrong init path %s' % self.init)
+            else:
+                try:
+                    weight = np.load(self.init)
+                    self.weight.data = torch.from_numpy(weight)
+                except:
+                    raise FileNotFoundError('Wrong init path %s' % self.init)
+        else:
+            super().reset_parameters()
         if hasattr(self, 'level'):
             self.reset_dropout()
 
@@ -173,14 +181,14 @@ class DropoutLinear(nn.Linear):
 
     @property
     def sparse_weight(self):
-        mask = self.get_log_alpha() > 1
+        mask = self.get_log_alpha() > 3
         return self.weight.masked_fill(mask, 0)
 
 
 class Embedder(nn.Module):
     def __init__(self, in_features, latent_size, var_penalty,
                  activation='linear', dropout=0., adaptive=False,
-                 init='gamble_rest'):
+                 init='normal'):
         super().__init__()
 
         self.init = init
@@ -189,6 +197,7 @@ class Embedder(nn.Module):
                                     adaptive=adaptive,
                                     var_penalty=var_penalty,
                                     sparsify=False,
+                                    init=init,
                                     level='additive' if adaptive else 'layer',
                                     p=dropout, bias=True)
         if activation == 'linear':
@@ -241,6 +250,7 @@ class VarMultiStudyModule(nn.Module):
                  input_dropout=0.,
                  regularization=1.,
                  latent_dropout=0.,
+                 init='normal',
                  adaptive='embedding+classifier',
                  ):
         super().__init__()
@@ -251,6 +261,7 @@ class VarMultiStudyModule(nn.Module):
         self.embedder = Embedder(in_features, latent_size,
                                  dropout=input_dropout,
                                  adaptive=embedder_adaptive,
+                                 init=init,
                                  var_penalty=regularization / total_length,
                                  activation=activation)
         classifier_adaptive = 'classifier' in adaptive
@@ -309,6 +320,8 @@ class VarMultiStudyClassifier(BaseEstimator):
                  weight_power=0.5,
                  variational=False,
                  sampling='cycle',
+                 init='normal',
+                 adaptive_dropout=True,
                  rotation=False,
                  n_jobs=1,
                  patience=200,
@@ -337,10 +350,13 @@ class VarMultiStudyClassifier(BaseEstimator):
         self.patience = patience
         self.max_iter = max_iter
 
+        self.adaptive_dropout = adaptive_dropout
+
         self.verbose = verbose
         self.device = device
         self.seed = seed
 
+        self.init = init
         self.n_jobs = n_jobs
 
     def fit(self, X, y, callback=None):
@@ -390,17 +406,13 @@ class VarMultiStudyClassifier(BaseEstimator):
             in_features=in_features,
             input_dropout=self.input_dropout,
             latent_dropout=self.dropout,
-            adaptive='classifier',
+            adaptive='classifier' if self.adaptive_dropout else '',
+            init=self.init,
             regularization=self.regularization,
             activation=self.activation,
             lengths=eff_lengths,
             latent_size=self.latent_size,
             target_sizes=target_sizes)
-
-        # Optimizers
-        # optimizer = Adam(filter(lambda p: p.requires_grad,
-        #                         module.parameters()),
-        #                  lr=self.lr, amsgrad=True)
 
         # Verbosity + epoch counting
         if self.epoch_counting == 'all':
@@ -415,10 +427,6 @@ class VarMultiStudyClassifier(BaseEstimator):
         else:
             raise ValueError
 
-        random_state = check_random_state(0)
-        size = in_features * self.latent_size
-        indices = random_state.permutation(size)[:100]
-        self.recorded_ = []
 
         for phase in ['pretrain', 'sparsify']:
             if self.max_iter[phase] == 0:
@@ -454,22 +462,18 @@ class VarMultiStudyClassifier(BaseEstimator):
                 if epoch > old_epoch:
                     old_epoch = epoch
                     epoch_batch = 0
-                    self.recorded_.append(module.embedder.linear.weight
-                                          .detach().view((-1))[
-                                              indices].numpy())
                     if (report_every is not None
                             and epoch % report_every == 0):
                         density = module.embedder.linear.density
                         print('Epoch %.2f, train loss: %.4f, penalty: %.4f,'
                               ' density: %.4f'
                               % (epoch, epoch_loss, epoch_penalty, density))
-                        p = {}
+                        dropout = {}
                         for study, classifier in self.module_.classifiers.items():
-                            p[
-                                study] = classifier.linear.get_p().detach().numpy()
+                            dropout[study] = classifier.linear.get_p().item()
                         print('Dropout', ' '.join('%s: %.2f'
-                                                  % (study, p[study]) for
-                                                  study in p))
+                                                  % (study, this_dropout) for
+                                                  study, this_dropout in dropout.items()))
                         p = module.embedder.linear.get_p().detach().numpy()
                         print('Input dropout', np.array2string(p, precision=3,
                                                                suppress_small=True,
@@ -494,8 +498,16 @@ class VarMultiStudyClassifier(BaseEstimator):
                         torch.save(module, join(get_output_dir(),
                                                 'model_%s.pkl' % phase))
                         print('-----------------------------------')
-                        break
 
+                        dropout = {}
+                        for study, classifier in self.module_.classifiers.items():
+                            dropout[study] = classifier.linear.get_p().item()
+                        print('Dropout', ' '.join('%s: %.2f'
+                                                  % (study, this_dropout) for
+                                                  study, this_dropout in dropout.items()))
+                        self.dropout_ = dropout
+
+                        break
                 batch_size = sum(input.shape[0] for input in inputs.values())
                 seen_samples += batch_size
                 optimizer.zero_grad()
@@ -516,8 +528,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                 epoch_penalty += penalty.item() / epoch_batch
 
                 epoch = floor(seen_samples / n_samples)
-        # self.recorded_ = np.concatenate([record[None, :] for
-        #                                  record in self.recorded_], axis=0)
         print('Final density %s' % module.embedder.linear.density)
 
         if self.max_iter['finetune'] > 0:

@@ -1,14 +1,15 @@
+import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import LogisticRegression
-import pandas as pd
-import numpy as np
 
 
 class MultiLogisticClassifier(BaseEstimator):
-    def __init__(self, l2_penalty=1e-4, verbose=0, max_iter=1000):
+    def __init__(self, l2_penalty=1e-4, verbose=0, max_iter=1000,
+                 solver='lbfgs'):
         self.l2_penalty = l2_penalty
         self.verbose = verbose
         self.max_iter = max_iter
+        self.solver = solver
 
     def fit(self, X, y, study_weights=None, callback=None):
         self.estimators_ = {}
@@ -16,7 +17,7 @@ class MultiLogisticClassifier(BaseEstimator):
             n_samples = X[study].shape[0]
             C = 1. / (n_samples * self.l2_penalty)
             self.estimators_[study] = LogisticRegression(
-                solver='lbfgs',
+                solver=self.solver,
                 multi_class='multinomial',
                 C=C, max_iter=self.max_iter,
                 tol=0,

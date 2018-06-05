@@ -1,21 +1,19 @@
 # Load data
 
 import pandas as pd
-from cogspaces.data import load_data_from_dir
-from cogspaces.datasets.utils import get_data_dir, get_output_dir
-from cogspaces.model_selection import train_test_split
-from cogspaces.models.baseline import MultiLogisticClassifier
-from cogspaces.models.factored import FactoredClassifier, FactoredClassifierCV
-from cogspaces.models.factored_fast import MultiStudyClassifier
-from cogspaces.models.trace import TraceClassifier
-from cogspaces.models.variational import VarMultiStudyClassifier
-from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
-from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
-from cogspaces.utils.sacred import OurFileStorageObserver
 from joblib import dump
 from os.path import join
 from sacred import Experiment
 from sklearn.metrics import accuracy_score
+
+from cogspaces.data import load_data_from_dir
+from cogspaces.datasets.utils import get_data_dir, get_output_dir
+from cogspaces.model_selection import train_test_split
+from cogspaces.models.baseline import MultiLogisticClassifier
+from cogspaces.models.variational import VarMultiStudyClassifier
+from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
+from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
+from cogspaces.utils.sacred import OurFileStorageObserver
 
 exp = Experiment('multi_studies')
 
@@ -30,89 +28,40 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies=['archi', 'brainomics', 'amalric2012mathematicians'],
+        studies='all',
         target_study='archi',
     )
     model = dict(
+        estimator='logistic',
         normalize=False,
-        estimator='factored_variational',
-        study_weight='sqrt_sample',
-        max_iter={'pretrain': 0, 'sparsify': 0, 'finetune': 500},
-        seed=200,
+        seed=100,
+        max_iter={'pretrain': 1000, 'sparsify': 0, 'finetune': 10},
     )
-    factored_variational = dict(
+    factored = dict(
         optimizer='adam',
         latent_size=128,
         activation='linear',
         regularization=1,
         epoch_counting='all',
+        adaptive_dropout=True,
         sampling='random',
         weight_power=0.6,
         batch_size=128,
+        init='symmetric',
         dropout=0.5,
         lr=1e-3,
-        input_dropout=0.25)
-
-    factored_fast = dict(
-        optimizer='adam',
-        latent_size=128,
-        activation='linear',
-        epoch_counting='all',
-        sampling='random',
-        batch_size=128,
-        regularization=1e-2,
-        dropout=0.5,
-        lr=1e-3,
-        input_dropout=0.25)
-
-    factored = dict(
-        optimizer='adam',
-        adapt_size=0,
-        shared_latent_size=128,
-        private_latent_size=0,
-        shared_latent='hard',
-        skip_connection=False,
-        activation='relu',
-        epoch_counting='all',
-        sampling='cycle',
-        fine_tune=True,
-        decode=False,
-        batch_size=128,
-        dropout=0.75,
-        loss_weights={'contrast': 1, 'study': 1, 'penalty': 1,
-                      'decoding': 1, 'all_contrast': 1},
-        lr=1e-3,
-        batch_norm=True,
-        input_dropout=0.25)
-    factored_cv = dict(
-        optimizer='adam',
-        shared_latent_size=10,
-        private_latent_size=0,
-        averaging=False,
-        shared_latent='hard',
-        skip_connection=False,
-        activation='linear',
-        decode=False,
-        sampling='weighted_random',
-        batch_size=128,
-        dropout=0.,
-        n_jobs=20,
-        n_splits=10,
-        n_runs=1,
-        lr=1e-3,
-        input_dropout=0.25)
-    trace = dict(
-        trace_penalty=1e-3,
+        input_dropout=0.25
     )
+
     logistic = dict(
-        l2_penalty=1e-4,
+        l2_penalty=1e-5,
     )
 
 
 @exp.capture
 def save_output(target_encoder, standard_scaler, estimator,
-                test_preds, test_latents, train_latents,
-                recorded, _run):
+                test_preds,
+                 _run):
     if not _run.unobserved:
         try:
             observer = next(filter(lambda x:
@@ -124,9 +73,6 @@ def save_output(target_encoder, standard_scaler, estimator,
         dump(standard_scaler, join(observer.dir, 'standard_scaler.pkl'))
         dump(estimator, join(observer.dir, 'estimator.pkl'))
         dump(test_preds, join(observer.dir, 'test_preds.pkl'))
-        dump(test_latents, join(observer.dir, 'test_latents.pkl'))
-        dump(train_latents, join(observer.dir, 'train_latents.pkl'))
-        dump(recorded, join(observer.dir, 'recorded.pkl'))
 
 
 @exp.capture(prefix='data')
@@ -147,8 +93,8 @@ def load_data(source_dir, studies, target_study):
 
 
 @exp.main
-def train(system, model, factored, factored_cv, trace, logistic,
-          factored_fast, factored_variational, full,
+def train(system, model, logistic,
+          factored, full,
           _run, _seed):
     data, target = load_data()
     print(_seed)
@@ -169,39 +115,15 @@ def train(system, model, factored, factored_cv, trace, logistic,
     else:
         standard_scaler = None
 
-
     if model['estimator'] == 'factored':
-        estimator = FactoredClassifier(verbose=system['verbose'],
-                                       device=system['device'],
-                                       max_iter=model['max_iter'],
-                                       seed=_seed,
-                                       **factored)
-    elif model['estimator'] == 'factored_cv':
-        estimator = FactoredClassifierCV(verbose=system['verbose'],
-                                         device=system['device'],
-                                         max_iter=model['max_iter'],
-                                         seed=_seed,
-                                         **factored_cv)
-    elif model['estimator'] == 'factored_fast':
-        estimator = MultiStudyClassifier(verbose=system['verbose'],
-                                         device=system['device'],
-                                         max_iter=model['max_iter'],
-                                         seed=_seed,
-                                         **factored_fast)
-    elif model['estimator'] == 'factored_variational':
         estimator = VarMultiStudyClassifier(verbose=system['verbose'],
                                             device=system['device'],
                                             max_iter=model['max_iter'],
                                             seed=model['seed'],
-                                            **factored_variational)
-    elif model['estimator'] == 'trace':
-        estimator = TraceClassifier(verbose=system['verbose'],
-                                    max_iter=model['max_iter'],
-                                    step_size_multiplier=100000,
-                                    **trace)
+                                            **factored)
     elif model['estimator'] == 'logistic':
         estimator = MultiLogisticClassifier(verbose=system['verbose'],
-                                            max_iter=model['max_iter'],
+                                            max_iter=model['max_iter']['pretrain'],
                                             **logistic)
     else:
         return ValueError("Wrong value for parameter "
@@ -226,14 +148,10 @@ def train(system, model, factored, factored_cv, trace, logistic,
     if hasattr(estimator, 'studies_'):
         _run.info['studies'] = estimator.studies_
 
-    test_preds = estimator.predict(test_data)
+    if hasattr(estimator, 'dropout_'):
+        _run.info['dropout'] = estimator.dropout_
 
-    if hasattr(estimator, 'predict_latent'):
-        test_latents = estimator.predict_latent(test_data)
-        train_latents = estimator.predict_latent(train_data)
-    else:
-        test_latents = None
-        train_latents = None
+    test_preds = estimator.predict(test_data)
 
     test_scores = {}
     for study in test_preds:
@@ -246,10 +164,10 @@ def train(system, model, factored, factored_cv, trace, logistic,
         test_preds[study] = pd.concat([test_preds[study], test_targets[study]],
                                       axis=1,
                                       keys=['pred', 'true'], names=['target'])
-    save_output(target_encoder, standard_scaler, estimator, test_preds,
-                test_latents, train_latents, estimator.recorded_)
+    save_output(target_encoder, standard_scaler, estimator, test_preds)
 
     return test_scores
+
 
 if __name__ == '__main__':
     output_dir = join(get_output_dir(), 'multi_studies')

@@ -27,6 +27,7 @@ def fetch_atlas_modl(data_dir=None, url=None,
         'components_256_gm.nii.gz',
         'components_512_gm.nii.gz',
         'loadings_128.npy',
+        'assign_512.npy'
     ]
 
     if isinstance(url, str):
@@ -46,11 +47,12 @@ def fetch_atlas_modl(data_dir=None, url=None,
 
     keys = ['components16',
             'components128',
-            'components208'
+            'components208',
             'components512',
-            'components256_gm'
+            'components256_gm',
             'components512_gm',
             'loadings128',
+            'assign512'
             ]
 
     params = dict(zip(keys, files_))
