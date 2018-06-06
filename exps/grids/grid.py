@@ -51,6 +51,44 @@ def factored():
     )
 
 
+def factored_refit():
+    seed = 10
+    full = False
+    system = dict(
+        device=-1,
+        verbose=2,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512'),
+        studies='all',
+    )
+    model = dict(
+        estimator='factored',
+        normalize=False,
+    )
+    factored = dict(
+        optimizer='adam',
+        latent_size=128,
+        activation='linear',
+        regularization=1,
+        epoch_counting='all',
+        sampling='random',
+        weight_power=0.6,
+        adaptive_dropout=True,
+        batch_size=128,
+        init='symmetric',
+        dropout=0.75,
+        lr=1e-3,
+        input_dropout=0.25,
+        seed=100,
+        max_iter={'pretrain': 0, 'sparsify': 0, 'finetune': 500},
+    )
+
+    logistic = dict(
+        l2_penalty=1e-4,
+    )
+
+
 def reduced_logistic():
     seed = 1
     system = dict(
@@ -151,14 +189,29 @@ if __name__ == '__main__':
     seeds = check_random_state(42).randint(0, 100000, size=20)
 
     if grid == 'seed_split_init':
-        output_dir = join(get_output_dir(), 'seed_split_init')
+        output_dir = join(get_output_dir(), 'seed_split_init_2')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         exp.config(factored)
-        model_seeds = check_random_state(43).randint(0, 100000, size=100)
-        config_updates = ParameterGrid({'factored.seed': model_seeds,
-                                        'seed': seeds})
-    if grid == 'weight_power':
+        model_seeds = check_random_state(143).randint(100000, 1000000, size=200)
+        config_updates = ParameterGrid({'seed': seeds,
+                                        'factored.seed': model_seeds,
+                                        })
+    elif grid == 'init_refit':
+        output_dir = join(get_output_dir(), 'init_refit')
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        exp.config(factored_refit)
+        seed_split_init_dir = join(get_output_dir(), 'seed_split_init')
+
+        config_updates = [{'seed': seed,
+                           'factored.init': join(seed_split_init_dir,
+                                                 '%s_%i.pkl.npy' %
+                                                 (init, seed))}
+                          for seed in seeds
+                          for init in ['pca', 'dl_rest_init',
+                                       'dl_random_init']]
+    elif grid == 'weight_power':
         output_dir = join(get_output_dir(), 'weight_power')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -201,6 +254,7 @@ if __name__ == '__main__':
         raise ValueError('Wrong argument')
 
     _id = get_id(output_dir)
+    _id = 2000
     Parallel(n_jobs=40, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       mock=False,

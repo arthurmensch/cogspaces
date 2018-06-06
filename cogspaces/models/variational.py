@@ -80,6 +80,7 @@ class DropoutLinear(nn.Linear):
                 self.weight.data = torch.from_numpy(weight)
             else:
                 try:
+                    print(self.init)
                     weight = np.load(self.init)
                     self.weight.data = torch.from_numpy(weight)
                 except:

@@ -3,12 +3,10 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import pandas as pd
 import re
-from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask
-from joblib import Memory
-from joblib import load, Parallel, delayed
-from matplotlib.testing.compare import get_cache_dir
+from flask import json
+from joblib import Parallel, delayed
 from modl.decomposition.dict_fact import DictFact
 from nilearn._utils import check_niimg
 from nilearn.image import iter_img
@@ -20,6 +18,9 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import check_random_state
+
+from cogspaces.datasets.dictionaries import fetch_atlas_modl
+from cogspaces.datasets.utils import fetch_mask
 
 
 def explained_variance(X, components, per_component=True):
@@ -92,79 +93,41 @@ class DictionaryScorer:
 
 def compute_coefs(output_dir):
     regex = re.compile(r'[0-9]+$')
-    all_coefs = []
+    res = []
+    dropout = []
     for this_dir in filter(regex.match, os.listdir(output_dir)):
+        this_exp_dir = join(output_dir, this_dir)
+        this_dir = int(this_dir)
         try:
-            estimator = load(join(output_dir, this_dir, 'estimator.pkl'))
-            print('Loaded', this_dir)
-        except FileNotFoundError:
+            config = json.load(
+                open(join(this_exp_dir, 'config.json'), 'r'))
+            info = json.load(
+                open(join(this_exp_dir, 'info.json'), 'r'))
+        except (FileNotFoundError, json.decoder.JSONDecodeError):
+            print('Skipping exp %i' % this_dir)
             continue
-            print('Skipping', this_dir)
-        embedder_coef = estimator.module_.embedder.linear. \
-            sparse_weight.detach().numpy()
-        print((embedder_coef != 0).mean())
-        all_coefs.append(embedder_coef)
-    all_coefs = np.concatenate(all_coefs, axis=0)
-
-    np.save(join(output_dir, 'coefs.npy'), all_coefs)
-
-
-def compute_pca(output_dir):
-    mem = Memory(get_cache_dir())
-
-    coefs = np.load(join(output_dir, 'coefs.npy'))
-
-    pca = PCA(n_components=128)
-    pca = pca.fit(coefs)
-    components = pca.components_
-
-    explained_var = np.sum(pca.explained_variance_ratio_)
-    print('Explained variance %.4f' % explained_var)
-
-    np.save(join(output_dir, 'pca.npy'), components)
-
-    atlas, masker = mem.cache(fetch_atlas_and_masker)()
-
-    maps = components.dot(atlas)
-    maps = masker.inverse_transform(maps)
-    maps.to_filename(join(output_dir, 'pca.nii.gz'))
-    dest_dir = join(output_dir, 'pca')
-    plot_all(maps, pca.explained_variance_ratio_, dest_dir, n_jobs=3)
-
-
-def compute_components_and_plot(output_dir, init='rest', symmetric_init=True,
-                                proj_principal=False, alpha=1e-2):
-    mem = Memory(get_cache_dir())
-    coefs = np.load(join(output_dir, 'coefs.npy'))
-
-    components = compute_components(coefs, init, symmetric_init,
-                                    proj_principal, alpha=alpha)
-    density = (components != 0).mean()
-    exp_var = explained_variance(coefs, components,
-                                 per_component=False)
-    print('Density:', density)
-    print('Explained variance:', exp_var)
-
-    np.save(join(output_dir, 'dl_%s.npy' % init), components)
-
-    exp_vars = explained_variance(coefs[:500], components,
-                                  per_component=True)
-    sort = np.argsort(exp_vars)[::-1]
-    components = components[sort]
-    exp_vars = exp_vars[sort]
-    print(exp_vars)
-
-
-    atlas, masker = mem.cache(fetch_atlas_and_masker)()
-
-    maps = components.dot(atlas)
-
-    maps = masker.inverse_transform(maps)
-
-    maps.to_filename(join(output_dir, 'dl_%s.nii.gz' % init))
-    dest_dir = join(output_dir, 'dl_%s' % init)
-    plot_all(maps, exp_vars, dest_dir, n_jobs=3)
-
+        seed = config['seed']
+        model_seed = config['factored']['seed']
+        dropout.append(dict(seed=seed, **info['dropout'], model_seed=model_seed))
+        this_res = dict(seed=seed, dir=this_dir)
+        res.append(this_res)
+    res = pd.DataFrame(res)
+    dropout = pd.DataFrame(dropout)
+    # res.to_pickle(join(output_dir, 'seeds.pkl'))
+    # for seed, sub_res in res.groupby(by='seed'):
+    #     print(seed)
+    #     all_coefs = []
+    #     for this_dir in sub_res['dir']:
+    #         estimator = load(join(output_dir, str(this_dir),
+    #                               'estimator.pkl'))
+    #         coef = estimator.module_.embedder.linear.weight.detach().numpy()
+    #         all_coefs.append(coef)
+    #     all_coefs = np.concatenate(all_coefs, axis=0)
+    #     np.save(join(output_dir, 'coefs_%i.npy' % seed), all_coefs)
+    dropout = dropout.set_index(['seed', 'model_seed'])
+    dropout = dropout.groupby('seed').mean()
+    print(dropout)
+    dropout.to_pickle(join(output_dir, 'dropout.pkl'))
 
 def fetch_atlas_and_masker():
     modl_atlas = fetch_atlas_modl()
@@ -175,9 +138,26 @@ def fetch_atlas_and_masker():
     return atlas, masker
 
 
-def compute_components(coefs, init='rest', symmetric_init=True,
-                       proj_principal=False,
-                       alpha=1e-2):
+def compute_pca(output_dir, seed):
+    coefs = np.load(join(output_dir, 'coefs_%i.npy' % seed))
+
+    pca = PCA(n_components=128)
+    pca = pca.fit(coefs)
+    components = pca.components_
+    exp_vars = pca.explained_variance_ratio_
+
+    explained_var = np.sum(exp_vars)
+    print('Total explained variance %.4f' % explained_var)
+
+    return components
+
+
+def compute_sparse_components(output_dir, seed, init='rest',
+                              symmetric_init=True,
+                              proj_principal=False,
+                              alpha=1e-2):
+    coefs = np.load(join(output_dir, 'coefs_%i.npy' % seed))
+
     if init == 'random':
         random_state = check_random_state(0)
         dict_init = random_state.randn(512, 128)
@@ -186,49 +166,17 @@ def compute_components(coefs, init='rest', symmetric_init=True,
         dict_init = q.T
         dict_init /= np.sqrt(512)
     elif init == 'rest':
-        random_state = check_random_state(0)
-        dict_init = np.load(
-            expanduser('~/work/repos/cogspaces/exps/'
-                       'loadings_128.npy'))
-        # # dict_init -= np.mean(dict_init, axis=1, keepdims=True)
-        # mat = np.eye(128) + random_state.randn(128, 128) * 5
-        # q, r = qr(mat)
-        # q = q * np.sign(np.diag(r))
-        # rot = q.T
-        # dict_init = rot.dot(dict_init)
-
-        # dict_init = random_state.uniform(-1, 1, size=(128, 512)) / np.sqrt(512) /10
-        # q, r = qr(dict_init)
-        # q = q * np.sign(np.diag(r))
-        # dict_init = q.T
-        # dict_init /= np.sqrt(512)
-
-        # dict_init = np.load(
-        #     expanduser('~/work/repos/cogspaces/exps/'
-        #                'loadings_128.npy'))
-        # dict_init *= random_state.randn(128, 512) / 100 + 1
-    elif init == 'rest_corr':
-        dict_init = np.load(
-            expanduser('~/work/repos/cogspaces/exps/'
-                       'loadings_128.npy'))
+        loadings_128 = fetch_atlas_modl()['loadings128']
+        dict_init = np.load(loadings_128)
     elif init == 'data':
         random_state = check_random_state(0)
         indices = random_state.permutation(len(coefs))[:128]
         dict_init = coefs[indices]
     if symmetric_init:
-        assign = np.load(expanduser('~/work/repos/cogspaces/exps/assign_512.npy'))
+        assign = fetch_atlas_modl()['assign512']
+        assign = np.load(assign)
         dict_init += dict_init[:, assign]
         dict_init /= 2
-
-    if init == 'rest_corr':
-        random_state = check_random_state(0)
-        sign = (random_state.randint(0, 2, size=(128, 512)) - .5) * 2
-        dict_init *= sign
-    print(dict_init)
-
-    random_state = check_random_state(1)
-    indices = random_state.permutation(len(coefs))[:500]
-    cb = DictionaryScorer(coefs[indices])
 
     sc = StandardScaler(with_std=False, with_mean=True)
     sc.fit(coefs)
@@ -238,28 +186,39 @@ def compute_components(coefs, init='rest', symmetric_init=True,
         pca = PCA(n_components=128)
         pca = pca.fit(coefs_)
         dict_init = pca.inverse_transform(pca.transform(dict_init))
-        # coefs_ = pca.inverse_transform(pca.transform(coefs_))
-        # coefs_ = coefs_
-    else:
-        coefs_ = coefs_
+        coefs_ = pca.inverse_transform(pca.transform(coefs_))
+
     dict_fact = DictFact(comp_l1_ratio=0, comp_pos=False,
                          n_components=128,
                          code_l1_ratio=0, batch_size=32,
                          learning_rate=1,
                          dict_init=dict_init,
-                         code_alpha=alpha, verbose=0, n_epochs=2,
-                         callback=None)
+                         code_alpha=alpha, verbose=0, n_epochs=3,
+                         )
     dict_fact.fit(coefs_)
     dict_init = dict_fact.components_
     dict_fact = DictFact(comp_l1_ratio=1, comp_pos=False, n_components=128,
                          code_l1_ratio=0, batch_size=32, learning_rate=1,
                          dict_init=dict_init,
-                         code_alpha=alpha, verbose=10, n_epochs=40,
-                         callback=cb)
+                         code_alpha=alpha, verbose=10, n_epochs=20,
+                         )
     dict_fact.fit(coefs_)
-    print(cb.exp_var)
-    print(cb.density)
-    return dict_fact.components_
+
+    components = dict_fact.components_
+
+    total_exp_var = explained_variance(coefs, components,
+                                       per_component=False)
+    print('Total exp var: %.4f' % total_exp_var)
+    density = (components != 0).mean()
+    print('Density: %.4f' % density)
+
+    exp_vars = explained_variance(coefs[:500], components,
+                                  per_component=True)
+    sort = np.argsort(exp_vars)[::-1]
+    components = components[sort]
+    exp_vars = exp_vars[sort]
+
+    return components
 
 
 def plot_single(img, title, filename):
@@ -286,14 +245,81 @@ def plot_all(imgs, exp_vars, dest_dir, n_jobs=1):
                                           exp_vars)))
 
 
+def compute_all_decomposition(output_dir):
+    seeds = pd.read_pickle(join(output_dir, 'seeds.npy'))
+    seeds = seeds['seed'].unique()
+
+    components_list = Parallel(n_jobs=20, verbose=10)(
+        delayed(compute_pca)(output_dir, seed)
+        for seed in seeds)
+    for components, seed in zip(components_list, seeds):
+        np.save(join(output_dir, 'pca_%i.pkl' % seed), components)
+
+    components_list = Parallel(n_jobs=20, verbose=10)(
+        delayed(compute_sparse_components)
+        (output_dir, seed,
+         symmetric_init=True,
+         alpha=5e-5,
+         init='rest')
+        for seed in seeds)
+    for components, seed in zip(components_list, seeds):
+        np.save(join(output_dir, 'dl_rest_init_%i.npy' % seed), components)
+
+    components_list = Parallel(n_jobs=20, verbose=10)(
+        delayed(compute_sparse_components)
+        (output_dir, seed,
+         symmetric_init=False,
+         alpha=1e-4,
+         init='random')
+        for seed in seeds)
+    for components, seed in zip(components_list, seeds):
+        np.save(join(output_dir, 'dl_random_init_%i.npy' % seed), components)
+
+
+#
+# def compute_components_and_plot(output_dir, init='rest', symmetric_init=True,
+#                                 proj_principal=False, alpha=1e-2):
+#     mem = Memory(get_cache_dir())
+#     coefs = np.load(join(output_dir, 'coefs.npy'))
+#
+#     components = compute_components(coefs, init, symmetric_init,
+#                                     proj_principal, alpha=alpha)
+#     density = (components != 0).mean()
+#     exp_var = explained_variance(coefs, components,
+#                                  per_component=False)
+#     print('Density:', density)
+#     print('Explained variance:', exp_var)
+#
+#     np.save(join(output_dir, 'dl_%s.npy' % init), components)
+#
+#     exp_vars = explained_variance(coefs[:500], components,
+#                                   per_component=True)
+#     sort = np.argsort(exp_vars)[::-1]
+#     components = components[sort]
+#     exp_vars = exp_vars[sort]
+#     print(exp_vars)
+#
+#
+#     atlas, masker = mem.cache(fetch_atlas_and_masker)()
+#
+#     maps = components.dot(atlas)
+#
+#     maps = masker.inverse_transform(maps)
+#
+#     maps.to_filename(join(output_dir, 'dl_%s.nii.gz' % init))
+#     dest_dir = join(output_dir, 'dl_%s' % init)
+#     plot_all(maps, exp_vars, dest_dir, n_jobs=3)
+
+
 if __name__ == '__main__':
     output_dir = join(expanduser('~/output_pd/cogspaces'), 'seed_split_init')
     compute_coefs(output_dir)
-    compute_pca(output_dir)
+    # compute_all_decomposition(output_dir)
+    # compute_pca(output_dir)
     # print('------------------ random init -----------------')
     # compute_components_and_plot(output_dir, init='random', proj_principal=False,
     #                             alpha=1e-3)
     # print('------------------ rest init -----------------')
-    compute_components_and_plot(output_dir, init='rest', symmetric_init=False,
-                                proj_principal=False,
-                                alpha=5e-5)
+    # compute_components_and_plot(output_dir, init='rest', symmetric_init=False,
+    #                             proj_principal=False,
+    #                             alpha=5e-5)

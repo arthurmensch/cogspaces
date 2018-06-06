@@ -38,6 +38,42 @@ def gather_seed_split_init(output_dir):
     res.to_pickle(join(output_dir, 'gathered_seed_split_init.pkl'))
 
 
+def gather_init_refit(output_dir):
+    regex = re.compile(r'[0-9]+$')
+    res = []
+    for this_dir in filter(regex.match, os.listdir(output_dir)):
+        this_exp_dir = join(output_dir, this_dir)
+        this_dir = int(this_dir)
+        try:
+            config = json.load(
+                open(join(this_exp_dir, 'config.json'), 'r'))
+            run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
+        except (FileNotFoundError, json.decoder.JSONDecodeError):
+            print('Skipping exp %i' % this_dir)
+            continue
+        seed = config['seed']
+        init = config['factored']['init']
+        if 'pca_' in init:
+            init = 'pca'
+        elif 'dl_rest_init_' in init:
+            init = 'dl_rest_init'
+        elif 'dl_random_init' in init:
+            init = 'dl_random_init'
+        else:
+            raise ValueError
+        test_scores = run['result']
+        this_res = dict(seed=seed, init=init,
+                        **test_scores)
+        res.append(this_res)
+    res = pd.DataFrame(res)
+    res = res.set_index(['seed', 'init'])
+    studies = res.columns.values
+    res = [res[study] for study in studies]
+    res = pd.concat(res, keys=studies, names=['study'], axis=0)
+    res = res.groupby(['study', 'init']).aggregate(['mean', 'std'])
+    print(res)
+    res.to_pickle(join(output_dir, 'gathered_seed_split_init.pkl'))
+
 def gather_reduced_logistic(output_dir):
     regex = re.compile(r'[0-9]+$')
     res = []
@@ -77,17 +113,48 @@ def gather_dropout(output_dir):
             continue
         seed = config['seed']
         study = config['data']['studies']
-        dropout = config['model']['dropout']
-        adaptive_dropout = config['data']['adaptive_dropout']
-        score = run['result'][study]
+        dropout = config['factored']['dropout']
+        adaptive_dropout = config['factored']['adaptive_dropout']
+        test_scores = run['result']
         this_res = dict(seed=seed, dropout=dropout,
                         adaptive_dropout=adaptive_dropout,
+                        **test_scores)
+        res.append(this_res)
+    res = pd.DataFrame(res)
+    res = res.set_index(['adaptive_dropout', 'dropout', 'seed'])
+    studies = res.columns.values
+    res = [res[study] for study in studies]
+    res = pd.concat(res, keys=studies, names=['study'], axis=0)
+    res = res.groupby(['study', 'adaptive_dropout', 'dropout']).aggregate(['mean', 'std'])
+    print(res)
+    res.to_pickle(join(output_dir, 'gathered_dropout.pkl'))
+
+
+def gather_weight_power(output_dir):
+    regex = re.compile(r'[0-9]+$')
+    res = []
+    for this_dir in filter(regex.match, os.listdir(output_dir)):
+        this_exp_dir = join(output_dir, this_dir)
+        this_dir = int(this_dir)
+        try:
+            config = json.load(
+                open(join(this_exp_dir, 'config.json'), 'r'))
+            run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
+        except (FileNotFoundError, json.decoder.JSONDecodeError):
+            print('Skipping exp %i' % this_dir)
+            continue
+        seed = config['seed']
+        study = config['data']['studies']
+        gather_weight_power = config['model']['gather_weight_power']
+        score = run['result'][study]
+        this_res = dict(seed=seed,
+                        gather_weight_power=gather_weight_power,
                         study=study, score=score)
         res.append(this_res)
     res = pd.DataFrame(res)
-    res = res.set_index(['study', 'adaptive_dropout', 'dropout', 'seed'])
-    res = res.groupby(['study', 'adaptive_dropout', 'dropout']).aggregate(['mean', 'std'])
-    res.to_pickle(join(output_dir, 'gathered_dropout.pkl'))
+    res = res.set_index(['study', 'weight_power', 'seed'])
+    res = res.groupby(['study', 'weight_power']).aggregate(['mean', 'std'])
+    res.to_pickle(join(output_dir, 'gathered_weight_power.pkl'))
     
     
 def join_baseline_factored(baseline_output_dir, factored_output_dir):
@@ -138,4 +205,6 @@ if __name__ == '__main__':
     # gather_reduced_logistic(join(get_output_dir(), 'reduced_logistic'))
     # join_baseline_factored(join(get_output_dir(), 'reduced_logistic'),
     #                        join(get_output_dir(), 'seed_split_init'))
-    gather_dropout(join(get_output_dir(), 'dropout'))
+    # gather_dropout(join(get_output_dir(), 'dropout'))
+    gather_init_refit(join(get_output_dir(), 'init_refit'))
+    # gather_weight_power(join(get_output_dir(), 'gather_weight_power'))
