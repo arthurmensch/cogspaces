@@ -11,7 +11,7 @@ class MultiLogisticClassifier(BaseEstimator):
         self.max_iter = max_iter
         self.solver = solver
 
-    def fit(self, X, y, study_weights=None, callback=None):
+    def fit(self, X, y, callback=None):
         self.estimators_ = {}
         for study in X:
             n_samples = X[study].shape[0]

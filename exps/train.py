@@ -1,6 +1,5 @@
 # Load data
 
-import pandas as pd
 from joblib import dump
 from os.path import join
 from sacred import Experiment
@@ -29,13 +28,11 @@ def default():
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
         studies='all',
-        target_study='archi',
     )
     model = dict(
-        estimator='logistic',
+        estimator='factored',
         normalize=False,
         seed=100,
-        max_iter={'pretrain': 1000, 'sparsify': 0, 'finetune': 10},
     )
     factored = dict(
         optimizer='adam',
@@ -43,25 +40,25 @@ def default():
         activation='linear',
         regularization=1,
         epoch_counting='all',
-        adaptive_dropout=True,
+        adaptive_dropout=False,
         sampling='random',
         weight_power=0.6,
         batch_size=128,
         init='symmetric',
         dropout=0.5,
         lr=1e-3,
-        input_dropout=0.25
+        input_dropout=0.25,
+        max_iter={'pretrain': 10, 'sparsify': 0, 'finetune': 10},
     )
 
     logistic = dict(
         l2_penalty=1e-5,
+        max_iter=200,
     )
 
 
 @exp.capture
-def save_output(target_encoder, standard_scaler, estimator,
-                test_preds,
-                 _run):
+def save_output(target_encoder, standard_scaler, estimator, _run):
     if not _run.unobserved:
         try:
             observer = next(filter(lambda x:
@@ -72,11 +69,10 @@ def save_output(target_encoder, standard_scaler, estimator,
         dump(target_encoder, join(observer.dir, 'target_encoder.pkl'))
         dump(standard_scaler, join(observer.dir, 'standard_scaler.pkl'))
         dump(estimator, join(observer.dir, 'estimator.pkl'))
-        dump(test_preds, join(observer.dir, 'test_preds.pkl'))
 
 
 @exp.capture(prefix='data')
-def load_data(source_dir, studies, target_study):
+def load_data(source_dir, studies):
     data, target = load_data_from_dir(data_dir=source_dir)
     for study, this_target in target.items():
         this_target['all_contrast'] = study + '_' + this_target['contrast']
@@ -118,12 +114,9 @@ def train(system, model, logistic,
     if model['estimator'] == 'factored':
         estimator = VarMultiStudyClassifier(verbose=system['verbose'],
                                             device=system['device'],
-                                            max_iter=model['max_iter'],
-                                            seed=model['seed'],
                                             **factored)
     elif model['estimator'] == 'logistic':
         estimator = MultiLogisticClassifier(verbose=system['verbose'],
-                                            max_iter=model['max_iter']['pretrain'],
                                             **logistic)
     else:
         return ValueError("Wrong value for parameter "
@@ -141,13 +134,6 @@ def train(system, model, logistic,
 
     estimator.fit(train_data, train_targets, callback=callback)
 
-    if model['estimator'] == 'factored_cv':
-        target = list(test_data.keys())[0]
-        test_data = {target: test_data[target]}
-
-    if hasattr(estimator, 'studies_'):
-        _run.info['studies'] = estimator.studies_
-
     if hasattr(estimator, 'dropout_'):
         _run.info['dropout'] = estimator.dropout_
 
@@ -157,14 +143,7 @@ def train(system, model, logistic,
     for study in test_preds:
         test_scores[study] = accuracy_score(test_preds[study]['contrast'],
                                             test_targets[study]['contrast'])
-
-    test_preds = target_encoder.inverse_transform(test_preds)
-    test_targets = target_encoder.inverse_transform(test_targets)
-    for study in test_preds:
-        test_preds[study] = pd.concat([test_preds[study], test_targets[study]],
-                                      axis=1,
-                                      keys=['pred', 'true'], names=['target'])
-    save_output(target_encoder, standard_scaler, estimator, test_preds)
+    save_output(target_encoder, standard_scaler, estimator)
 
     return test_scores
 
@@ -174,4 +153,3 @@ if __name__ == '__main__':
     exp.observers.append(OurFileStorageObserver.create(basedir=output_dir))
     run = exp.run()
     output_dir = join(output_dir, str(run._id))
-    # introspect_and_plot(output_dir, n_jobs=3)

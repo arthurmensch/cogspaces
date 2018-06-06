@@ -1,4 +1,4 @@
-{"http://www.pnas.org/content/108/6/2522.short": {
+{"devauchelle2009sentence": {
   "title": "Complexity",
   "href": "http://www.pnas.org/content/108/6/2522.short"},
  "knops2009recruitment": {
@@ -14,7 +14,7 @@
    "title": "Twin localizer",
    "href": "http://www.sciencedirect.com/science/article/pii/S1053811913004862"},
  "ds001": {
-   "title": "Balloon Analog Risk-taking Task",
+   "title": "Balloon Analog Risk-taking",
    "href": "https://openfmri.org/dataset/ds000001"},
  "ds002": {
    "title": "Classification learning",
@@ -23,31 +23,31 @@
    "title": "Rhyme judgment",
    "href": "https://openfmri.org/dataset/ds000003"},
  "ds005": {
-   "title": "Mixed-gambles task",
+   "title": "Mixed-gambles",
    "href": "https://openfmri.org/dataset/ds000005"},
  "ds006A": {
    "title": "Plain or mirror-reversed text",
    "longtitle": "Living-nonliving decision with plain or mirror-reversed text",
    "href": "https://openfmri.org/dataset/ds000006a"},
  "ds007": {
-   "title": "Stop-signal task with spoken & manual responses",
+   "title": "Stop-signal with spoken \n & manual responses",
    "href": "https://openfmri.org/dataset/ds000007"},
  "ds008": {
-   "title": "Stop-signal task",
-   "longtitle": "Stop-signal task with unconditional and conditional stopping",
+   "title": "Stop-signal",
+   "longtitle": "Stop-signal with unconditional and conditional stopping",
    "href": "https://openfmri.org/dataset/ds000008"},
  "ds011": {
-   "title": "Classification learning and tone-counting",
+   "title": "Weather prediction",
    "href": "https://openfmri.org/dataset/ds000011"},
  "ds017B": {
-   "title": "Classification learning and stop-signal",
+   "title": "Classification learning \n and stop-signal",
    "longtitle": "Classification learning and stop-signal (1 year test-retest)",
    "href": "https://openfmri.org/dataset/ds000017"},
  "ds051": {
    "title": "Cross-language repetition priming",
    "href": "https://openfmri.org/dataset/ds000051"},
  "ds052": {
-   "title": "Classification learning and reversal",
+   "title": "Classification learning \n and reversal",
    "href": "https://openfmri.org/dataset/ds000052"},
  "ds101": {"title": "Simon task", "href": "https://openfmri.org/dataset/ds000101"},
  "ds102": {
@@ -64,27 +64,37 @@
    "longtitle": "Prefrontal-Subcortical Pathways Mediating Successful Emotion Regulation",
    "href": "https://openfmri.org/dataset/ds000108"},
  "ds109": {
-   "title": "False belief task",
+   "title": "False belief",
    "href": "https://openfmri.org/dataset/ds000109"},
  "ds110": {
-   "title": "Incidental encoding task",
-   "longtitle": "Incidental encoding task (Posner Cueing Paradigm)",
+   "title": "Incidental encoding",
+   "longtitle": "Incidental encoding (Posner Cueing Paradigm)",
    "href": "https://openfmri.org/dataset/ds000110"},
   "hcp": {
-    "title": "The Human Connectome Project",
+    "title": "Human Connectome Project",
     "href": "https://www.humanconnectome.org/"
   },
   "gauthier2009resonance": {
-    "title": "Spatio-temporal judgement",
+    "title": "Spatio-temporal \n judgement (2009)",
     "href": "www.jneurosci.org/content/32/41/14433"
   },
   "gauthier2010resonance": {
-    "title": "Spatio-temporal judgement (repeated)",
+    "title": "Spatio-temporal \n judgement (2010)",
     "href": "www.jneurosci.org/content/32/41/14433"
   },
   "amalric2012mathematicians": {
     "title": "High-level math",
     "longtitle": "Cortical processing of high-level mathematical concepts",
     "href": "www.jneurosci.org/content/32/41/14433"
-  }
+  },
+  "la5c": {"title": "UCLA LA5c"},
+  "camcan": {"title": "CamCan audio-visual"},
+  "brainomics": {"title": "Brainomics localizer"},
+  "cauvet2009muslang": {"title": "Constituent structure of \n sentences and music"},
+  "ds114": {"title": "Motor + word/verb generation"},
+  "ds116": {"title": "Auditory and Visual Oddball"},
+  "henson2010faces": {"title": "Face recognition"},
+  "ds017A": {"title": "Stop-signal and classification"},
+  "ds009": {"title": "BART, stop-signal, emotion"}
+
 }

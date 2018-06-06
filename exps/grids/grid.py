@@ -23,13 +23,10 @@ def factored():
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
         studies='all',
-        target_study='archi',
     )
     model = dict(
         estimator='factored',
         normalize=False,
-        seed=100,
-        max_iter={'pretrain': 300, 'sparsify': 0, 'finetune': 200},
     )
     factored = dict(
         optimizer='adam',
@@ -39,11 +36,14 @@ def factored():
         epoch_counting='all',
         sampling='random',
         weight_power=0.6,
+        adaptive_dropout=True,
         batch_size=128,
         init='symmetric',
-        dropout=0.5,
+        dropout=0.75,
         lr=1e-3,
-        input_dropout=0.25
+        input_dropout=0.25,
+        seed=100,
+        max_iter={'pretrain': 300, 'sparsify': 0, 'finetune': 200},
     )
 
     logistic = dict(
@@ -59,15 +59,16 @@ def reduced_logistic():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies='archi'
+        studies='all'
     )
     model = dict(
         normalize=False,
         estimator='logistic',
-        max_iter={'pretrain': 1000},
     )
     logistic = dict(
-        l2_penalty=1e-6,
+        max_iter=1000,
+        solver='lbfgs',
+        l2_penalty=1e-4,
     )
 
 
@@ -79,16 +80,16 @@ def full_logistic():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'masked'),
-        studies='archi'
+        studies='all'
     )
     model = dict(
         normalize=False,
         estimator='logistic',
-        max_iter={'pretrain': 500},
     )
     logistic = dict(
         l2_penalty=1e-6,
-        solver='saga'
+        solver='saga',
+        max_iter=1000
     )
 
 
@@ -102,13 +103,10 @@ def reduced_factored():
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
         studies='all',
-        target_study='archi'
     )
     model = dict(
         normalize=False,
-        estimator='factored_variational',
-        study_weight='sqrt_sample',
-        max_iter={'pretrain': 300, 'sparsify': 0, 'finetune': 200},
+        estimator='factored',
     )
     factored_variational = dict(
         optimizer='adam',
@@ -116,7 +114,9 @@ def reduced_factored():
         activation='linear',
         regularization=1,
         epoch_counting='all',
+        adaptive_dropout=False,
         sampling='random',
+        max_iter={'pretrain': 300, 'sparsify': 0, 'finetune': 200},
         weight_power=0.6,
         batch_size=128,
         dropout=0.5,
@@ -145,46 +145,43 @@ def run_exp(output_dir, config_updates, _id, mock=False):
 if __name__ == '__main__':
     grid = sys.argv[1]
 
-    source_dir = join(get_data_dir(), 'reduced_512_lstsq')
+    source_dir = join(get_data_dir(), 'reduced_512')
     _, target = load_data_from_dir(data_dir=source_dir)
     studies = list(target.keys())
+    seeds = check_random_state(42).randint(0, 100000, size=20)
 
     if grid == 'seed_split_init':
         output_dir = join(get_output_dir(), 'seed_split_init')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         exp.config(factored)
-        seeds = check_random_state(42).randint(0, 100000, size=20)
         model_seeds = check_random_state(43).randint(0, 100000, size=100)
-        config_updates = ParameterGrid({'model.seed': model_seeds,
+        config_updates = ParameterGrid({'factored.seed': model_seeds,
                                         'seed': seeds})
-    if grid == 'dropout':
+    elif grid == 'dropout':
         output_dir = join(get_output_dir(), 'dropout')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         exp.config(factored)
-        seeds = check_random_state(42).randint(0, 100000, size=20)
         dropout = [0.5, 0.75]
-        adaptive = [False, True]
-        config_updates = ParameterGrid({'seed': seeds,
-                                        'factored.dropout': seeds})
+        adaptive_dropout = [False, True]
+        config_updates = ParameterGrid({'seed': seeds[:10],
+                                        'factored.dropout': dropout,
+                                        'factored.adaptive_dropout': adaptive_dropout})
     elif grid in ['reduced_logistic', 'full_logistic']:
         if grid == 'reduced_logistic':
             exp.config(reduced_logistic)
             l2_penalties = np.logspace(-4, 0, 5)
 
             output_dir = join(get_output_dir(), 'reduced_logistic')
-            seeds = check_random_state(42).randint(0, 100000, size=20)
         elif grid == 'full_logistic':
             exp.config(full_logistic)
             l2_penalties = [1e-3]
             output_dir = join(get_output_dir(), 'full_logistic')
-            seeds = check_random_state(42).randint(0, 100000, size=1)
             seeds = seeds[:3]
-        config_updates = ParameterGrid(
-            {'logistic.l2_penalty': l2_penalties,
-             'data.studies': studies,
-             'seed': seeds})
+        config_updates = ParameterGrid({'logistic.l2_penalty': l2_penalties,
+                                        'data.studies': studies,
+                                        'seed': seeds})
     elif grid == 'reduced_factored':
         exp.config(reduced_factored)
         seeds = check_random_state(42).randint(0, 100000, size=20)

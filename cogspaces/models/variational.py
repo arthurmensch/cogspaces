@@ -7,7 +7,6 @@ import tempfile
 import torch
 import torch.nn.functional as F
 import warnings
-from os.path import join
 from sklearn.base import BaseEstimator
 from torch import nn
 from torch.nn import Parameter
@@ -15,7 +14,6 @@ from torch.optim import Adam
 from torch.utils.data import TensorDataset, DataLoader
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import get_output_dir
 from cogspaces.models.factored import Identity
 from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
 
@@ -495,8 +493,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                         print('Stopping at epoch %.2f, train loss'
                               ' %.4f' % (epoch, epoch_loss))
                         module.load_state_dict(best_state)
-                        torch.save(module, join(get_output_dir(),
-                                                'model_%s.pkl' % phase))
                         print('-----------------------------------')
 
                         dropout = {}
