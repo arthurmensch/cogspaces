@@ -90,7 +90,7 @@ def plot_joined():
     plt.close(fig)
 
 def plot_size_vs_transfer():
-
+    pass
 
 if __name__ == '__main__':
     plot_joined()

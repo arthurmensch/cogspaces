@@ -158,6 +158,15 @@ if __name__ == '__main__':
         model_seeds = check_random_state(43).randint(0, 100000, size=100)
         config_updates = ParameterGrid({'factored.seed': model_seeds,
                                         'seed': seeds})
+    if grid == 'weight_power':
+        output_dir = join(get_output_dir(), 'weight_power')
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        exp.config(factored)
+        weight_power = np.linspace(0, 1, 10)
+        config_updates = ParameterGrid({'factored.weight_power': weight_power,
+                                        'seed': seeds})
+
     elif grid == 'dropout':
         output_dir = join(get_output_dir(), 'dropout')
         if not os.path.exists(output_dir):
