@@ -318,6 +318,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                  regularization=1.,
                  weight_power=0.5,
                  variational=False,
+                 finetune_dropouts=None,
                  sampling='cycle',
                  init='normal',
                  adaptive_dropout=True,
@@ -331,6 +332,7 @@ class VarMultiStudyClassifier(BaseEstimator):
         self.input_dropout = input_dropout
         self.dropout = dropout
 
+        self.finetune_dropouts = finetune_dropouts
         self.regularization = regularization
 
         self.rotation = rotation
@@ -549,9 +551,10 @@ class VarMultiStudyClassifier(BaseEstimator):
                 this_module = module.classifiers[study]
                 if this_module.linear.adaptive:
                     this_module.linear.make_non_adaptive()
-                    # this_module.linear.log_alpha.fill_(np.log(self.dropout /
-                    #                                           (1 - self.dropout)
-                    #                                           ))
+                    if self.finetune_dropouts is not None:
+                        log_alpha = np.log(self.finetune_dropouts['study'] /
+                                   (1 - self.finetune_dropouts['study']))
+                        this_module.linear.log_alpha.fill_(log_alpha)
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         this_module.parameters()),
                                  lr=self.lr, amsgrad=True)

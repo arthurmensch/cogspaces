@@ -198,13 +198,15 @@ if __name__ == '__main__':
                                         'factored.seed': model_seeds,
                                         })
     elif grid == 'init_refit':
-        output_dir = join(get_output_dir(), 'init_refit')
+        output_dir = join(get_output_dir(), 'init_refit_hcp')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         exp.config(factored_refit)
         seed_split_init_dir = join(get_output_dir(), 'seed_split_init')
 
         config_updates = [{'seed': seed,
+                           'factored.dropout': 0.46,
+                           'data.studies': 'hcp',
                            'factored.init': join(seed_split_init_dir,
                                                  '%s_%i.pkl.npy' %
                                                  (init, seed))}
