@@ -6,13 +6,13 @@ import os
 import pandas as pd
 import re
 from flask import json
-from joblib import Parallel, delayed, load
+from joblib import Parallel, delayed, load, dump
 from modl.decomposition.dict_fact import DictFact
 from nilearn._utils import check_niimg
 from nilearn.image import iter_img
 from nilearn.input_data import NiftiMasker
 from nilearn.plotting import find_xyz_cut_coords, plot_glass_brain
-from numpy.linalg import qr
+from numpy.linalg import qr, lstsq
 from os.path import join
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
@@ -114,19 +114,44 @@ def compute_coefs(output_dir):
     res = pd.DataFrame(res)
     dropout = pd.DataFrame(dropout)
     res.to_pickle(join(output_dir, 'seeds.pkl'))
+
+    dropout = dropout.set_index(['seed', 'model_seed'])
+    dropout = dropout.groupby('seed').mean()
+
     for seed, sub_res in res.groupby(by='seed'):
         print(seed)
-        all_coefs = []
+        seed_dropout = dropout.loc[seed].to_dict()
+        n_runs = 0
         for this_dir in sub_res['dir']:
             estimator = load(join(output_dir, str(this_dir),
                                   'estimator.pkl'))
-            coef = estimator.module_.embedder.linear.weight.detach().numpy()
-            all_coefs.append(coef)
-        all_coefs = np.concatenate(all_coefs, axis=0)
-        np.save(join(output_dir, 'coefs_%i.npy' % seed), all_coefs)
-    dropout = dropout.set_index(['seed', 'model_seed'])
-    dropout = dropout.groupby('seed').mean()
+            latent_coefs = []
+            full_coefs = {study: 0 for study in estimator.module_.classifiers}
+            classif_biases = {study: 0 for study in
+                              estimator.module_.classifiers}
+            latent_coef = estimator.module_.embedder.linear.weight.detach().numpy()
+            latent_coefs.append(latent_coef)
+            for study, classifier in estimator.module_.classifiers.items():
+                classif_coef = classifier.linear.weight.detach().numpy()
+                classif_bias = classifier.linear.bias.detach().numpy()
+                var = classifier.batch_norm.running_var.numpy()
+                mean = classifier.batch_norm.running_mean.numpy()
+                classif_coef /= np.sqrt(var[None, :])
+                classif_bias -= classif_coef.dot(mean)
+                full_coef = classif_coef.dot(latent_coef)
+                full_coefs[study] += full_coef
+                classif_biases[study] += classif_bias
+            n_runs += 1
+        n_runs = len(estimator.module_.classifiers)
+        full_coefs = {study: coef / n_runs for
+                      study, coef in full_coefs.items()}
+        classif_biases = {study: coef / n_runs for
+                      study, coef in classif_biases.items()}
+        latent_coefs = np.concatenate(latent_coefs, axis=0)
+        dump((latent_coefs, full_coefs, classif_biases, seed_dropout),
+             join(output_dir, 'combined_models_%i.pkl' % seed))
     dropout.to_pickle(join(output_dir, 'dropout.pkl'))
+
 
 def fetch_atlas_and_masker():
     modl_atlas = fetch_atlas_modl()
@@ -138,7 +163,8 @@ def fetch_atlas_and_masker():
 
 
 def compute_pca(output_dir, seed):
-    coefs = np.load(join(output_dir, 'coefs_%i.npy' % seed))
+    coefs, _, _, _ = load(
+        join(output_dir, 'combined_models_%s.pkl' % seed))
 
     pca = PCA(n_components=128)
     pca = pca.fit(coefs)
@@ -155,7 +181,8 @@ def compute_sparse_components(output_dir, seed, init='rest',
                               symmetric_init=True,
                               proj_principal=False,
                               alpha=1e-2):
-    coefs = np.load(join(output_dir, 'coefs_%i.npy' % seed))
+    coefs, _, _, _ = load(
+        join(output_dir, 'combined_models_%s.pkl' % seed))
 
     if init == 'random':
         random_state = check_random_state(0)
@@ -187,20 +214,21 @@ def compute_sparse_components(output_dir, seed, init='rest',
         dict_init = pca.inverse_transform(pca.transform(dict_init))
         coefs_ = pca.inverse_transform(pca.transform(coefs_))
 
-    # if init == 'rest':
-    #     dict_fact = DictFact(comp_l1_ratio=0, comp_pos=False,
-    #                          n_components=128,
-    #                          code_l1_ratio=0, batch_size=32,
-    #                          learning_rate=1,
-    #                          dict_init=dict_init,
-    #                          code_alpha=alpha, verbose=0, n_epochs=3,
-    #                          )
-    #     dict_fact.fit(coefs_)
-    #     dict_init = dict_fact.components_
-    dict_fact = DictFact(comp_l1_ratio=0, comp_pos=False, n_components=128,
+    if init == 'rest':
+        dict_fact = DictFact(comp_l1_ratio=0, comp_pos=False,
+                             n_components=128,
+                             code_l1_ratio=0, batch_size=32,
+                             learning_rate=1,
+                             dict_init=dict_init,
+                             code_alpha=alpha, verbose=0, n_epochs=1,
+                             )
+        dict_fact.fit(coefs_)
+        dict_init = dict_fact.components_
+    dict_fact = DictFact(comp_l1_ratio=1, comp_pos=False, n_components=128,
                          code_l1_ratio=0, batch_size=32, learning_rate=1,
                          dict_init=dict_init,
-                         code_alpha=alpha, verbose=10, n_epochs=20,
+                         code_alpha=alpha, verbose=10, n_epochs=1
+                         ,
                          )
     dict_fact.fit(coefs_)
 
@@ -249,66 +277,39 @@ def compute_all_decomposition(output_dir):
     seeds = pd.read_pickle(join(output_dir, 'seeds.pkl'))
     seeds = seeds['seed'].unique()
 
-    # components_list = Parallel(n_jobs=20, verbose=10)(
-    #     delayed(compute_pca)(output_dir, seed)
-    #     for seed in seeds)
-    # for components, seed in zip(components_list, seeds):
-    #     np.save(join(output_dir, 'pca_%i.npy' % seed), components)
-
-    components_list = Parallel(n_jobs=20, verbose=10)(
-        delayed(compute_sparse_components)
-        (output_dir, seed,
-         symmetric_init=False,
-         alpha=1e-4,
-         init='rest')
-        for seed in seeds)
-    for components, seed in zip(components_list, seeds):
-        np.save(join(output_dir, 'dl_rest_init_dense_%i.npy' % seed), components)
-
-    components_list = Parallel(n_jobs=20, verbose=10)(
-        delayed(compute_sparse_components)
-        (output_dir, seed,
-         symmetric_init=False,
-         alpha=1e-4,
-         init='random')
-        for seed in seeds)
-    for components, seed in zip(components_list, seeds):
-        np.save(join(output_dir, 'dl_random_init_dense_%i.npy' % seed), components)
-
-
-#
-# def compute_components_and_plot(output_dir, init='rest', symmetric_init=True,
-#                                 proj_principal=False, alpha=1e-2):
-#     mem = Memory(get_cache_dir())
-#     coefs = np.load(join(output_dir, 'coefs.npy'))
-#
-#     components = compute_components(coefs, init, symmetric_init,
-#                                     proj_principal, alpha=alpha)
-#     density = (components != 0).mean()
-#     exp_var = explained_variance(coefs, components,
-#                                  per_component=False)
-#     print('Density:', density)
-#     print('Explained variance:', exp_var)
-#
-#     np.save(join(output_dir, 'dl_%s.npy' % init), components)
-#
-#     exp_vars = explained_variance(coefs[:500], components,
-#                                   per_component=True)
-#     sort = np.argsort(exp_vars)[::-1]
-#     components = components[sort]
-#     exp_vars = exp_vars[sort]
-#     print(exp_vars)
-#
-#
-#     atlas, masker = mem.cache(fetch_atlas_and_masker)()
-#
-#     maps = components.dot(atlas)
-#
-#     maps = masker.inverse_transform(maps)
-#
-#     maps.to_filename(join(output_dir, 'dl_%s.nii.gz' % init))
-#     dest_dir = join(output_dir, 'dl_%s' % init)
-#     plot_all(maps, exp_vars, dest_dir, n_jobs=3)
+    for decomposition in ['pca', 'dl_rest', 'dl_random']:
+        if decomposition == 'pca':
+            components_list = Parallel(n_jobs=20, verbose=10)(
+                delayed(compute_pca)(output_dir, seed)
+                for seed in seeds)
+        elif decomposition == 'dl_rest':
+            components_list = Parallel(n_jobs=20, verbose=10)(
+                delayed(compute_sparse_components)
+                (output_dir, seed,
+                 symmetric_init=False,
+                 alpha=3e-5,
+                 init='rest')
+                for seed in seeds)
+        elif decomposition == 'dl_random':
+            components_list = Parallel(n_jobs=20, verbose=10)(
+                delayed(compute_sparse_components)
+                (output_dir, seed,
+                 symmetric_init=False,
+                 alpha=1e-4,
+                 init='random')
+                for seed in seeds)
+        for components, seed in zip(components_list, seeds):
+            (latent_coefs, full_coefs,
+             classif_biases, dropout) = load(
+                join(output_dir, 'combined_models_%s.pkl' % seed))
+            classif_coefs ={}
+            for study in full_coefs:
+                classif_coef, _, _, _ = lstsq(components.T,
+                                              full_coefs[study].T,
+                                              rcond=None)
+                classif_coefs[study] = classif_coef.T
+            dump((components, classif_coefs, classif_biases, dropout),
+                 join(output_dir, '%s_init_%i.pkl' % (decomposition, seed)))
 
 
 if __name__ == '__main__':

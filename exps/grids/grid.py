@@ -222,7 +222,7 @@ if __name__ == '__main__':
                                         'full': [True],
                                         'factored.seed': model_seeds,
                                         })
-    elif grid == 'init_refit_no_batch_norm':
+    elif grid == 'init_refit_sparser':
         exp.config(factored_refit)
         seed_split_init_dir = join(get_output_dir(), 'seed_split_init')
 
@@ -232,7 +232,7 @@ if __name__ == '__main__':
                            'factored.finetune_dropouts':
                                finetune_dropouts.loc[seed].to_dict(),
                            'factored.init': join(seed_split_init_dir,
-                                                 '%s_%i.npy' %
+                                                 '%s_sparser_%i.npy' %
                                                  (init, seed))}
                           for seed in seeds
                           for init in ['pca', 'dl_rest_init',

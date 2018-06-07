@@ -139,7 +139,7 @@ class DropoutLinear(nn.Linear):
             return torch.clamp(self.log_alpha, -8, 8)
 
     def get_p(self):
-        return 1 / (1 + torch.exp(-self.get_log_alpha()))
+        return 1 / (1 + torch.exp(-self.get_log_alpha())).squeeze()
 
     def forward(self, input):
         if self.training:

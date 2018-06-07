@@ -67,6 +67,8 @@ def gather_init_refit(output_dir):
         else:
             raise ValueError
         test_scores = run['result']
+        if test_scores is None:
+            continue
         this_res = dict(seed=seed, init=init,
                         **test_scores)
         res.append(this_res)
@@ -301,7 +303,8 @@ if __name__ == '__main__':
     # gather_reduced_logistic(join(get_output_dir(), 'reduced_logistic'))
     # gather_dropout(join(get_output_dir(), 'dropout'))
     # gather_single_factored(join(get_output_dir(), 'single_factored'))
-    gather_init_refit(join(get_output_dir(), 'init_refit_no_batch_norm'))
+    # gather_init_refit(join(get_output_dir(), 'init_refit_dense'))
+    gather_init_refit(join(get_output_dir(), 'init_refit_sparser'))
     # gather_logistic_refit_l2(join(get_output_dir(), 'logistic_refit_l2'))
     # gather_weight_power(join(get_output_dir(), 'gather_weight_power'))
 

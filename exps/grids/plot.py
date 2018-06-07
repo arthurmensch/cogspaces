@@ -133,8 +133,9 @@ def plot_compare_methods():
 
     df = pd.concat(
         [reduced_logistic, single_factored, dl_rest_init, dl_rest_init_logistic, seed_split_init],
-        axis=0, keys=['Logistic', 'Factored single', 'Factored interpretable  (logistic dropout)', 'Factored interpretable (logistic l2)',
+        axis=0, keys=['Logistic', 'Factored single', 'Factored interpretable (logistic dropout)', 'Factored interpretable (logistic l2)',
                       'Factored'], names=['method'])
+    print((df.loc['Factored interpretable (logistic dropout)'] - df.loc['Factored']).groupby('study').aggregate(['mean', 'std']))
 
     df_std = []
     methods = []
