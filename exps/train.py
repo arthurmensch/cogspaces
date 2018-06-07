@@ -20,7 +20,7 @@ exp = Experiment('multi_studies')
 @exp.config
 def default():
     seed = 10
-    full = False
+    full = True
     system = dict(
         device=-1,
         verbose=2,
@@ -46,7 +46,9 @@ def default():
         batch_size=128,
         init='symmetric',
         finetune_dropouts=None,
+        batch_norm=True,
         dropout=0.5,
+        seed=10,
         lr=1e-3,
         input_dropout=0.25,
         max_iter={'pretrain': 10, 'sparsify': 0, 'finetune': 10},

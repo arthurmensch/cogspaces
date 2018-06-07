@@ -218,10 +218,11 @@ class Embedder(nn.Module):
 
 class LatentClassifier(nn.Module):
     def __init__(self, latent_size, target_size, var_penalty,
-                 dropout=0., adaptive=False):
+                 dropout=0., adaptive=False, batch_norm=True):
         super().__init__()
 
-        self.batch_norm = nn.BatchNorm1d(latent_size)
+        if batch_norm:
+            self.batch_norm = nn.BatchNorm1d(latent_size)
         self.linear = DropoutLinear(latent_size,
                                     target_size, bias=True, p=dropout,
                                     var_penalty=var_penalty,
@@ -229,7 +230,8 @@ class LatentClassifier(nn.Module):
                                     level='layer')
 
     def forward(self, input):
-        input = self.batch_norm(input)
+        if hasattr(self, 'batch_norm'):
+            input = self.batch_norm(input)
         return F.log_softmax(self.linear(input), dim=1)
 
     def reset_parameters(self):
@@ -250,6 +252,7 @@ class VarMultiStudyModule(nn.Module):
                  regularization=1.,
                  latent_dropout=0.,
                  init='normal',
+                 batch_norm=True,
                  adaptive='embedding+classifier',
                  ):
         super().__init__()
@@ -267,6 +270,7 @@ class VarMultiStudyModule(nn.Module):
         self.classifiers = {study: LatentClassifier(
             latent_size, target_size, dropout=latent_dropout,
             var_penalty=regularization / lengths[study],
+            batch_norm=batch_norm,
             adaptive=classifier_adaptive, )
             for study, target_size in target_sizes.items()}
         for study, classifier in self.classifiers.items():
@@ -318,6 +322,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                  regularization=1.,
                  weight_power=0.5,
                  variational=False,
+                 batch_norm=True,
                  finetune_dropouts=None,
                  sampling='cycle',
                  init='normal',
@@ -339,6 +344,8 @@ class VarMultiStudyClassifier(BaseEstimator):
 
         self.sampling = sampling
         self.batch_size = batch_size
+
+        self.batch_norm = batch_norm
 
         self.optimizer = optimizer
         self.lr = lr
@@ -409,6 +416,7 @@ class VarMultiStudyClassifier(BaseEstimator):
             latent_dropout=self.dropout,
             adaptive='classifier' if self.adaptive_dropout else '',
             init=self.init,
+            batch_norm=True,
             regularization=self.regularization,
             activation=self.activation,
             lengths=eff_lengths,
@@ -549,6 +557,11 @@ class VarMultiStudyClassifier(BaseEstimator):
                                          drop_last=False,
                                          pin_memory=device.type == 'cuda')
                 this_module = module.classifiers[study]
+                if self.batch_norm is False:
+                    this_module.batch_norm.running_mean = \
+                        torch.mean(X_red[study], dim=0)
+                    this_module.batch_norm.running_var = \
+                        torch.var(X_red[study], dim=0)
                 if this_module.linear.adaptive:
                     this_module.linear.make_non_adaptive()
                     if self.finetune_dropouts is not None:
@@ -577,9 +590,10 @@ class VarMultiStudyClassifier(BaseEstimator):
                         input = input.to(device=device)
                         target = target.to(device=device)
 
-                        module.train()
-                        optimizer.zero_grad()
                         this_module.train()
+                        if self.batch_norm is False:
+                            this_module.batch_norm.eval()
+                        optimizer.zero_grad()
                         pred = this_module(input)
                         loss = loss_function(pred, target)
                         penalty = this_module.penalty()
@@ -646,7 +660,6 @@ class VarMultiStudyClassifier(BaseEstimator):
             this_X = this_X.to(device=device)
             with torch.no_grad():
                 latent = self.module_.embedder(this_X)
-            # latent = self.module_.classifiers[study].batch_norm(latent)
             latents[study] = latent.data.cpu().numpy()
         return latents
 

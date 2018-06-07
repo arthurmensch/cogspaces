@@ -187,17 +187,17 @@ def compute_sparse_components(output_dir, seed, init='rest',
         dict_init = pca.inverse_transform(pca.transform(dict_init))
         coefs_ = pca.inverse_transform(pca.transform(coefs_))
 
-    if init == 'rest':
-        dict_fact = DictFact(comp_l1_ratio=0, comp_pos=False,
-                             n_components=128,
-                             code_l1_ratio=0, batch_size=32,
-                             learning_rate=1,
-                             dict_init=dict_init,
-                             code_alpha=alpha, verbose=0, n_epochs=3,
-                             )
-        dict_fact.fit(coefs_)
-        dict_init = dict_fact.components_
-    dict_fact = DictFact(comp_l1_ratio=1, comp_pos=False, n_components=128,
+    # if init == 'rest':
+    #     dict_fact = DictFact(comp_l1_ratio=0, comp_pos=False,
+    #                          n_components=128,
+    #                          code_l1_ratio=0, batch_size=32,
+    #                          learning_rate=1,
+    #                          dict_init=dict_init,
+    #                          code_alpha=alpha, verbose=0, n_epochs=3,
+    #                          )
+    #     dict_fact.fit(coefs_)
+    #     dict_init = dict_fact.components_
+    dict_fact = DictFact(comp_l1_ratio=0, comp_pos=False, n_components=128,
                          code_l1_ratio=0, batch_size=32, learning_rate=1,
                          dict_init=dict_init,
                          code_alpha=alpha, verbose=10, n_epochs=20,
@@ -249,31 +249,31 @@ def compute_all_decomposition(output_dir):
     seeds = pd.read_pickle(join(output_dir, 'seeds.pkl'))
     seeds = seeds['seed'].unique()
 
+    # components_list = Parallel(n_jobs=20, verbose=10)(
+    #     delayed(compute_pca)(output_dir, seed)
+    #     for seed in seeds)
+    # for components, seed in zip(components_list, seeds):
+    #     np.save(join(output_dir, 'pca_%i.npy' % seed), components)
+
     components_list = Parallel(n_jobs=20, verbose=10)(
-        delayed(compute_pca)(output_dir, seed)
+        delayed(compute_sparse_components)
+        (output_dir, seed,
+         symmetric_init=False,
+         alpha=1e-4,
+         init='rest')
         for seed in seeds)
     for components, seed in zip(components_list, seeds):
-        np.save(join(output_dir, 'pca_%i.npy' % seed), components)
+        np.save(join(output_dir, 'dl_rest_init_dense_%i.npy' % seed), components)
 
-    # components_list = Parallel(n_jobs=20, verbose=10)(
-    #     delayed(compute_sparse_components)
-    #     (output_dir, seed,
-    #      symmetric_init=False,
-    #      alpha=1e-5,
-    #      init='rest')
-    #     for seed in seeds)
-    # for components, seed in zip(components_list, seeds):
-    #     np.save(join(output_dir, 'dl_rest_init_%i.npy' % seed), components)
-    #
-    # components_list = Parallel(n_jobs=20, verbose=10)(
-    #     delayed(compute_sparse_components)
-    #     (output_dir, seed,
-    #      symmetric_init=False,
-    #      alpha=1e-4,
-    #      init='random')
-    #     for seed in seeds)
-    # for components, seed in zip(components_list, seeds):
-    #     np.save(join(output_dir, 'dl_random_init_%i.npy' % seed), components)
+    components_list = Parallel(n_jobs=20, verbose=10)(
+        delayed(compute_sparse_components)
+        (output_dir, seed,
+         symmetric_init=False,
+         alpha=1e-4,
+         init='random')
+        for seed in seeds)
+    for components, seed in zip(components_list, seeds):
+        np.save(join(output_dir, 'dl_random_init_dense_%i.npy' % seed), components)
 
 
 #

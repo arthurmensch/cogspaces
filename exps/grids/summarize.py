@@ -82,7 +82,7 @@ def gather_init_refit(output_dir):
     res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
 
 
-def gather_logistic_refit(output_dir):
+def gather_logistic_refit_l2(output_dir):
     regex = re.compile(r'[0-9]+$')
     res = []
     for this_dir in filter(regex.match, os.listdir(output_dir)):
@@ -106,17 +106,28 @@ def gather_logistic_refit(output_dir):
         else:
             raise ValueError
         test_scores = run['result']
-        this_res = dict(seed=seed, init=init,
+        l2_penalty = config['logistic']['l2_penalty']
+        this_res = dict(seed=seed, init=init, l2_penalty=l2_penalty,
                         **test_scores)
         res.append(this_res)
     res = pd.DataFrame(res)
-    res = res.set_index(['init', 'seed'])
+    res = res.set_index(['init', 'l2_penalty', 'seed'])
     studies = res.columns.values
     res = [res[study] for study in studies]
     res = pd.concat(res, keys=studies, names=['study'], axis=0)
     res.sort_index(inplace=True)
+    res.name = 'score'
+
+    indices = res.groupby(['study', 'init', 'l2_penalty']).aggregate(
+        'mean').groupby(['study', 'init']).aggregate('idxmax')
+    res_ = []
+    keys = []
+    for study, init, l2_penalty in indices:
+        keys.append((study, init))
+        res_.append(res.loc[idx[study, init, l2_penalty, :]])
+    res = pd.concat(res_, axis=0)
+    res.reset_index('l2_penalty', drop=True, inplace=True)
     res_mean = res.groupby(['study', 'init']).aggregate(['mean', 'std'])
-    print(res_mean)
     res.to_pickle(join(output_dir, 'gathered.pkl'))
     res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
 
@@ -290,8 +301,8 @@ if __name__ == '__main__':
     # gather_reduced_logistic(join(get_output_dir(), 'reduced_logistic'))
     # gather_dropout(join(get_output_dir(), 'dropout'))
     # gather_single_factored(join(get_output_dir(), 'single_factored'))
-    # gather_init_refit(join(get_output_dir(), 'init_refit'))
-    gather_logistic_refit(join(get_output_dir(), 'logistic_refit'))
+    gather_init_refit(join(get_output_dir(), 'init_refit_no_batch_norm'))
+    # gather_logistic_refit_l2(join(get_output_dir(), 'logistic_refit_l2'))
     # gather_weight_power(join(get_output_dir(), 'gather_weight_power'))
 
     # join_baseline_factored(join(get_output_dir(), 'reduced_logistic'),

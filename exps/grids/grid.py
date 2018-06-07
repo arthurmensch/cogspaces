@@ -75,6 +75,7 @@ def factored_refit():
         batch_size=128,
         init='symmetric',
         dropout=0.75,
+        batch_norm=False,
         lr=1e-3,
         input_dropout=0.25,
         seed=100,
@@ -221,7 +222,7 @@ if __name__ == '__main__':
                                         'full': [True],
                                         'factored.seed': model_seeds,
                                         })
-    elif grid == 'init_refit':
+    elif grid == 'init_refit_no_batch_norm':
         exp.config(factored_refit)
         seed_split_init_dir = join(get_output_dir(), 'seed_split_init')
 

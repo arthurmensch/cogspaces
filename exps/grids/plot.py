@@ -115,6 +115,7 @@ def plot_compare_methods():
 
 
     init_refit = pd.read_pickle(join(output_dir, 'init_refit/gathered.pkl'))
+    logistic_refit = pd.read_pickle(join(output_dir, 'logistic_refit_l2/gathered.pkl'))
 
     single_factored = pd.read_pickle(join(output_dir, 'single_factored/gathered.pkl'))['score']
     seed_split_init = pd.read_pickle(join(output_dir, 'seed_split_init/gathered.pkl'))
@@ -122,15 +123,17 @@ def plot_compare_methods():
     reduced_logistic = pd.read_pickle(join(output_dir, 'reduced_logistic/gathered.pkl'))
 
     dl_rest_init = init_refit[idx[:, 'dl_rest_init', :]]
+    dl_rest_init_logistic = logistic_refit[idx[:, 'dl_rest_init', :]]
 
     reduced_logistic.name = 'score'
     single_factored.name = 'score'
     dl_rest_init.name = 'score'
     seed_split_init.name = 'score'
+    dl_rest_init_logistic.name = 'score'
 
     df = pd.concat(
-        [reduced_logistic, single_factored, dl_rest_init, seed_split_init],
-        axis=0, keys=['Logistic', 'Factored single', 'Factored interpretable',
+        [reduced_logistic, single_factored, dl_rest_init, dl_rest_init_logistic, seed_split_init],
+        axis=0, keys=['Logistic', 'Factored single', 'Factored interpretable  (logistic dropout)', 'Factored interpretable (logistic l2)',
                       'Factored'], names=['method'])
 
     df_std = []
@@ -171,7 +174,8 @@ def plot_compare_methods():
     ax.set_yticks([])
 
     y_labels = ['Factored model \n (single study)',
-                        'Factored model \n (multi-study, interpre- \n table latent space)',
+                        'Factored model \n (multi-study, interpre- \n table, logistic dropout + BN)',
+                        'Factored model \n (multi-study, interpre- \n table, logistic l2)',
                         'Factored model \n (multi-study, single \n train phase)']
     for i, label in enumerate(y_labels):
         ax.annotate(label, xy=(-0.1, i), xycoords='data', ha='right')
