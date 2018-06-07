@@ -6,9 +6,31 @@ import seaborn as sns
 from matplotlib import gridspec, ticker
 from os.path import expanduser, join
 
+from cogspaces.datasets.utils import get_output_dir
+from exps.grids.summarize import get_chance_subjects
+
+idx = pd.IndexSlice
+
 
 def plot_joined():
-    output_dir = expanduser('~/output/cogspaces/')
+    output_dir = get_output_dir()
+
+    factored_output_dir = join(output_dir, 'seed_split_init')
+    baseline_output_dir = join(output_dir, 'reduced_logistic')
+
+    factored = pd.read_pickle(join(factored_output_dir,
+                                   'gathered.pkl'))
+    baseline = pd.read_pickle(join(baseline_output_dir, 'gathered.pkl'))
+
+    chance_level, n_subjects = get_chance_subjects()
+
+    joined = pd.concat([factored, baseline, chance_level, n_subjects],
+                       keys=['factored', 'baseline'], axis=1)
+    joined['diff'] = joined['factored'] - joined['baseline']
+    joined_mean = joined.groupby('study').aggregate(['mean', 'std'])
+    joined_mean['chance'] = chance_level
+    joined_mean['n_subjects'] = n_subjects
+
     data = pd.read_pickle(join(output_dir, 'joined_mean.pkl'))
 
     with open(expanduser('~/work/repos/cogspaces/cogspaces/'
@@ -41,7 +63,6 @@ def plot_joined():
     ax1.spines['left'].set_position('zero')
     plt.setp(ax1.get_yticklabels(), visible=False)
 
-    print(ind)
     ax1.set_xlim([-0.025, 0.2])
     ax1.xaxis.set_major_locator(ticker.MultipleLocator(0.1))
     ax1.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
@@ -89,8 +110,84 @@ def plot_joined():
     plt.show()
     plt.close(fig)
 
+def plot_compare_methods():
+    output_dir = get_output_dir()
+
+
+    init_refit = pd.read_pickle(join(output_dir, 'init_refit/gathered.pkl'))
+
+    single_factored = pd.read_pickle(join(output_dir, 'single_factored/gathered.pkl'))['score']
+    seed_split_init = pd.read_pickle(join(output_dir, 'seed_split_init/gathered.pkl'))
+
+    reduced_logistic = pd.read_pickle(join(output_dir, 'reduced_logistic/gathered.pkl'))
+
+    dl_rest_init = init_refit[idx[:, 'dl_rest_init', :]]
+
+    reduced_logistic.name = 'score'
+    single_factored.name = 'score'
+    dl_rest_init.name = 'score'
+    seed_split_init.name = 'score'
+
+    df = pd.concat(
+        [reduced_logistic, single_factored, dl_rest_init, seed_split_init],
+        axis=0, keys=['Logistic', 'Factored single', 'Factored interpretable',
+                      'Factored'], names=['method'])
+
+    df_std = []
+    methods = []
+    for method, sub_df in df.groupby('method'):
+        methods.append(method)
+        df_std.append(sub_df.loc[method] - df.loc['Logistic'])
+    df_std = pd.concat(df_std, keys=methods, names=['method'])
+
+    mean = df_std.reset_index().groupby(
+        by=['method', 'study']).mean().reset_index().sort_values(
+        ['method', 'score'], ascending=False).set_index(['method', 'study'])
+
+    sort = mean.loc['Factored'].index.get_level_values(level='study')
+    sort = pd.MultiIndex.from_product([methods, sort],
+                                      names=['method', 'study'])
+
+    df_sort = df_std.reset_index('seed').loc[sort]
+
+    df_sort = df_sort.reset_index()
+
+    df_sort = df_sort.query("method != 'Logistic'")
+
+    fig, ax = plt.subplots(1, 1, figsize=(9, 6))
+    params = dict(x="score", y="method", hue="study",
+                  data=df_sort, dodge=True, ax=ax)
+    g = sns.boxplot(zorder=100, showfliers=False, whis=0, **params)
+    handles, labels = g.get_legend_handles_labels()
+    g = sns.stripplot(alpha=1, zorder=200, size=3, linewidth=1, jitter=True, **params)
+    ax.set_xlim([-0.1, 0.2])
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
+    ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
+    ax.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1))
+    ax.set_xlabel('Increase in accuracy compared to logistic baseline')
+    ax.set_ylabel('')
+    ax.spines['left'].set_position('zero')
+    ax.set_yticklabels([])
+    ax.set_yticks([])
+
+    y_labels = ['Factored model \n (single study)',
+                        'Factored model \n (multi-study, interpre- \n table latent space)',
+                        'Factored model \n (multi-study, single \n train phase)']
+    for i, label in enumerate(y_labels):
+        ax.annotate(label, xy=(-0.1, i), xycoords='data', ha='right')
+    sns.despine(fig)
+    ax.legend(handles, labels, ncol=1, bbox_to_anchor=(1, 1),
+              fontsize=7, loc='upper left', title='Study')
+    fig.subplots_adjust(left=0.18, right=0.8, top=1, bottom=0.1)
+    plt.savefig(join(output_dir, 'comparison_method.pdf'))
+    # plt.show()
+    plt.close(fig)
+
+
 def plot_size_vs_transfer():
     pass
 
+
 if __name__ == '__main__':
-    plot_joined()
+    # plot_joined()
+    plot_compare_methods()

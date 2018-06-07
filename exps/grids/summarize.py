@@ -35,7 +35,12 @@ def gather_seed_split_init(output_dir):
     studies = res.columns.values
     res = [res[study] for study in studies]
     res = pd.concat(res, keys=studies, names=['study'], axis=0)
-    res.to_pickle(join(output_dir, 'gathered_seed_split_init.pkl'))
+    res = res.groupby(['study', 'seed']).aggregate('mean')
+    res.sort_index(inplace=True)
+    res_mean = res.groupby(['study']).aggregate(['mean', 'std'])
+    print(res_mean)
+    res.to_pickle(join(output_dir, 'gathered.pkl'))
+    res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
 
 
 def gather_init_refit(output_dir):
@@ -66,13 +71,55 @@ def gather_init_refit(output_dir):
                         **test_scores)
         res.append(this_res)
     res = pd.DataFrame(res)
-    res = res.set_index(['seed', 'init'])
+    res = res.set_index(['init', 'seed'])
     studies = res.columns.values
     res = [res[study] for study in studies]
     res = pd.concat(res, keys=studies, names=['study'], axis=0)
-    res = res.groupby(['study', 'init']).aggregate(['mean', 'std'])
-    print(res)
-    res.to_pickle(join(output_dir, 'gathered_seed_split_init.pkl'))
+    res.sort_index(inplace=True)
+    res_mean = res.groupby(['study', 'init']).aggregate(['mean', 'std'])
+    print(res_mean)
+    res.to_pickle(join(output_dir, 'gathered.pkl'))
+    res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
+
+
+def gather_logistic_refit(output_dir):
+    regex = re.compile(r'[0-9]+$')
+    res = []
+    for this_dir in filter(regex.match, os.listdir(output_dir)):
+        this_exp_dir = join(output_dir, this_dir)
+        this_dir = int(this_dir)
+        try:
+            config = json.load(
+                open(join(this_exp_dir, 'config.json'), 'r'))
+            run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
+        except (FileNotFoundError, json.decoder.JSONDecodeError):
+            print('Skipping exp %i' % this_dir)
+            continue
+        seed = config['seed']
+        init = config['logistic']['reduction']
+        if 'pca_' in init:
+            init = 'pca'
+        elif 'dl_rest_init_' in init:
+            init = 'dl_rest_init'
+        elif 'dl_random_init' in init:
+            init = 'dl_random_init'
+        else:
+            raise ValueError
+        test_scores = run['result']
+        this_res = dict(seed=seed, init=init,
+                        **test_scores)
+        res.append(this_res)
+    res = pd.DataFrame(res)
+    res = res.set_index(['init', 'seed'])
+    studies = res.columns.values
+    res = [res[study] for study in studies]
+    res = pd.concat(res, keys=studies, names=['study'], axis=0)
+    res.sort_index(inplace=True)
+    res_mean = res.groupby(['study', 'init']).aggregate(['mean', 'std'])
+    print(res_mean)
+    res.to_pickle(join(output_dir, 'gathered.pkl'))
+    res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
+
 
 def gather_reduced_logistic(output_dir):
     regex = re.compile(r'[0-9]+$')
@@ -95,7 +142,50 @@ def gather_reduced_logistic(output_dir):
         res.append(this_res)
     res = pd.DataFrame(res)
     res = res.set_index(['study', 'l2_penalty', 'seed'])
-    res.to_pickle(join(output_dir, 'gathered_reduced_logistic.pkl'))
+
+    res = res['score']
+    indices = res.groupby(['study', 'l2_penalty']).aggregate(
+        'mean').groupby('study').aggregate('idxmax')
+    res_ = []
+    studies = []
+    for study, l2_penalty in indices:
+        studies.append(study)
+        res_.append(res.loc[idx[study, l2_penalty, :]])
+    res = pd.concat(res_, keys=studies, names=['study'], axis=0)
+    res.sort_index(inplace=True)
+    res_mean = res.groupby(['study']).aggregate(['mean', 'std'])
+    print(res_mean)
+    res.to_pickle(join(output_dir, 'gathered.pkl'))
+    res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
+
+
+def gather_single_factored(output_dir):
+    regex = re.compile(r'[0-9]+$')
+    res = []
+    for this_dir in filter(regex.match, os.listdir(output_dir)):
+        this_exp_dir = join(output_dir, this_dir)
+        this_dir = int(this_dir)
+        try:
+            config = json.load(
+                open(join(this_exp_dir, 'config.json'), 'r'))
+            run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
+        except (FileNotFoundError, json.decoder.JSONDecodeError):
+            print('Skipping exp %i' % this_dir)
+            continue
+        seed = config['seed']
+        study = config['data']['studies']
+        score = run['result'][study]
+        this_res = dict(seed=seed, study=study, score=score)
+        res.append(this_res)
+    res = pd.DataFrame(res)
+    res = res.set_index(['study', 'seed'])
+
+    res.sort_index(inplace=True)
+    res_mean = res.groupby(['study']).aggregate(['mean', 'std'])
+    print(res_mean)
+    res.to_pickle(join(output_dir, 'gathered.pkl'))
+    res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
+
 
 
 def gather_dropout(output_dir):
@@ -125,9 +215,12 @@ def gather_dropout(output_dir):
     studies = res.columns.values
     res = [res[study] for study in studies]
     res = pd.concat(res, keys=studies, names=['study'], axis=0)
-    res = res.groupby(['study', 'adaptive_dropout', 'dropout']).aggregate(['mean', 'std'])
-    print(res)
-    res.to_pickle(join(output_dir, 'gathered_dropout.pkl'))
+    res.sort_index(inplace=True)
+    res_mean = res.groupby(['study', 'adaptive_dropout',
+                       'dropout']).aggregate(['mean', 'std'])
+    print(res_mean)
+    res.to_pickle(join(output_dir, 'gathered.pkl'))
+    res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
 
 
 def gather_weight_power(output_dir):
@@ -153,29 +246,14 @@ def gather_weight_power(output_dir):
         res.append(this_res)
     res = pd.DataFrame(res)
     res = res.set_index(['study', 'weight_power', 'seed'])
-    res = res.groupby(['study', 'weight_power']).aggregate(['mean', 'std'])
-    res.to_pickle(join(output_dir, 'gathered_weight_power.pkl'))
-    
-    
-def join_baseline_factored(baseline_output_dir, factored_output_dir):
-    factored = pd.read_pickle(join(factored_output_dir,
-                                   'gathered_seed_split_init.pkl'))
-    factored = factored.groupby(['study', 'seed']).aggregate('mean')
-    factored.sort_index(inplace=True)
+    res.sort_index(inplace=True)
+    res_mean = res.groupby(['study', 'weight_power']).aggregate(['mean', 'std'])
+    print(res_mean)
+    res.to_pickle(join(output_dir, 'gathered.pkl'))
+    res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
 
-    baseline = pd.read_pickle(join(baseline_output_dir,
-                                   'gathered_reduced_logistic.pkl'))
-    baseline = baseline['score']
-    indices = baseline.groupby(['study', 'l2_penalty']).aggregate(
-        'mean').groupby('study').aggregate('idxmax')
-    baseline_ = []
-    studies = []
-    for study, l2_penalty in indices:
-        studies.append(study)
-        baseline_.append(baseline.loc[idx[study, l2_penalty, :]])
-    baseline = pd.concat(baseline_, keys=studies, names=['study'], axis=0)
-    baseline.sort_index(inplace=True)
 
+def get_chance_subjects():
     _, target = load_data_from_dir(
         data_dir=join(get_data_dir(), 'reduced_512'))
     chance_level = {}
@@ -186,6 +264,15 @@ def join_baseline_factored(baseline_output_dir, factored_output_dir):
 
     chance_level = pd.Series(chance_level)
     n_subjects = pd.Series(n_subjects)
+    return chance_level, n_subjects
+
+    
+def join_baseline_factored(baseline_output_dir, factored_output_dir):
+    factored = pd.read_pickle(join(factored_output_dir,
+                                   'gathered.pkl'))
+    baseline = pd.read_pickle(join(baseline_output_dir, 'gathered.pkl'))
+
+    chance_level, n_subjects = get_chance_subjects()
 
     joined = pd.concat([factored, baseline, chance_level, n_subjects],
                        keys=['factored', 'baseline'], axis=1)
@@ -194,8 +281,6 @@ def join_baseline_factored(baseline_output_dir, factored_output_dir):
     joined_mean['chance'] = chance_level
     joined_mean['n_subjects'] = n_subjects
 
-    _, target = load_data_from_dir(
-        data_dir=join(get_data_dir(), 'reduced_512'))
     joined.to_pickle(join(get_output_dir(), 'joined.pkl'))
     joined_mean.to_pickle(join(get_output_dir(), 'joined_mean.pkl'))
 
@@ -203,8 +288,11 @@ def join_baseline_factored(baseline_output_dir, factored_output_dir):
 if __name__ == '__main__':
     # gather_seed_split_init(join(get_output_dir(), 'seed_split_init'))
     # gather_reduced_logistic(join(get_output_dir(), 'reduced_logistic'))
+    # gather_dropout(join(get_output_dir(), 'dropout'))
+    # gather_single_factored(join(get_output_dir(), 'single_factored'))
+    # gather_init_refit(join(get_output_dir(), 'init_refit'))
+    gather_logistic_refit(join(get_output_dir(), 'logistic_refit'))
+    # gather_weight_power(join(get_output_dir(), 'gather_weight_power'))
+
     # join_baseline_factored(join(get_output_dir(), 'reduced_logistic'),
     #                        join(get_output_dir(), 'seed_split_init'))
-    # gather_dropout(join(get_output_dir(), 'dropout'))
-    gather_init_refit(join(get_output_dir(), 'init_refit'))
-    # gather_weight_power(join(get_output_dir(), 'gather_weight_power'))

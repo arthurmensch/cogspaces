@@ -552,9 +552,12 @@ class VarMultiStudyClassifier(BaseEstimator):
                 if this_module.linear.adaptive:
                     this_module.linear.make_non_adaptive()
                     if self.finetune_dropouts is not None:
-                        log_alpha = np.log(self.finetune_dropouts['study'] /
-                                   (1 - self.finetune_dropouts['study']))
-                        this_module.linear.log_alpha.fill_(log_alpha)
+                        dropout = self.finetune_dropouts[study]
+                    else:
+                        dropout = this_module.linear.get_p()
+                    dropout = min(dropout, 0.75)
+                    log_alpha = np.log(dropout / (1 - dropout))
+                    this_module.linear.log_alpha.fill_(log_alpha)
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         this_module.parameters()),
                                  lr=self.lr, amsgrad=True)

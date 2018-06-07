@@ -45,6 +45,7 @@ def default():
         weight_power=0.6,
         batch_size=128,
         init='symmetric',
+        finetune_dropouts=None,
         dropout=0.5,
         lr=1e-3,
         input_dropout=0.25,
@@ -54,6 +55,7 @@ def default():
     logistic = dict(
         l2_penalty=1e-5,
         max_iter=200,
+        reduction=None
     )
 
 

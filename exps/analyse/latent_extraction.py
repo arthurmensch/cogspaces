@@ -6,21 +6,21 @@ import os
 import pandas as pd
 import re
 from flask import json
-from joblib import Parallel, delayed
+from joblib import Parallel, delayed, load
 from modl.decomposition.dict_fact import DictFact
 from nilearn._utils import check_niimg
 from nilearn.image import iter_img
 from nilearn.input_data import NiftiMasker
 from nilearn.plotting import find_xyz_cut_coords, plot_glass_brain
 from numpy.linalg import qr
-from os.path import expanduser, join
+from os.path import join
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import check_random_state
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask
+from cogspaces.datasets.utils import fetch_mask, get_output_dir
 
 
 def explained_variance(X, components, per_component=True):
@@ -113,20 +113,19 @@ def compute_coefs(output_dir):
         res.append(this_res)
     res = pd.DataFrame(res)
     dropout = pd.DataFrame(dropout)
-    # res.to_pickle(join(output_dir, 'seeds.pkl'))
-    # for seed, sub_res in res.groupby(by='seed'):
-    #     print(seed)
-    #     all_coefs = []
-    #     for this_dir in sub_res['dir']:
-    #         estimator = load(join(output_dir, str(this_dir),
-    #                               'estimator.pkl'))
-    #         coef = estimator.module_.embedder.linear.weight.detach().numpy()
-    #         all_coefs.append(coef)
-    #     all_coefs = np.concatenate(all_coefs, axis=0)
-    #     np.save(join(output_dir, 'coefs_%i.npy' % seed), all_coefs)
+    res.to_pickle(join(output_dir, 'seeds.pkl'))
+    for seed, sub_res in res.groupby(by='seed'):
+        print(seed)
+        all_coefs = []
+        for this_dir in sub_res['dir']:
+            estimator = load(join(output_dir, str(this_dir),
+                                  'estimator.pkl'))
+            coef = estimator.module_.embedder.linear.weight.detach().numpy()
+            all_coefs.append(coef)
+        all_coefs = np.concatenate(all_coefs, axis=0)
+        np.save(join(output_dir, 'coefs_%i.npy' % seed), all_coefs)
     dropout = dropout.set_index(['seed', 'model_seed'])
     dropout = dropout.groupby('seed').mean()
-    print(dropout)
     dropout.to_pickle(join(output_dir, 'dropout.pkl'))
 
 def fetch_atlas_and_masker():
@@ -247,34 +246,34 @@ def plot_all(imgs, exp_vars, dest_dir, n_jobs=1):
 
 
 def compute_all_decomposition(output_dir):
-    seeds = pd.read_pickle(join(output_dir, 'seeds.npy'))
+    seeds = pd.read_pickle(join(output_dir, 'seeds.pkl'))
     seeds = seeds['seed'].unique()
 
     components_list = Parallel(n_jobs=20, verbose=10)(
         delayed(compute_pca)(output_dir, seed)
         for seed in seeds)
     for components, seed in zip(components_list, seeds):
-        np.save(join(output_dir, 'pca_%i.pkl' % seed), components)
+        np.save(join(output_dir, 'pca_%i.npy' % seed), components)
 
-    components_list = Parallel(n_jobs=20, verbose=10)(
-        delayed(compute_sparse_components)
-        (output_dir, seed,
-         symmetric_init=True,
-         alpha=1e-5,
-         init='rest')
-        for seed in seeds)
-    for components, seed in zip(components_list, seeds):
-        np.save(join(output_dir, 'dl_rest_init_%i.npy' % seed), components)
-
-    components_list = Parallel(n_jobs=20, verbose=10)(
-        delayed(compute_sparse_components)
-        (output_dir, seed,
-         symmetric_init=False,
-         alpha=1e-4,
-         init='random')
-        for seed in seeds)
-    for components, seed in zip(components_list, seeds):
-        np.save(join(output_dir, 'dl_random_init_%i.npy' % seed), components)
+    # components_list = Parallel(n_jobs=20, verbose=10)(
+    #     delayed(compute_sparse_components)
+    #     (output_dir, seed,
+    #      symmetric_init=False,
+    #      alpha=1e-5,
+    #      init='rest')
+    #     for seed in seeds)
+    # for components, seed in zip(components_list, seeds):
+    #     np.save(join(output_dir, 'dl_rest_init_%i.npy' % seed), components)
+    #
+    # components_list = Parallel(n_jobs=20, verbose=10)(
+    #     delayed(compute_sparse_components)
+    #     (output_dir, seed,
+    #      symmetric_init=False,
+    #      alpha=1e-4,
+    #      init='random')
+    #     for seed in seeds)
+    # for components, seed in zip(components_list, seeds):
+    #     np.save(join(output_dir, 'dl_random_init_%i.npy' % seed), components)
 
 
 #
@@ -313,14 +312,6 @@ def compute_all_decomposition(output_dir):
 
 
 if __name__ == '__main__':
-    output_dir = join(expanduser('~/output_pd/cogspaces'), 'seed_split_init')
-    compute_coefs(output_dir)
-    # compute_all_decomposition(output_dir)
-    # compute_pca(output_dir)
-    # print('------------------ random init -----------------')
-    # compute_components_and_plot(output_dir, init='random', proj_principal=False,
-    #                             alpha=1e-3)
-    # print('------------------ rest init -----------------')
-    # compute_components_and_plot(output_dir, init='rest', symmetric_init=False,
-    #                             proj_principal=False,
-    #                             alpha=5e-5)
+    output_dir = join(get_output_dir(), 'seed_split_init')
+    # compute_coefs(output_dir)
+    compute_all_decomposition(output_dir)

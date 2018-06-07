@@ -2,6 +2,7 @@ import sys
 
 import numpy as np
 import os
+import pandas as pd
 from joblib import Parallel, delayed
 from os.path import join
 from sklearn.model_selection import ParameterGrid
@@ -46,10 +47,6 @@ def factored():
         max_iter={'pretrain': 300, 'sparsify': 0, 'finetune': 200},
     )
 
-    logistic = dict(
-        l2_penalty=1e-4,
-    )
-
 
 def factored_refit():
     seed = 10
@@ -84,8 +81,27 @@ def factored_refit():
         max_iter={'pretrain': 0, 'sparsify': 0, 'finetune': 500},
     )
 
+
+def logistic_refit():
+    seed = 10
+    full = False
+    system = dict(
+        device=-1,
+        verbose=2,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512'),
+        studies='all',
+    )
+    model = dict(
+        estimator='logistic',
+        normalize=False,
+    )
     logistic = dict(
+        max_iter=4000,
+        solver='lbfgs',
         l2_penalty=1e-4,
+        reduction=None,
     )
 
 
@@ -104,7 +120,7 @@ def reduced_logistic():
         estimator='logistic',
     )
     logistic = dict(
-        max_iter=1000,
+        max_iter=2000,
         solver='lbfgs',
         l2_penalty=1e-4,
     )
@@ -188,44 +204,63 @@ if __name__ == '__main__':
     studies = list(target.keys())
     seeds = check_random_state(42).randint(0, 100000, size=20)
 
+    output_dir = join(get_output_dir(), grid)
+
     if grid == 'seed_split_init':
-        output_dir = join(get_output_dir(), 'seed_split_init_2')
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
         exp.config(factored)
-        model_seeds = check_random_state(143).randint(100000, 1000000, size=200)
+        model_seeds = check_random_state(143).randint(100000, 1000000,
+                                                      size=200)
         config_updates = ParameterGrid({'seed': seeds,
                                         'factored.seed': model_seeds,
                                         })
+    if grid == 'full':
+        exp.config(factored)
+        model_seeds = check_random_state(143).randint(100000, 1000000,
+                                                      size=200)
+        config_updates = ParameterGrid({'seed': [0],
+                                        'full': [True],
+                                        'factored.seed': model_seeds,
+                                        })
     elif grid == 'init_refit':
-        output_dir = join(get_output_dir(), 'init_refit_hcp')
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
         exp.config(factored_refit)
         seed_split_init_dir = join(get_output_dir(), 'seed_split_init')
 
+        finetune_dropouts = pd.read_pickle(join(seed_split_init_dir,
+                                                'dropout.pkl'))
         config_updates = [{'seed': seed,
-                           'factored.dropout': 0.46,
-                           'data.studies': 'hcp',
+                           'factored.finetune_dropouts':
+                               finetune_dropouts.loc[seed].to_dict(),
                            'factored.init': join(seed_split_init_dir,
-                                                 '%s_%i.pkl.npy' %
+                                                 '%s_%i.npy' %
                                                  (init, seed))}
                           for seed in seeds
                           for init in ['pca', 'dl_rest_init',
                                        'dl_random_init']]
+    elif grid == 'logistic_refit_l2':
+        exp.config(logistic_refit)
+        seed_split_init_dir = join(get_output_dir(), 'seed_split_init')
+        l2_penalties = np.logspace(-4, 0, 5)
+
+        config_updates = [{'seed': seed,
+                           'logistic.reduction': join(seed_split_init_dir,
+                                                      '%s_%i.npy' %
+                                                      (init, seed)),
+                           'logistic.l2_penalty': l2_penalty}
+                          for seed in seeds
+                          for init in ['pca', 'dl_rest_init',
+                                       'dl_random_init']
+                          for l2_penalty in l2_penalties]
+    elif grid == 'single_factored':
+        exp.config(factored)
+        config_updates = ParameterGrid({'data.studies': studies,
+                                        'seed': seeds})
     elif grid == 'weight_power':
-        output_dir = join(get_output_dir(), 'weight_power')
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
         exp.config(factored)
         weight_power = np.linspace(0, 1, 10)
         config_updates = ParameterGrid({'factored.weight_power': weight_power,
                                         'seed': seeds})
 
     elif grid == 'dropout':
-        output_dir = join(get_output_dir(), 'dropout')
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
         exp.config(factored)
         dropout = [0.5, 0.75]
         adaptive_dropout = [False, True]
@@ -255,8 +290,12 @@ if __name__ == '__main__':
     else:
         raise ValueError('Wrong argument')
 
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    else:
+        raise ValueError('Directory exists.')
+
     _id = get_id(output_dir)
-    _id = 2000
     Parallel(n_jobs=40, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       mock=False,
