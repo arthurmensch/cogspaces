@@ -564,7 +564,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                 print('Fine tuning %s' % study)
                 this_X = this_X.to(device=device)
                 with torch.no_grad():
-                    # self.module_.embedder.linear.sparsify = True
                     self.module_.embedder.eval()
                     X_red[study] = self.module_.embedder(this_X).to(
                         device=device)

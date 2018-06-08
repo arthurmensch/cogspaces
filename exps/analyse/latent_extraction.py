@@ -106,6 +106,8 @@ def compute_coefs(output_dir):
         except (FileNotFoundError, json.decoder.JSONDecodeError, KeyError):
             print('Skipping exp %i' % this_dir)
             continue
+        if config['factored']['max_iter']['sparsify'] > 0:
+            continue
         seed = config['seed']
         model_seed = config['factored']['seed']
         dropout.append(dict(seed=seed, **this_dropout,
@@ -266,7 +268,7 @@ def compute_all_decomposition(output_dir):
                 delayed(compute_sparse_components)
                 (output_dir, seed,
                  symmetric_init=False,
-                 alpha=3e-5,
+                 alpha=5e-5,
                  init='rest')
                 for seed in seeds)
         elif decomposition == 'dl_random':
@@ -288,7 +290,7 @@ def compute_all_decomposition(output_dir):
                                               rcond=None)
                 classif_coefs[study] = classif_coef.T
             dump((components, classif_coefs, classif_biases, dropout),
-                 join(output_dir, '%s_%i.pkl' % (decomposition, seed)))
+                 join(output_dir, '%s_dense_coefs_%i.pkl' % (decomposition, seed)))
 
 
 def nifti_all(output_dir):
@@ -310,6 +312,6 @@ def nifti_all(output_dir):
 
 if __name__ == '__main__':
     output_dir = join(get_output_dir(), 'factored_pretrain_many')
-    # compute_coefs(output_dir)
-    # compute_all_decomposition(output_dir)
-    nifti_all(output_dir)
+    compute_coefs(output_dir)
+    compute_all_decomposition(output_dir)
+    # nifti_all(output_dir)

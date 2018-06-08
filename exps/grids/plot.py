@@ -132,6 +132,7 @@ def plot_compare_methods():
 
     factored_sparse_refit = factored_sparse_refit[idx[:, 'dl_rest', :]]
     factored_refit = factored_refit[idx[:, 'dl_rest', :]]
+    factored_sparse_sparsify = factored_sparse[idx[:, True, :]]
     factored_sparse = factored_sparse[idx[:, False, :]]
 
     logistic.name = 'score'
@@ -139,6 +140,7 @@ def plot_compare_methods():
     factored.name = 'score'
     factored_refit.name = 'score'
     factored_sparse.name = 'score'
+    factored_sparse_sparsify.name = 'score'
     factored_sparse_refit.name = 'score'
 
     df = pd.concat(
@@ -147,6 +149,7 @@ def plot_compare_methods():
          factored,
          factored_refit,
          factored_sparse,
+         factored_sparse_sparsify,
          factored_sparse_refit
          ],
         axis=0, keys=['logistic',
@@ -154,6 +157,7 @@ def plot_compare_methods():
                       'factored',
                       'factored_refit',
                       'factored_sparse',
+                      'factored_sparse_sparsify',
                       'factored_sparse_refit',
                       ], names=['method'])
 
@@ -205,6 +209,7 @@ def plot_compare_methods():
     y_labels = {'factored': 'Factored model \n (multi-study)',
                 'factored_refit': 'Factored model \n (multi-study, dense init, refit) \n interpretable',
                 'factored_sparse': 'Factored model \n (multi-study, sparse init) \n interpretable',
+                'factored_sparse_sparsify': 'Factored model \n (multi-study, sparse init, sparsify) \n interpretable',
                 'factored_sparse_refit': 'Factored model \n (multi-study, sparse init, refit) \n interpretable',
                 'single_factored': 'Factored model \n (single-study)',
                 'logistic': 'Baseline logistic \n classification'}
