@@ -117,7 +117,6 @@ def analyse(output_dir):
         lr3.intercept_ = classifier_intercept
         names = target_encoder.le_[study]['contrast'].classes_
         lr3.names_ = names
-    dump((lr1, lr2, lr3s), 'estimators.pkl')
     return lr1, lr2, lr3s
 
 
