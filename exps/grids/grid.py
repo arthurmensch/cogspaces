@@ -250,10 +250,13 @@ if __name__ == '__main__':
         config_updates = ParameterGrid({'seed': seeds,
                                         'factored.seed': model_seeds,
                                         })
-    elif grid == 'factored_pretrain':
+    elif grid == 'factored_pretrain_many':
         exp.config(factored)
+        model_seeds = check_random_state(143).randint(100000, 1000000,
+                                                      size=50)
         config_updates = ParameterGrid({'seed': seeds,
-                                        'factored.max_iter.sparsify': [0, 200],
+                                        'factored.max_iter.sparsify': [0],
+                                        'factored.seed': model_seeds,
                                         })
     elif grid == 'full':
         exp.config(factored)

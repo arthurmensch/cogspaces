@@ -43,6 +43,37 @@ def gather_seed_split_init(output_dir):
     res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
 
 
+def gather_factored_pretrain(output_dir):
+    regex = re.compile(r'[0-9]+$')
+    res = []
+    for this_dir in filter(regex.match, os.listdir(output_dir)):
+        this_exp_dir = join(output_dir, this_dir)
+        this_dir = int(this_dir)
+        try:
+            config = json.load(
+                open(join(this_exp_dir, 'config.json'), 'r'))
+            run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
+        except (FileNotFoundError, json.decoder.JSONDecodeError):
+            print('Skipping exp %i' % this_dir)
+            continue
+        seed = config['seed']
+        sparsify = config['factored']['max_iter']['sparsify'] > 0
+        test_scores = run['result']
+        this_res = dict(seed=seed, sparsify=sparsify,
+                        **test_scores)
+        res.append(this_res)
+    res = pd.DataFrame(res)
+    res = res.set_index(['sparsify', 'seed'])
+    studies = res.columns.values
+    res = [res[study] for study in studies]
+    res = pd.concat(res, keys=studies, names=['study'], axis=0)
+    res.sort_index(inplace=True)
+    res_mean = res.groupby(['study', 'sparsify']).aggregate(['mean', 'std'])
+    print(res_mean)
+    res.to_pickle(join(output_dir, 'gathered.pkl'))
+    res.to_pickle(join(output_dir, 'gathered_mean.pkl'))
+
+
 def gather_init_refit(output_dir):
     regex = re.compile(r'[0-9]+$')
     res = []
@@ -304,7 +335,8 @@ if __name__ == '__main__':
     # gather_dropout(join(get_output_dir(), 'dropout'))
     # gather_single_factored(join(get_output_dir(), 'single_factored'))
     # gather_init_refit(join(get_output_dir(), 'init_refit_dense'))
-    gather_init_refit(join(get_output_dir(), 'init_refit_sparser'))
+    # gather_init_refit(join(get_output_dir(), 'init_refit_sparser'))
+    gather_factored_pretrain(join(get_output_dir(), 'factored_pretrain'))
     # gather_logistic_refit_l2(join(get_output_dir(), 'logistic_refit_l2'))
     # gather_weight_power(join(get_output_dir(), 'gather_weight_power'))
 
