@@ -51,7 +51,8 @@ def default():
         seed=100,
         lr=1e-3,
         input_dropout=0.25,
-        max_iter={'pretrain': 200, 'train': 200, 'sparsify': 200, 'finetune': 200},
+        max_iter={'pretrain': 200, 'train': 200, 'sparsify': 200,
+                  'finetune': 200},
     )
 
     logistic = dict(

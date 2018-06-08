@@ -335,7 +335,7 @@ if __name__ == '__main__':
     # gather_dropout(join(get_output_dir(), 'dropout'))
     # gather_single_factored(join(get_output_dir(), 'single_factored'))
     # gather_init_refit(join(get_output_dir(), 'init_refit_dense'))
-    gather_init_refit(join(get_output_dir(), 'init_refit_finetune'))
+    gather_init_refit(join(get_output_dir(), 'factored_pretrain_refit'))
     # gather_factored_pretrain(join(get_output_dir(), 'factored_pretrain'))
     # gather_logistic_refit_l2(join(get_output_dir(), 'logistic_refit_l2'))
     # gather_weight_power(join(get_output_dir(), 'gather_weight_power'))

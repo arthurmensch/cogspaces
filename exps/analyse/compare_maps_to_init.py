@@ -4,10 +4,11 @@ from joblib import Memory
 from nilearn.input_data import NiftiMasker
 from nilearn.plotting import plot_prob_atlas
 from os.path import join, expanduser
+from sklearn.utils import gen_batches
 from sklearn.utils.linear_assignment_ import linear_assignment
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask
+from cogspaces.datasets.utils import fetch_mask, get_output_dir
 
 
 def get_ref_comp(components):
@@ -17,25 +18,33 @@ def get_ref_comp(components):
     masker = NiftiMasker(mask_img=mask).fit()
 
     X_ref = masker.transform(ref_components)
+    print((np.mean(X_ref != 0, axis=0) * 128).mean())
     X = masker.transform(components)
 
     corr = (X.dot(X_ref.T) / np.sqrt(np.sum(X_ref ** 2, axis=1))[None, :]
             / np.sqrt(np.sum(X ** 2, axis=1))[None, :])
     assign = linear_assignment(-corr)[:, 1]
     X_ref = X_ref[assign]
-    ref_components = masker.inverse_transform(X_ref)
-    components = masker.inverse_transform(X)
+    batches = list(gen_batches(128, 32))
+    ref_components = [masker.inverse_transform(X_ref[batch])
+                      for batch in batches]
+    components = [masker.inverse_transform(X[batch]) for batch in batches]
     return ref_components, components
+
 
 mem = Memory(cachedir=expanduser('~/cache'))
 
-components = join('/home/arthur/output/cogspaces/dl_rest_37194.nii.gz')
+components = join('/home/arthur/output/cogspaces/multi_studies/'
+                  '87/components.nii.gz')
 ref_components, components = mem.cache(get_ref_comp)(components)
 
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8))
-plot_prob_atlas(components, figure=fig, axes=ax1)
-plot_prob_atlas(ref_components, threshold='99.99%',
-                figure=fig, axes=ax2)
+fig, axes = plt.subplots(4, 2, figsize=(16, 16))
+for i in range(4):
+    plot_prob_atlas(components[i], view_type='filled_contours',
+                    figure=fig, axes=axes[i, 0], title='Supervised (Task fMRI)' if i == 0 else None)
+    plot_prob_atlas(ref_components[i], view_type='filled_contours',
+                    figure=fig, axes=axes[i, 1], title='Unsupervised (Resting-state fMRI' if i == 0 else None)
+plt.savefig(join(get_output_dir(), 'latent.pdf'))
 plt.show()
 
 # indices = [1, 2, 3]
@@ -48,9 +57,6 @@ plt.show()
 #     cut_coords = find_xyz_cut_coords(component, activation_threshold=vmax/ 3)
 #     plot_glass_brain(component, figure=fig, axes=ax1, plot_abs=False)
 #     plot_glass_brain(ref_component, figure=fig, axes=ax2, plot_abs=False)
-
-
-
 
 
 # fsaverage = datasets.fetch_surf_fsaverage5()

@@ -8,7 +8,7 @@ from cogspaces.datasets.utils import fetch_mask, get_output_dir
 from cogspaces.plotting import plot_all
 
 
-def inspect_components(output_dir, n_jobs=20):
+def inspect_components(output_dir, n_jobs=3):
     estimator = load(join(output_dir, 'estimator.pkl'))
     components = estimator.module_.embedder.linear.weight.detach().numpy()
     dictionary, masker = get_proj_and_masker()
@@ -20,7 +20,7 @@ def inspect_components(output_dir, n_jobs=20):
              name='components', n_jobs=n_jobs)
 
 
-def inspect_classification(output_dir, n_jobs=20):
+def inspect_classification(output_dir, n_jobs=3):
     estimator = load(join(output_dir, 'estimator.pkl'))
     module = estimator.module_
     components = module.embedder.linear.weight.detach().numpy()
@@ -53,5 +53,4 @@ def get_proj_and_masker():
 
 
 if __name__ == '__main__':
-    inspect_components(join(get_output_dir(), 'init_refit_finetune',
-                                '3'))
+    inspect_components(join(get_output_dir(), 'multi_studies', '87'))

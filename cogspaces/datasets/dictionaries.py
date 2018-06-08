@@ -22,11 +22,13 @@ def fetch_atlas_modl(data_dir=None, url=None,
     files = [
         'components_16.nii.gz',
         'components_128.nii.gz',
+        'components_128_small.nii.gz',
         'components_208.nii.gz',
         'components_512.nii.gz',
         'components_256_gm.nii.gz',
         'components_512_gm.nii.gz',
         'loadings_128.npy',
+        'loadings_128_small.npy',
         'assign_512.npy'
     ]
 
@@ -47,16 +49,19 @@ def fetch_atlas_modl(data_dir=None, url=None,
 
     keys = ['components16',
             'components128',
+            'components128_small',
             'components208',
             'components512',
             'components256_gm',
             'components512_gm',
             'loadings128',
+            'loadings128_small',
             'assign512'
             ]
 
     params = dict(zip(keys, files_))
     params['description'] = fdescr
+    params['data_dir'] = data_dir
 
     return Bunch(**params)
 

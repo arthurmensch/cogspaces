@@ -54,7 +54,7 @@ def plot_joined():
     baseline_color = plt.get_cmap('tab10').colors[0]
     transfer_color = plt.get_cmap('tab10').colors[1]
     rects = ax1.barh(ind, data[('diff', 'mean')], width,
-                    color=diff_color, alpha=0.8)
+                     color=diff_color, alpha=0.8)
     errorbar = ax1.errorbar(data[('diff', 'mean')], ind,
                             xerr=data[('diff', 'std')], elinewidth=1.5,
                             capsize=2, linewidth=0, ecolor=diff_color,
@@ -72,14 +72,14 @@ def plot_joined():
 
     width = .8
     rects1 = ax2.barh(ind, data[('baseline', 'mean')], width,
-                     color=baseline_color, alpha=.8)
+                      color=baseline_color, alpha=.8)
     errorbar = ax2.errorbar(data[('baseline', 'mean')], ind,
                             xerr=data[('baseline', 'std')],
                             elinewidth=1.5,
                             capsize=2, linewidth=0, ecolor=baseline_color,
                             alpha=.5)
     rects2 = ax2.barh(ind + width, data[('factored', 'mean')], width,
-                     color=transfer_color, alpha=.8)
+                      color=transfer_color, alpha=.8)
     errorbar = ax2.errorbar(data[('factored', 'mean')], ind + width,
                             xerr=data[('factored', 'std')],
                             elinewidth=1.5,
@@ -97,11 +97,11 @@ def plot_joined():
     ax2.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1))
     ax2.set_xlabel('Decoding accuracy on test set')
 
-
     ax2.set_yticks(ind + width / 2)
 
-    labels = ['(%s) %s' % (label, names[label]['title']) if label in names else label
-              for label in data.index.values]
+    labels = [
+        '(%s) %s' % (label, names[label]['title']) if label in names else label
+        for label in data.index.values]
     ax2.set_yticklabels(labels, ha='right',
                         va='center')
     sns.despine(fig)
@@ -110,56 +110,60 @@ def plot_joined():
     plt.show()
     plt.close(fig)
 
+
 def plot_compare_methods():
     output_dir = get_output_dir()
 
+    factored_sparse_refit = pd.read_pickle(
+        join(output_dir, 'factored_pretrain_refit/gathered.pkl'))
+    factored_sparse = pd.read_pickle(
+        join(output_dir, 'factored_pretrain/gathered.pkl'))
 
-    init_refit = pd.read_pickle(join(output_dir, 'init_refit_finetune/gathered.pkl'))
-    factored_pretrain = pd.read_pickle(join(output_dir, 'factored_pretrain/gathered.pkl'))
-    logistic_refit = pd.read_pickle(join(output_dir, 'logistic_refit_l2/gathered.pkl'))
+    factored_refit = pd.read_pickle(
+        join(output_dir, 'init_refit_finetune/gathered.pkl'))
+    factored = pd.read_pickle(join(output_dir, 'seed_split_init/gathered.pkl'))
+    factored_logistic_refit = pd.read_pickle(
+        join(output_dir, 'logistic_refit_l2/gathered.pkl'))
 
-    single_factored = pd.read_pickle(join(output_dir, 'single_factored/gathered.pkl'))['score']
-    seed_split_init = pd.read_pickle(join(output_dir, 'seed_split_init/gathered.pkl'))
+    single_factored = \
+    pd.read_pickle(join(output_dir, 'single_factored/gathered.pkl'))['score']
+    logistic = pd.read_pickle(
+        join(output_dir, 'reduced_logistic/gathered.pkl'))
 
-    reduced_logistic = pd.read_pickle(join(output_dir, 'reduced_logistic/gathered.pkl'))
+    factored_sparse_refit = factored_sparse_refit[idx[:, 'dl_rest', :]]
+    factored_refit = factored_refit[idx[:, 'dl_rest', :]]
+    factored_sparse = factored_sparse[idx[:, False, :]]
 
-    dl_rest_init = init_refit[idx[:, 'dl_rest', :]]
-    dl_rest_init_logistic = logistic_refit[idx[:, 'dl_rest_init', :]]
-    factored_pretrain_dense = factored_pretrain[idx[:, False]]
-    factored_pretrain_sparse = factored_pretrain[idx[:, True]]
-
-    reduced_logistic.name = 'score'
+    logistic.name = 'score'
     single_factored.name = 'score'
-    dl_rest_init.name = 'score'
-    seed_split_init.name = 'score'
-    dl_rest_init_logistic.name = 'score'
-    factored_pretrain_dense.name = 'score'
-    factored_pretrain_sparse.name = 'score'
+    factored.name = 'score'
+    factored_refit.name = 'score'
+    factored_sparse.name = 'score'
+    factored_sparse_refit.name = 'score'
 
     df = pd.concat(
-        [reduced_logistic,
+        [logistic,
          single_factored,
-         seed_split_init,
-         dl_rest_init,
-         # dl_rest_init_logistic,
-         # factored_pretrain_sparse,
-         # factored_pretrain_dense
+         factored,
+         factored_refit,
+         factored_sparse,
+         factored_sparse_refit
          ],
         axis=0, keys=['logistic',
-                      'factored_single',
+                      'single_factored',
                       'factored',
-                      'factored_interpretable',
-                      # 'Factored interpretable (logistic l2)',
-                      # 'Factored (rest start sparse)',
-                      # 'Factored (rest start'
+                      'factored_refit',
+                      'factored_sparse',
+                      'factored_sparse_refit',
                       ], names=['method'])
-    # print((df.loc['Factored interpretable (logistic dropout)'] - df.loc['Factored']).groupby('study').aggregate(['mean', 'std']))
 
     df_std = []
     methods = []
     for method, sub_df in df.groupby('method'):
         methods.append(method)
-        df_std.append(sub_df.loc[method] - df.loc['logistic'].groupby('study').transform('median'))
+        df_std.append(
+            sub_df.loc[method] - df.loc['logistic'].groupby('study').transform(
+                'median'))
     df_std = pd.concat(df_std, keys=methods, names=['method'])
 
     median = df_std.reset_index().groupby(
@@ -176,13 +180,15 @@ def plot_compare_methods():
 
     df_sort = df_sort.query("study not in ['ds006A', 'ds007', 'ds008']")
 
-    fig, ax = plt.subplots(1, 1, figsize=(8, 4))
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     params = dict(x="score", y="method", hue="study",
                   data=df_sort, dodge=True, ax=ax)
     # g = sns.boxplot(zorder=100, showfliers=False, whis=0, **params)
-    g = sns.stripplot(alpha=1, zorder=200, size=3, linewidth=0, jitter=True, **params)
+    g = sns.stripplot(alpha=1, zorder=200, size=3, linewidth=0, jitter=True,
+                      **params)
     handles, labels = g.get_legend_handles_labels()
-    g = sns.boxplot(x="score", y="method", color='grey', showfliers=False, data=df_sort, ax=ax, zorder=100)
+    g = sns.boxplot(x="score", y="method", color='grey', showfliers=False,
+                    data=df_sort, ax=ax, zorder=100)
     ax.set_xlim([-0.1, 0.2])
     ax.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
@@ -197,11 +203,14 @@ def plot_compare_methods():
     methods = df_sort['method'].unique()
 
     y_labels = {'factored': 'Factored model \n (multi-study)',
-              'factored_interpretable': 'Factored model \n (multi-study, with\n interpretable \n components)',
-              'factored_single': 'Factored model \n (single-study)',
-              'logistic': 'Baseline logistic \n classification'}
+                'factored_refit': 'Factored model \n (multi-study, dense init, refit) \n interpretable',
+                'factored_sparse': 'Factored model \n (multi-study, sparse init) \n interpretable',
+                'factored_sparse_refit': 'Factored model \n (multi-study, sparse init, refit) \n interpretable',
+                'single_factored': 'Factored model \n (single-study)',
+                'logistic': 'Baseline logistic \n classification'}
     for i, method in enumerate(methods):
-        ax.annotate(y_labels[method], xy=(-0.1, i), xycoords='data', ha='right')
+        ax.annotate(y_labels[method], xy=(-0.1, i), xycoords='data',
+                    ha='right')
     sns.despine(fig)
     ax.legend(handles, labels, ncol=1, bbox_to_anchor=(1.05, 1),
               fontsize=5, loc='upper left', title='Study')
