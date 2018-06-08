@@ -108,7 +108,8 @@ def compute_coefs(output_dir):
             continue
         seed = config['seed']
         model_seed = config['factored']['seed']
-        dropout.append(dict(seed=seed, **info['dropout'], model_seed=model_seed))
+        dropout.append(dict(seed=seed, **info['dropout'],
+                            model_seed=model_seed))
         this_res = dict(seed=seed, dir=this_dir)
         res.append(this_res)
     res = pd.DataFrame(res)
@@ -122,14 +123,16 @@ def compute_coefs(output_dir):
         print(seed)
         seed_dropout = dropout.loc[seed].to_dict()
         n_runs = 0
+        latent_coefs = []
         for this_dir in sub_res['dir']:
+            print(this_dir)
             estimator = load(join(output_dir, str(this_dir),
                                   'estimator.pkl'))
-            latent_coefs = []
             full_coefs = {study: 0 for study in estimator.module_.classifiers}
             classif_biases = {study: 0 for study in
                               estimator.module_.classifiers}
             latent_coef = estimator.module_.embedder.linear.weight.detach().numpy()
+            latent_bias = estimator.module_.embedder.linear.bias.detach().numpy()
             latent_coefs.append(latent_coef)
             for study, classifier in estimator.module_.classifiers.items():
                 classif_coef = classifier.linear.weight.detach().numpy()
@@ -137,7 +140,7 @@ def compute_coefs(output_dir):
                 var = classifier.batch_norm.running_var.numpy()
                 mean = classifier.batch_norm.running_mean.numpy()
                 classif_coef /= np.sqrt(var[None, :])
-                classif_bias -= classif_coef.dot(mean)
+                classif_bias += classif_coef.dot(latent_bias - mean)
                 full_coef = classif_coef.dot(latent_coef)
                 full_coefs[study] += full_coef
                 classif_biases[study] += classif_bias
@@ -150,7 +153,6 @@ def compute_coefs(output_dir):
         latent_coefs = np.concatenate(latent_coefs, axis=0)
         dump((latent_coefs, full_coefs, classif_biases, seed_dropout),
              join(output_dir, 'combined_models_%i.pkl' % seed))
-    dropout.to_pickle(join(output_dir, 'dropout.pkl'))
 
 
 def fetch_atlas_and_masker():
@@ -220,16 +222,14 @@ def compute_sparse_components(output_dir, seed, init='rest',
                              code_l1_ratio=0, batch_size=32,
                              learning_rate=1,
                              dict_init=dict_init,
-                             code_alpha=alpha, verbose=0, n_epochs=1,
+                             code_alpha=alpha, verbose=0, n_epochs=3,
                              )
         dict_fact.fit(coefs_)
         dict_init = dict_fact.components_
     dict_fact = DictFact(comp_l1_ratio=1, comp_pos=False, n_components=128,
                          code_l1_ratio=0, batch_size=32, learning_rate=1,
                          dict_init=dict_init,
-                         code_alpha=alpha, verbose=10, n_epochs=1
-                         ,
-                         )
+                         code_alpha=alpha, verbose=10, n_epochs=40)
     dict_fact.fit(coefs_)
 
     components = dict_fact.components_
@@ -302,14 +302,14 @@ def compute_all_decomposition(output_dir):
             (latent_coefs, full_coefs,
              classif_biases, dropout) = load(
                 join(output_dir, 'combined_models_%s.pkl' % seed))
-            classif_coefs ={}
+            classif_coefs = {}
             for study in full_coefs:
                 classif_coef, _, _, _ = lstsq(components.T,
                                               full_coefs[study].T,
                                               rcond=None)
                 classif_coefs[study] = classif_coef.T
             dump((components, classif_coefs, classif_biases, dropout),
-                 join(output_dir, '%s_init_%i.pkl' % (decomposition, seed)))
+                 join(output_dir, '%s_%i.pkl' % (decomposition, seed)))
 
 
 if __name__ == '__main__':

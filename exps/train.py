@@ -20,7 +20,7 @@ exp = Experiment('multi_studies')
 @exp.config
 def default():
     seed = 10
-    full = True
+    full = False
     system = dict(
         device=-1,
         verbose=2,
@@ -44,14 +44,14 @@ def default():
         sampling='random',
         weight_power=0.6,
         batch_size=128,
-        init='symmetric',
-        finetune_dropouts=None,
+        init='rest',
         batch_norm=True,
-        dropout=0.5,
-        seed=10,
+        # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
+        dropout=0.75,
+        seed=100,
         lr=1e-3,
         input_dropout=0.25,
-        max_iter={'pretrain': 10, 'sparsify': 0, 'finetune': 10},
+        max_iter={'pretrain': 200, 'train': 200, 'sparsify': 200, 'finetune': 200},
     )
 
     logistic = dict(

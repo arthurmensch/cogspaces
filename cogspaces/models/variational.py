@@ -7,6 +7,7 @@ import tempfile
 import torch
 import torch.nn.functional as F
 import warnings
+from joblib import load
 from sklearn.base import BaseEstimator
 from torch import nn
 from torch.nn import Parameter
@@ -73,18 +74,11 @@ class DropoutLinear(nn.Linear):
             elif self.init == 'orthogonal':
                 nn.init.orthogonal_(self.weight.data,
                                     gain=1 / math.sqrt(self.weight.shape[1]))
-            elif self.init == 'loadings_modl':
+            elif self.init == 'rest':
                 assert self.out_features == 128
                 dataset = fetch_atlas_modl()
-                weight = np.load(dataset['loadings_128'])
+                weight = np.load(dataset['loadings128'])
                 self.weight.data = torch.from_numpy(weight)
-            else:
-                try:
-                    print(self.init)
-                    weight = np.load(self.init)
-                    self.weight.data = torch.from_numpy(weight)
-                except:
-                    raise FileNotFoundError('Wrong init path %s' % self.init)
         else:
             super().reset_parameters()
         if hasattr(self, 'level'):
@@ -323,9 +317,9 @@ class VarMultiStudyClassifier(BaseEstimator):
                  weight_power=0.5,
                  variational=False,
                  batch_norm=True,
-                 finetune_dropouts=None,
                  sampling='cycle',
                  init='normal',
+                 full_init=None,
                  adaptive_dropout=True,
                  rotation=False,
                  n_jobs=1,
@@ -337,8 +331,9 @@ class VarMultiStudyClassifier(BaseEstimator):
         self.input_dropout = input_dropout
         self.dropout = dropout
 
-        self.finetune_dropouts = finetune_dropouts
         self.regularization = regularization
+
+        self.full_init = full_init
 
         self.rotation = rotation
 
@@ -414,15 +409,26 @@ class VarMultiStudyClassifier(BaseEstimator):
             in_features=in_features,
             input_dropout=self.input_dropout,
             latent_dropout=self.dropout,
-            adaptive='classifier' if self.adaptive_dropout else '',
+            adaptive='',
             init=self.init,
-            batch_norm=True,
+            batch_norm=self.batch_norm,
             regularization=self.regularization,
             activation=self.activation,
             lengths=eff_lengths,
             latent_size=self.latent_size,
             target_sizes=target_sizes)
 
+        if self.full_init is not None:
+            (latent_coefs, classif_coefs,
+             classif_biases, dropout) = load(self.full_init)
+            module.embedder.linear.weight.data = torch.from_numpy(latent_coefs)
+            module.embedder.linear.bias.data.fill_(0.)
+            for study, classifier in module.classifiers.items():
+                classifier.linear.weight.data = torch.from_numpy(classif_coefs[study])
+                classifier.linear.bias.data = torch.from_numpy(classif_biases[study])
+                p = dropout[study]
+                log_alpha = np.log(p / (1 - p))
+                classifier.linear.log_alpha.fill_(log_alpha)
         # Verbosity + epoch counting
         if self.epoch_counting == 'all':
             n_samples = sum(len(this_X) for this_X in X.values())
@@ -436,8 +442,8 @@ class VarMultiStudyClassifier(BaseEstimator):
         else:
             raise ValueError
 
-
-        for phase in ['pretrain', 'sparsify']:
+        epoch = 0
+        for phase in ['pretrain', 'train', 'sparsify']:
             if self.max_iter[phase] == 0:
                 continue
             if self.verbose != 0:
@@ -448,10 +454,22 @@ class VarMultiStudyClassifier(BaseEstimator):
             print('Phase :', phase)
             print('------------------------------')
             if phase == 'pretrain':
+                module.embedder.linear.weight.requires_grad = False
+                module.embedder.linear.bias.requires_grad = False
+
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         module.parameters()),
                                  lr=self.lr, amsgrad=True)
-            else:  # phase == 'sparsify':
+            elif phase == 'train':
+                module.embedder.linear.weight.requires_grad = True
+                module.embedder.linear.bias.requires_grad = True
+                if self.adaptive_dropout:
+                    for classifier in module.classifiers.values():
+                        classifier.linear.make_adaptive()
+                optimizer = Adam(filter(lambda p: p.requires_grad,
+                                        module.parameters()),
+                                 lr=self.lr, amsgrad=True)
+            else:
                 module.embedder.linear.make_additive()
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         module.parameters()),
@@ -522,7 +540,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                 preds = module(inputs)
                 loss = loss_function(preds, targets)
                 penalty = module.penalty(inputs)
-                # penalty = module.penalty(inputs)
                 loss += penalty
                 loss.backward()
                 optimizer.step()
@@ -557,20 +574,8 @@ class VarMultiStudyClassifier(BaseEstimator):
                                          drop_last=False,
                                          pin_memory=device.type == 'cuda')
                 this_module = module.classifiers[study]
-                if self.batch_norm is False:
-                    this_module.batch_norm.running_mean = \
-                        torch.mean(X_red[study], dim=0)
-                    this_module.batch_norm.running_var = \
-                        torch.var(X_red[study], dim=0)
                 if this_module.linear.adaptive:
                     this_module.linear.make_non_adaptive()
-                    if self.finetune_dropouts is not None:
-                        dropout = self.finetune_dropouts[study]
-                    else:
-                        dropout = this_module.linear.get_p()
-                    dropout = min(dropout, 0.75)
-                    log_alpha = np.log(dropout / (1 - dropout))
-                    this_module.linear.log_alpha.fill_(log_alpha)
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         this_module.parameters()),
                                  lr=self.lr, amsgrad=True)
@@ -591,8 +596,6 @@ class VarMultiStudyClassifier(BaseEstimator):
                         target = target.to(device=device)
 
                         this_module.train()
-                        if self.batch_norm is False:
-                            this_module.batch_norm.eval()
                         optimizer.zero_grad()
                         pred = this_module(input)
                         loss = loss_function(pred, target)

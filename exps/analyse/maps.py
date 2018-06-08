@@ -325,7 +325,7 @@ if __name__ == '__main__':
     # baseline_output_dir = join(get_output_dir(), 'baseline_logistic_refit')
     # introspect(baseline_output_dir, baseline=True)
     # #
-    output_dir = join(get_output_dir(), 'multi_studies', '452')
+    output_dir = join(get_output_dir(), 'multi_studies', '86')
     # output_dir = join(get_output_dir(), 'variational_full', '3')
     introspect(output_dir, baseline=False)
     plot(output_dir, output_dir, n_jobs=3, plot_classif=False,

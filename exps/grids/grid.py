@@ -48,6 +48,41 @@ def factored():
     )
 
 
+def factored_pretrain():
+    seed = 10
+    full = False
+    system = dict(
+        device=-1,
+        verbose=2,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512'),
+        studies='all',
+    )
+    model = dict(
+        estimator='factored',
+        normalize=False)
+    factored = dict(
+        weight_power=0.6,
+        latent_size=128,
+        activation='linear',
+        epoch_counting='all',
+        sampling='random',
+        init='rest',
+        adaptive_dropout=True,
+        batch_norm=True,
+        regularization=1,
+        input_dropout=0.25,
+        dropout=0.75,
+        optimizer='adam',
+        lr=1e-3,
+        batch_size=128,
+        max_iter={'pretrain': 200, 'train': 300,
+                  'sparsify': 200, 'finetune': 200},
+        seed=100,
+    )
+
+
 def factored_refit():
     seed = 10
     full = False
@@ -76,6 +111,7 @@ def factored_refit():
         init='symmetric',
         dropout=0.75,
         batch_norm=False,
+        full_init=None,
         lr=1e-3,
         input_dropout=0.25,
         seed=100,
@@ -214,7 +250,12 @@ if __name__ == '__main__':
         config_updates = ParameterGrid({'seed': seeds,
                                         'factored.seed': model_seeds,
                                         })
-    if grid == 'full':
+    elif grid == 'factored_pretrain':
+        exp.config(factored)
+        config_updates = ParameterGrid({'seed': seeds,
+                                        'factored.max_iter.sparsify': [0, 200],
+                                        })
+    elif grid == 'full':
         exp.config(factored)
         model_seeds = check_random_state(143).randint(100000, 1000000,
                                                       size=200)
@@ -222,21 +263,18 @@ if __name__ == '__main__':
                                         'full': [True],
                                         'factored.seed': model_seeds,
                                         })
-    elif grid == 'init_refit_sparser':
+    elif grid == 'init_refit':
         exp.config(factored_refit)
         seed_split_init_dir = join(get_output_dir(), 'seed_split_init')
 
         finetune_dropouts = pd.read_pickle(join(seed_split_init_dir,
                                                 'dropout.pkl'))
         config_updates = [{'seed': seed,
-                           'factored.finetune_dropouts':
-                               finetune_dropouts.loc[seed].to_dict(),
-                           'factored.init': join(seed_split_init_dir,
-                                                 '%s_sparser_%i.npy' %
-                                                 (init, seed))}
+                           'factored.full_init': join(seed_split_init_dir,
+                                                 '%s_%i.npy' %
+                                                 (decomposition, seed))}
                           for seed in seeds
-                          for init in ['pca', 'dl_rest_init',
-                                       'dl_random_init']]
+                          for decomposition in ['pca', 'dl_rest', 'dl_random']]
     elif grid == 'logistic_refit_l2':
         exp.config(logistic_refit)
         seed_split_init_dir = join(get_output_dir(), 'seed_split_init')
