@@ -1,17 +1,14 @@
 import time
 
-import matplotlib.pyplot as plt
+import json
 import numpy as np
 import os
 import pandas as pd
 import re
-from flask import json
 from joblib import Parallel, delayed, load, dump
 from modl.decomposition.dict_fact import DictFact
 from nilearn._utils import check_niimg
-from nilearn.image import iter_img
 from nilearn.input_data import NiftiMasker
-from nilearn.plotting import find_xyz_cut_coords, plot_glass_brain
 from numpy.linalg import qr, lstsq
 from os.path import join
 from sklearn.decomposition import PCA
@@ -21,6 +18,8 @@ from sklearn.utils import check_random_state
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir
+from cogspaces.plotting import plot_all
+from exps.analyse.maps import get_proj_and_masker
 
 
 def explained_variance(X, components, per_component=True):
@@ -103,12 +102,13 @@ def compute_coefs(output_dir):
                 open(join(this_exp_dir, 'config.json'), 'r'))
             info = json.load(
                 open(join(this_exp_dir, 'info.json'), 'r'))
-        except (FileNotFoundError, json.decoder.JSONDecodeError):
+            this_dropout = info['dropout']
+        except (FileNotFoundError, json.decoder.JSONDecodeError, KeyError):
             print('Skipping exp %i' % this_dir)
             continue
         seed = config['seed']
         model_seed = config['factored']['seed']
-        dropout.append(dict(seed=seed, **info['dropout'],
+        dropout.append(dict(seed=seed, **this_dropout,
                             model_seed=model_seed))
         this_res = dict(seed=seed, dir=this_dir)
         res.append(this_res)
@@ -125,9 +125,12 @@ def compute_coefs(output_dir):
         n_runs = 0
         latent_coefs = []
         for this_dir in sub_res['dir']:
-            print(this_dir)
-            estimator = load(join(output_dir, str(this_dir),
-                                  'estimator.pkl'))
+            try:
+                estimator = load(join(output_dir, str(this_dir),
+                                      'estimator.pkl'))
+            except FileNotFoundError:
+                print('Skipping exp %i' % this_dir)
+                continue
             full_coefs = {study: 0 for study in estimator.module_.classifiers}
             classif_biases = {study: 0 for study in
                               estimator.module_.classifiers}
@@ -249,30 +252,6 @@ def compute_sparse_components(output_dir, seed, init='rest',
     return components
 
 
-def plot_single(img, title, filename):
-    vmax = np.abs(img.get_data()).max()
-    cut_coords = find_xyz_cut_coords(img, activation_threshold=vmax / 3)
-    fig = plt.figure()
-    plot_glass_brain(img, cut_coords=cut_coords, threshold=0,
-                     figure=fig, title=title,
-                     plot_abs=False, vmax=vmax)
-    plt.savefig(filename)
-    plt.close(fig)
-
-
-def plot_all(imgs, exp_vars, dest_dir, n_jobs=1):
-    if not os.path.exists(dest_dir):
-        os.makedirs(dest_dir)
-    imgs = check_niimg(imgs)
-    imgs.get_data()
-    Parallel(n_jobs=n_jobs)(delayed(plot_single)
-                            (img, 'exp var %.4f' % exp_var,
-                             join(dest_dir, 'components_%i.png' % i))
-                            for i, (img, exp_var) in
-                            enumerate(zip(iter_img(imgs),
-                                          exp_vars)))
-
-
 def compute_all_decomposition(output_dir):
     seeds = pd.read_pickle(join(output_dir, 'seeds.pkl'))
     seeds = seeds['seed'].unique()
@@ -312,7 +291,25 @@ def compute_all_decomposition(output_dir):
                  join(output_dir, '%s_%i.pkl' % (decomposition, seed)))
 
 
+def nifti_all(output_dir):
+    seeds = pd.read_pickle(join(output_dir, 'seeds.pkl'))
+    seeds = seeds['seed'].unique()
+
+    dictionary, masker = get_proj_and_masker()
+
+    for decomposition in ['pca', 'dl_rest', 'dl_random']:
+        for seed in seeds:
+            name = '%s_%i' % (decomposition, seed)
+            (components, _, _, _) = load(join(output_dir, '%s.pkl' % name))
+            components = components.dot(dictionary)
+            components = masker.inverse_transform(components)
+            components.to_filename(join(output_dir, '%s.nii.gz' % name))
+            plot_all(components, name=name,
+                     output_dir=join(output_dir, name), n_jobs=20)
+
+
 if __name__ == '__main__':
-    output_dir = join(get_output_dir(), 'seed_split_init')
+    output_dir = join(get_output_dir(), 'factored_pretrain_many')
     # compute_coefs(output_dir)
-    compute_all_decomposition(output_dir)
+    # compute_all_decomposition(output_dir)
+    nifti_all(output_dir)

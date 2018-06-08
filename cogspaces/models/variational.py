@@ -424,8 +424,8 @@ class VarMultiStudyClassifier(BaseEstimator):
             module.embedder.linear.weight.data = torch.from_numpy(latent_coefs)
             module.embedder.linear.bias.data.fill_(0.)
             for study, classifier in module.classifiers.items():
-                classifier.linear.weight.data = torch.from_numpy(classif_coefs[study])
-                classifier.linear.bias.data = torch.from_numpy(classif_biases[study])
+                # classifier.linear.weight.data = torch.from_numpy(classif_coefs[study])
+                # classifier.linear.bias.data = torch.from_numpy(classif_biases[study])
                 p = dropout[study]
                 log_alpha = np.log(p / (1 - p))
                 classifier.linear.log_alpha.fill_(log_alpha)

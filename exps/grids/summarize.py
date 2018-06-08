@@ -88,13 +88,13 @@ def gather_init_refit(output_dir):
             print('Skipping exp %i' % this_dir)
             continue
         seed = config['seed']
-        init = config['factored']['init']
+        init = config['factored']['full_init']
         if 'pca_' in init:
             init = 'pca'
-        elif 'dl_rest_init_' in init:
-            init = 'dl_rest_init'
-        elif 'dl_random_init' in init:
-            init = 'dl_random_init'
+        elif 'dl_rest_' in init:
+            init = 'dl_rest'
+        elif 'dl_random_' in init:
+            init = 'dl_random'
         else:
             raise ValueError
         test_scores = run['result']
@@ -335,8 +335,8 @@ if __name__ == '__main__':
     # gather_dropout(join(get_output_dir(), 'dropout'))
     # gather_single_factored(join(get_output_dir(), 'single_factored'))
     # gather_init_refit(join(get_output_dir(), 'init_refit_dense'))
-    # gather_init_refit(join(get_output_dir(), 'init_refit_sparser'))
-    gather_factored_pretrain(join(get_output_dir(), 'factored_pretrain'))
+    gather_init_refit(join(get_output_dir(), 'init_refit_finetune'))
+    # gather_factored_pretrain(join(get_output_dir(), 'factored_pretrain'))
     # gather_logistic_refit_l2(join(get_output_dir(), 'logistic_refit_l2'))
     # gather_weight_power(join(get_output_dir(), 'gather_weight_power'))
 

@@ -2,7 +2,6 @@ import sys
 
 import numpy as np
 import os
-import pandas as pd
 from joblib import Parallel, delayed
 from os.path import join
 from sklearn.model_selection import ParameterGrid
@@ -99,24 +98,23 @@ def factored_refit():
         normalize=False,
     )
     factored = dict(
-        optimizer='adam',
+        weight_power=0.6,
         latent_size=128,
         activation='linear',
-        regularization=1,
         epoch_counting='all',
         sampling='random',
-        weight_power=0.6,
+        init='rest',
         adaptive_dropout=True,
-        batch_size=128,
-        init='symmetric',
-        dropout=0.75,
-        batch_norm=False,
-        full_init=None,
-        lr=1e-3,
+        batch_norm=True,
+        regularization=1,
         input_dropout=0.25,
-        seed=100,
-        max_iter={'pretrain': 0, 'sparsify': 0, 'finetune': 500},
-    )
+        dropout=0.75,
+        optimizer='adam',
+        lr=1e-3,
+        batch_size=128,
+        max_iter={'pretrain': 100, 'train': 100,
+                  'sparsify': 0, 'finetune': 200},
+        seed=100)
 
 
 def logistic_refit():
@@ -266,18 +264,17 @@ if __name__ == '__main__':
                                         'full': [True],
                                         'factored.seed': model_seeds,
                                         })
-    elif grid == 'init_refit':
+    elif grid == 'factored_pretrain_refit':
         exp.config(factored_refit)
-        seed_split_init_dir = join(get_output_dir(), 'seed_split_init')
+        init_dir = join(get_output_dir(), 'factored_pretrain_many')
 
-        finetune_dropouts = pd.read_pickle(join(seed_split_init_dir,
-                                                'dropout.pkl'))
         config_updates = [{'seed': seed,
-                           'factored.full_init': join(seed_split_init_dir,
-                                                 '%s_%i.npy' %
+                           'factored.full_init': join(init_dir,
+                                                 '%s_%i.pkl' %
                                                  (decomposition, seed))}
                           for seed in seeds
-                          for decomposition in ['pca', 'dl_rest', 'dl_random']]
+                          for decomposition in ['dl_rest']]
+
     elif grid == 'logistic_refit_l2':
         exp.config(logistic_refit)
         seed_split_init_dir = join(get_output_dir(), 'seed_split_init')

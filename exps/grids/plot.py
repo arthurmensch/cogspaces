@@ -114,7 +114,7 @@ def plot_compare_methods():
     output_dir = get_output_dir()
 
 
-    init_refit = pd.read_pickle(join(output_dir, 'init_refit/gathered.pkl'))
+    init_refit = pd.read_pickle(join(output_dir, 'init_refit_finetune/gathered.pkl'))
     factored_pretrain = pd.read_pickle(join(output_dir, 'factored_pretrain/gathered.pkl'))
     logistic_refit = pd.read_pickle(join(output_dir, 'logistic_refit_l2/gathered.pkl'))
 
@@ -123,7 +123,7 @@ def plot_compare_methods():
 
     reduced_logistic = pd.read_pickle(join(output_dir, 'reduced_logistic/gathered.pkl'))
 
-    dl_rest_init = init_refit[idx[:, 'dl_rest_init', :]]
+    dl_rest_init = init_refit[idx[:, 'dl_rest', :]]
     dl_rest_init_logistic = logistic_refit[idx[:, 'dl_rest_init', :]]
     factored_pretrain_dense = factored_pretrain[idx[:, False]]
     factored_pretrain_sparse = factored_pretrain[idx[:, True]]
@@ -137,23 +137,36 @@ def plot_compare_methods():
     factored_pretrain_sparse.name = 'score'
 
     df = pd.concat(
-        [reduced_logistic, single_factored, dl_rest_init, dl_rest_init_logistic, seed_split_init, factored_pretrain_sparse, factored_pretrain_dense],
-        axis=0, keys=['Logistic', 'Factored single', 'Factored interpretable (logistic dropout)', 'Factored interpretable (logistic l2)',
-                      'Factored', 'Factored (rest start sparse)', 'Factored (rest start'], names=['method'])
+        [reduced_logistic,
+         single_factored,
+         seed_split_init,
+         dl_rest_init,
+         # dl_rest_init_logistic,
+         # factored_pretrain_sparse,
+         # factored_pretrain_dense
+         ],
+        axis=0, keys=['logistic',
+                      'factored_single',
+                      'factored',
+                      'factored_interpretable',
+                      # 'Factored interpretable (logistic l2)',
+                      # 'Factored (rest start sparse)',
+                      # 'Factored (rest start'
+                      ], names=['method'])
     # print((df.loc['Factored interpretable (logistic dropout)'] - df.loc['Factored']).groupby('study').aggregate(['mean', 'std']))
 
     df_std = []
     methods = []
     for method, sub_df in df.groupby('method'):
         methods.append(method)
-        df_std.append(sub_df.loc[method] - df.loc['Logistic'])
+        df_std.append(sub_df.loc[method] - df.loc['logistic'].groupby('study').transform('median'))
     df_std = pd.concat(df_std, keys=methods, names=['method'])
 
-    mean = df_std.reset_index().groupby(
-        by=['method', 'study']).mean().reset_index().sort_values(
+    median = df_std.reset_index().groupby(
+        by=['method', 'study']).median().reset_index().sort_values(
         ['method', 'score'], ascending=False).set_index(['method', 'study'])
 
-    sort = mean.loc['Factored'].index.get_level_values(level='study')
+    sort = median.loc['factored'].index.get_level_values(level='study')
     sort = pd.MultiIndex.from_product([methods, sort],
                                       names=['method', 'study'])
 
@@ -161,37 +174,38 @@ def plot_compare_methods():
 
     df_sort = df_sort.reset_index()
 
-    df_sort = df_sort.query("method != 'Logistic'")
+    df_sort = df_sort.query("study not in ['ds006A', 'ds007', 'ds008']")
 
-    fig, ax = plt.subplots(1, 1, figsize=(9, 6))
+    fig, ax = plt.subplots(1, 1, figsize=(8, 4))
     params = dict(x="score", y="method", hue="study",
                   data=df_sort, dodge=True, ax=ax)
-    g = sns.boxplot(x="score", y="method", color='grey', data=df_sort, ax=ax, zorder=50,
-                    showfliers=False)
-    g = sns.boxplot(zorder=100, showfliers=False, whis=0, **params)
-    handles, labels = g.get_legend_handles_labels()
+    # g = sns.boxplot(zorder=100, showfliers=False, whis=0, **params)
     g = sns.stripplot(alpha=1, zorder=200, size=3, linewidth=0, jitter=True, **params)
+    handles, labels = g.get_legend_handles_labels()
+    g = sns.boxplot(x="score", y="method", color='grey', showfliers=False, data=df_sort, ax=ax, zorder=100)
     ax.set_xlim([-0.1, 0.2])
     ax.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
     ax.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1))
-    ax.set_xlabel('Increase in accuracy compared to logistic baseline')
+    ax.set_xlabel('Increase in accuracy compared to logistic median')
     ax.set_ylabel('')
     ax.spines['left'].set_position('zero')
+    plt.setp(ax.spines['left'], zorder=2)
     ax.set_yticklabels([])
     ax.set_yticks([])
 
-    y_labels = ['Factored model \n (single study)',
-                        'Factored model \n (multi-study, interpre- \n table, logistic dropout + BN)',
-                        'Factored model \n (multi-study, interpre- \n table, logistic l2)',
-                        'Factored model \n (multi-study, single \n train '
-                        'phase)']
-    for i, label in enumerate(y_labels):
-        ax.annotate(label, xy=(-0.1, i), xycoords='data', ha='right')
+    methods = df_sort['method'].unique()
+
+    y_labels = {'factored': 'Factored model \n (multi-study)',
+              'factored_interpretable': 'Factored model \n (multi-study, with\n interpretable \n components)',
+              'factored_single': 'Factored model \n (single-study)',
+              'logistic': 'Baseline logistic \n classification'}
+    for i, method in enumerate(methods):
+        ax.annotate(y_labels[method], xy=(-0.1, i), xycoords='data', ha='right')
     sns.despine(fig)
-    ax.legend(handles, labels, ncol=1, bbox_to_anchor=(1, 1),
-              fontsize=7, loc='upper left', title='Study')
-    fig.subplots_adjust(left=0.18, right=0.8, top=1, bottom=0.1)
+    ax.legend(handles, labels, ncol=1, bbox_to_anchor=(1.05, 1),
+              fontsize=5, loc='upper left', title='Study')
+    fig.subplots_adjust(left=0.16, right=0.8, top=1, bottom=0.12)
     plt.savefig(join(output_dir, 'comparison_method.pdf'))
     # plt.show()
     plt.close(fig)
