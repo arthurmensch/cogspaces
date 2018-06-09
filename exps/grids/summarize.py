@@ -331,6 +331,7 @@ def join_baseline_factored(baseline_output_dir, factored_output_dir):
 
 
 if __name__ == '__main__':
+    pass
     # gather_seed_split_init(join(get_output_dir(), 'seed_split_init'))
     # gather_reduced_logistic(join(get_output_dir(), 'reduced_logistic'))
     # gather_dropout(join(get_output_dir(), 'dropout'))

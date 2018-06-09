@@ -459,7 +459,7 @@ class VarMultiStudyClassifier(BaseEstimator):
 
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         module.parameters()),
-                                 lr=self.lr, amsgrad=True)
+                                 lr=self.lr[phase], amsgrad=True)
             elif phase == 'train':
                 module.embedder.linear.weight.requires_grad = True
                 module.embedder.linear.bias.requires_grad = True
@@ -468,12 +468,12 @@ class VarMultiStudyClassifier(BaseEstimator):
                         classifier.linear.make_adaptive()
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         module.parameters()),
-                                 lr=self.lr * .05, amsgrad=True)
+                                 lr=self.lr[phase], amsgrad=True)
             else:
                 module.embedder.linear.make_additive()
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         module.parameters()),
-                                 lr=self.lr * .1, amsgrad=True)
+                                 lr=self.lr[phase], amsgrad=True)
 
             best_state = module.state_dict()
 
@@ -554,9 +554,10 @@ class VarMultiStudyClassifier(BaseEstimator):
                 epoch = floor(seen_samples / n_samples)
         print('Final density %s' % module.embedder.linear.density)
 
-        if self.max_iter['finetune'] > 0:
+        phase = 'finetune'
+        if self.max_iter[phase] > 0:
             if self.verbose != 0:
-                report_every = ceil(self.max_iter['finetune'] / self.verbose)
+                report_every = ceil(self.max_iter[phase] / self.verbose)
             else:
                 report_every = None
             X_red = {}
@@ -577,7 +578,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                     this_module.linear.make_non_adaptive()
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         this_module.parameters()),
-                                 lr=self.lr, amsgrad=True)
+                                 lr=self.lr[phase], amsgrad=True)
                 loss_function = F.nll_loss
 
                 seen_samples = 0
@@ -585,7 +586,7 @@ class VarMultiStudyClassifier(BaseEstimator):
                 no_improvement = 0
                 epoch = 0
                 best_state = module.state_dict()
-                for epoch in range(self.max_iter['finetune']):
+                for epoch in range(self.max_iter[phase]):
                     epoch_batch = 0
                     epoch_penalty = 0
                     epoch_loss = 0

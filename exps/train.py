@@ -40,7 +40,7 @@ def default():
         activation='linear',
         regularization=1,
         epoch_counting='all',
-        adaptive_dropout=False,
+        adaptive_dropout=True,
         sampling='random',
         weight_power=0.6,
         batch_size=128,
@@ -49,10 +49,11 @@ def default():
         # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
         dropout=0.75,
         seed=100,
-        lr=1e-3,
+        lr={'pretrain': 1e-3, 'train': 1e-4, 'sparsify': 1e-5,
+                  'finetune': 1e-3},
         input_dropout=0.25,
-        max_iter={'pretrain': 100, 'train': 100, 'sparsify': 100,
-                  'finetune': 100},
+        max_iter={'pretrain': 20, 'train': 20, 'sparsify': 20,
+                  'finetune': 20},
     )
 
     logistic = dict(
