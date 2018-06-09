@@ -40,7 +40,7 @@ def factored():
         input_dropout=0.25,
         dropout=0.75,
         optimizer='adam',
-        lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-3,
+        lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-5,
                   'finetune': 1e-3},
         batch_size=128,
         max_iter={'pretrain': 200, 'train': 300,
@@ -71,7 +71,7 @@ def factored_single():
         sampling='random',
         init='rest',
         adaptive_dropout=False,
-        batch_norm=False,
+        batch_norm=True,
         regularization=1,
         input_dropout=0.25,
         dropout=0.75,
@@ -161,7 +161,7 @@ def logistic():
     logistic = dict(
         max_iter=2000,
         solver='lbfgs',
-        l2_penalty=1e-4,
+        l2_penalty=np.logspace(-5, 1, 7).tolist(),
     )
 
 
@@ -282,16 +282,9 @@ if __name__ == '__main__':
     elif grid in ['logistic', 'full_logistic']:
         if grid == 'logistic':
             exp.config(logistic)
-            l2_penalties = np.logspace(-4, 0, 5)
-
-            output_dir = join(get_output_dir(), 'logistic')
         elif grid == 'full_logistic':
             exp.config(full_logistic)
-            l2_penalties = [1e-3]
-            output_dir = join(get_output_dir(), 'full_logistic')
-            seeds = seeds[:3]
-        config_updates = ParameterGrid({'logistic.l2_penalty': l2_penalties,
-                                        'data.studies': studies,
+        config_updates = ParameterGrid({'data.studies': studies,
                                         'seed': seeds})
     else:
         raise ValueError('Wrong argument')

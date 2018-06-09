@@ -1,5 +1,6 @@
 # Load data
 
+import numpy as np
 from joblib import dump
 from os.path import join
 from sacred import Experiment
@@ -9,7 +10,7 @@ from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.model_selection import train_test_split
 from cogspaces.models.baseline import MultiLogisticClassifier
-from cogspaces.models.variational import VarMultiStudyClassifier
+from cogspaces.models.factored import VarMultiStudyClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
@@ -30,7 +31,7 @@ def default():
         studies='all',
     )
     model = dict(
-        estimator='factored',
+        estimator='logistic',
         normalize=False,
         seed=100,
     )
@@ -49,16 +50,17 @@ def default():
         # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
         dropout=0.75,
         seed=100,
-        lr={'pretrain': 1e-3, 'train': 1e-4, 'sparsify': 1e-5,
+        lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-3,
                   'finetune': 1e-3},
         input_dropout=0.25,
-        max_iter={'pretrain': 20, 'train': 20, 'sparsify': 20,
-                  'finetune': 20},
+        max_iter={'pretrain': 100, 'train': 100, 'sparsify': 100,
+                  'finetune': 100},
     )
 
     logistic = dict(
-        l2_penalty=1e-5,
-        max_iter=200,
+        estimator='logistic',
+        l2_penalty=np.logspace(-5, 1, 7).tolist(),
+        max_iter=1000,
         reduction=None
     )
 

@@ -265,7 +265,7 @@ def compute_all_decomposition(output_dir):
                 delayed(compute_sparse_components)
                 (output_dir, seed,
                  symmetric_init=False,
-                 alpha=1e-4,
+                 alpha=1e-3,
                  init='rest')
                 for seed in seeds)
         elif decomposition == 'dl_random':
@@ -273,7 +273,7 @@ def compute_all_decomposition(output_dir):
                 delayed(compute_sparse_components)
                 (output_dir, seed,
                  symmetric_init=False,
-                 alpha=1e-4,
+                 alpha=1e-3,
                  init='random')
                 for seed in seeds)
         for components, seed in zip(components_list, seeds):
@@ -308,7 +308,7 @@ def nifti_all(output_dir):
 
 
 if __name__ == '__main__':
-    output_dir = join(get_output_dir(), 'factored')
+    output_dir = join(get_output_dir(), 'factored_sparser')
     compute_coefs(output_dir)
     compute_all_decomposition(output_dir)
     nifti_all(output_dir)

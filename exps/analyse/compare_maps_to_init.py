@@ -23,7 +23,10 @@ def get_ref_comp(components):
 
     corr = (X.dot(X_ref.T) / np.sqrt(np.sum(X_ref ** 2, axis=1))[None, :]
             / np.sqrt(np.sum(X ** 2, axis=1))[None, :])
+    corr = np.abs(corr)
     assign = linear_assignment(-corr)[:, 1]
+    corr = corr[:, assign]
+    print(np.mean(np.diag(corr)))
     X_ref = X_ref[assign]
     batches = list(gen_batches(128, 32))
     ref_components = [masker.inverse_transform(X_ref[batch])
@@ -34,8 +37,7 @@ def get_ref_comp(components):
 
 mem = Memory(cachedir=expanduser('~/cache'))
 
-components = join('/home/arthur/output/cogspaces/multi_studies/'
-                  '87/components.nii.gz')
+components = join(get_output_dir(), 'dl_rest_16023.nii.gz')
 ref_components, components = mem.cache(get_ref_comp)(components)
 
 fig, axes = plt.subplots(4, 2, figsize=(16, 16))

@@ -19,7 +19,7 @@ def inspect_components(output_dir, n_jobs=3):
     filename = join(output_dir, 'components.nii.gz')
     components.to_filename(filename)
     plot_all(filename, output_dir=join(output_dir, 'components'),
-             name='components', n_jobs=n_jobs)
+             name='components', n_jobs=n_jobs, verbose=0)
 
 
 def inspect_classification(output_dir, n_jobs=3):
@@ -63,6 +63,7 @@ def inspect_all(output_dir, n_jobs=1):
 
 if __name__ == '__main__':
     # inspect_all(join(get_output_dir(), 'factored_sparsify'), n_jobs=10)
-    # inspect_all(join(get_output_dir(), 'factored'), n_jobs=10)
-    inspect_components(join(get_output_dir(), 'factored', '1'), n_jobs=3)
+    # inspect_all(join(get_output_dir(), 'factored_refit_cautious'), n_jobs=10)
+    inspect_all(join(get_output_dir(), 'factored_sparsify_less'), n_jobs=10)
+    # inspect_components(join(get_output_dir(), 'factored', '1'), n_jobs=3)
     # inspect_components(join(get_output_dir(), 'multi_studies'))

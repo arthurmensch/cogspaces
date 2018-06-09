@@ -30,12 +30,12 @@ def plot_single(img, name, output_dir):
     return src, glass_src
 
 
-def plot_all(imgs, output_dir, name, n_jobs=1):
+def plot_all(imgs, output_dir, name, n_jobs=1, verbose=10):
     img_dir = join(output_dir, 'imgs')
     if not os.path.exists(img_dir):
         os.makedirs(img_dir)
     imgs = check_niimg(imgs)
-    srcs = Parallel(n_jobs=n_jobs, verbose=10)(
+    srcs = Parallel(n_jobs=n_jobs, verbose=verbose)(
         delayed(plot_single)(img,
                              ('%s_%i' % (name, i)), img_dir)
         for i, img in

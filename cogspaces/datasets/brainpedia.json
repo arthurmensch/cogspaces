@@ -26,7 +26,7 @@
    "title": "Mixed-gambles",
    "href": "https://openfmri.org/dataset/ds000005"},
  "ds006A": {
-   "title": "Plain or mirror-reversed text",
+   "title": "Plain or mirror-\n reversed text",
    "longtitle": "Living-nonliving decision with plain or mirror-reversed text",
    "href": "https://openfmri.org/dataset/ds000006a"},
  "ds007": {
@@ -34,20 +34,20 @@
    "href": "https://openfmri.org/dataset/ds000007"},
  "ds008": {
    "title": "Stop-signal",
-   "longtitle": "Stop-signal with unconditional and conditional stopping",
+   "longtitle": "Stop-signal with unconditional & conditional stopping",
    "href": "https://openfmri.org/dataset/ds000008"},
  "ds011": {
    "title": "Weather prediction",
    "href": "https://openfmri.org/dataset/ds000011"},
  "ds017B": {
-   "title": "Classification learning \n and stop-signal",
-   "longtitle": "Classification learning and stop-signal (1 year test-retest)",
+   "title": "Classification learning \n & stop-signal",
+   "longtitle": "Classification learning & stop-signal (1 year test-retest)",
    "href": "https://openfmri.org/dataset/ds000017"},
  "ds051": {
-   "title": "Cross-language repetition priming",
+   "title": "Cross-language \n repetition priming",
    "href": "https://openfmri.org/dataset/ds000051"},
  "ds052": {
-   "title": "Classification learning \n and reversal",
+   "title": "Classif. learning & reversal",
    "href": "https://openfmri.org/dataset/ds000052"},
  "ds101": {"title": "Simon task", "href": "https://openfmri.org/dataset/ds000101"},
  "ds102": {
@@ -57,7 +57,7 @@
    "title": "Visual object recognition",
    "href": "https://openfmri.org/dataset/ds000105"},
  "ds107": {
-   "title": "Word and object processing",
+   "title": "Word & object processing",
    "href": "https://openfmri.org/dataset/ds000107"},
  "ds108": {
    "title": "Emotion regulation",
@@ -71,7 +71,7 @@
    "longtitle": "Incidental encoding (Posner Cueing Paradigm)",
    "href": "https://openfmri.org/dataset/ds000110"},
   "hcp": {
-    "title": "Human Connectome Project",
+    "title": "The Human Connectome \n Project",
     "href": "https://www.humanconnectome.org/"
   },
   "gauthier2009resonance": {
@@ -90,11 +90,11 @@
   "la5c": {"title": "UCLA LA5c"},
   "camcan": {"title": "CamCan audio-visual"},
   "brainomics": {"title": "Brainomics localizer"},
-  "cauvet2009muslang": {"title": "Constituent structure of \n sentences and music"},
-  "ds114": {"title": "Motor + word/verb generation"},
-  "ds116": {"title": "Auditory and Visual Oddball"},
+  "cauvet2009muslang": {"title": "Constituent structure of \n sentences & music"},
+  "ds114": {"title": "Motor task &\n word/verb generation"},
+  "ds116": {"title": "Auditory & Visual Oddball"},
   "henson2010faces": {"title": "Face recognition"},
-  "ds017A": {"title": "Stop-signal and classification"},
+  "ds017A": {"title": "Stop-signal & classification"},
   "ds009": {"title": "BART, stop-signal, emotion"}
 
 }

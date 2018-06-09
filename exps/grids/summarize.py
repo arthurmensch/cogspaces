@@ -331,15 +331,14 @@ def join_baseline_factored(baseline_output_dir, factored_output_dir):
 
 
 if __name__ == '__main__':
-    pass
     # gather_seed_split_init(join(get_output_dir(), 'seed_split_init'))
     # gather_reduced_logistic(join(get_output_dir(), 'reduced_logistic'))
     # gather_dropout(join(get_output_dir(), 'dropout'))
     # gather_single_factored(join(get_output_dir(), 'single_factored'))
     # gather_init_refit(join(get_output_dir(), 'init_refit_dense'))
-    # gather_factored_refit(join(get_output_dir(), 'factored_refit'))
+    # gather_factored_refit(join(get_output_dir(), 'factored_refit_cautious'))
     # gather_factored_sparsify(join(get_output_dir(), 'factored'))
-    # gather_factored_sparsify(join(get_output_dir(), 'factored_sparsify'))
+    gather_factored_sparsify(join(get_output_dir(), 'factored_sparsify_less'))
     # gather_factored_pretrain(join(get_output_dir(), 'factored_pretrain'))
     # gather_logistic_refit_l2(join(get_output_dir(), 'logistic_refit_l2'))
     # gather_weight_power(join(get_output_dir(), 'gather_weight_power'))
