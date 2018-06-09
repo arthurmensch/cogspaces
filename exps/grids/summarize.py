@@ -43,7 +43,7 @@ def gather_seed_split_init(output_dir):
     res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
 
 
-def gather_factored_pretrain(output_dir):
+def gather_factored_sparsify(output_dir):
     regex = re.compile(r'[0-9]+$')
     res = []
     for this_dir in filter(regex.match, os.listdir(output_dir)):
@@ -58,6 +58,7 @@ def gather_factored_pretrain(output_dir):
             continue
         seed = config['seed']
         sparsify = config['factored']['max_iter']['sparsify'] > 0
+        print(this_dir, sparsify)
         test_scores = run['result']
         this_res = dict(seed=seed, sparsify=sparsify,
                         **test_scores)
@@ -74,7 +75,7 @@ def gather_factored_pretrain(output_dir):
     res.to_pickle(join(output_dir, 'gathered_mean.pkl'))
 
 
-def gather_init_refit(output_dir):
+def gather_factored_refit(output_dir):
     regex = re.compile(r'[0-9]+$')
     res = []
     for this_dir in filter(regex.match, os.listdir(output_dir)):
@@ -335,7 +336,9 @@ if __name__ == '__main__':
     # gather_dropout(join(get_output_dir(), 'dropout'))
     # gather_single_factored(join(get_output_dir(), 'single_factored'))
     # gather_init_refit(join(get_output_dir(), 'init_refit_dense'))
-    gather_init_refit(join(get_output_dir(), 'factored_pretrain_refit'))
+    # gather_factored_refit(join(get_output_dir(), 'factored_refit'))
+    # gather_factored_sparsify(join(get_output_dir(), 'factored'))
+    # gather_factored_sparsify(join(get_output_dir(), 'factored_sparsify'))
     # gather_factored_pretrain(join(get_output_dir(), 'factored_pretrain'))
     # gather_logistic_refit_l2(join(get_output_dir(), 'logistic_refit_l2'))
     # gather_weight_power(join(get_output_dir(), 'gather_weight_power'))

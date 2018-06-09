@@ -207,29 +207,28 @@ if __name__ == '__main__':
     source_dir = join(get_data_dir(), 'reduced_512')
     _, target = load_data_from_dir(data_dir=source_dir)
     studies = list(target.keys())
-    seeds = check_random_state(42).randint(0, 1000000, size=20)
+    seeds = check_random_state(42).randint(0, 100000, size=20)
     model_seeds = check_random_state(143).randint(0, 1000000, size=2)
 
     output_dir = join(get_output_dir(), grid)
 
-    if grid == 'factored+dense_init':
+    if grid == 'factored_dense_init':
         exp.config(factored)
         config_updates = ParameterGrid({'seed': seeds,
                                         'factored.init': 'orthogonal',
                                         'factored.seed': model_seeds,
                                         })
-    if grid == 'factored+sparsify':
+    elif grid == 'factored_sparsify_less':
         exp.config(factored)
         config_updates = ParameterGrid({'seed': seeds,
-                                        'factored.max_iter.sparsify': 200,
-                                        'factored.seed': model_seeds,
+                                        'factored.max_iter.sparsify': [200],
                                         })
-    if grid == 'factored':
+    elif grid == 'factored':
         exp.config(factored)
         config_updates = ParameterGrid({'seed': seeds,
                                         'factored.seed': model_seeds,
                                         })
-    elif grid == 'factored_refit':
+    elif grid == 'factored_refit_cautious':
         exp.config(factored_refit)
         init_dir = join(get_output_dir(), 'factored')
 
@@ -238,7 +237,7 @@ if __name__ == '__main__':
                                                       '%s_%i.pkl' %
                                                       (decomposition, seed))}
                           for seed in seeds
-                          for decomposition in ['dl_rest']]
+                          for decomposition in ['dl_rest', 'dl_random']]
     elif grid == 'full':
         exp.config(factored)
         config_updates = ParameterGrid({'seed': [0],

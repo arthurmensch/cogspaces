@@ -114,51 +114,51 @@ def plot_joined():
 def plot_compare_methods():
     output_dir = get_output_dir()
 
-    factored_sparse_refit = pd.read_pickle(
-        join(output_dir, 'factored_pretrain_refit/gathered.pkl'))
-    factored_sparse = pd.read_pickle(
-        join(output_dir, 'factored_pretrain/gathered.pkl'))
-
     factored_refit = pd.read_pickle(
-        join(output_dir, 'init_refit_finetune/gathered.pkl'))
-    factored = pd.read_pickle(join(output_dir, 'seed_split_init/gathered.pkl'))
-    factored_logistic_refit = pd.read_pickle(
-        join(output_dir, 'logistic_refit_l2/gathered.pkl'))
+        join(output_dir, 'factored_refit/gathered.pkl'))
+    factored = pd.read_pickle(
+        join(output_dir, 'factored/gathered.pkl'))
+    factored_sparsify = pd.read_pickle(
+        join(output_dir, 'factored_sparsify/gathered.pkl'))
+    # factored_dense_refit = pd.read_pickle(
+    #     join(output_dir, 'init_refit_finetune/gathered.pkl'))
+    # factored_dense = pd.read_pickle(join(output_dir, 'seed_split_init/gathered.pkl'))
+    # factored_logistic_refit = pd.read_pickle(
+    #     join(output_dir, 'logistic_refit_l2/gathered.pkl'))
 
     single_factored = \
     pd.read_pickle(join(output_dir, 'single_factored/gathered.pkl'))['score']
     logistic = pd.read_pickle(
         join(output_dir, 'reduced_logistic/gathered.pkl'))
 
-    factored_sparse_refit = factored_sparse_refit[idx[:, 'dl_rest', :]]
+    # factored_sparse_refit = factored_sparse_refit[idx[:, 'dl_rest', :]]
     factored_refit = factored_refit[idx[:, 'dl_rest', :]]
-    factored_sparse_sparsify = factored_sparse[idx[:, True, :]]
-    factored_sparse = factored_sparse[idx[:, False, :]]
+    factored = factored[idx[:, False, :]].groupby(['study', 'seed']).mean()
+    factored_sparsify = factored_sparsify[idx[:, True, :]]
 
     logistic.name = 'score'
     single_factored.name = 'score'
     factored.name = 'score'
     factored_refit.name = 'score'
-    factored_sparse.name = 'score'
-    factored_sparse_sparsify.name = 'score'
-    factored_sparse_refit.name = 'score'
+    factored_sparsify.name = 'score'
+    # factored_sparse_refit.name = 'score'
 
     df = pd.concat(
         [logistic,
          single_factored,
          factored,
          factored_refit,
-         factored_sparse,
-         factored_sparse_sparsify,
-         factored_sparse_refit
+         factored_sparsify
+         # factored_sparse,
+         # factored_sparse_refit
          ],
         axis=0, keys=['logistic',
                       'single_factored',
                       'factored',
                       'factored_refit',
-                      'factored_sparse',
-                      'factored_sparse_sparsify',
-                      'factored_sparse_refit',
+                      'factored_sparsify',
+                      # 'factored_sparse',
+                      # 'factored_sparse_refit',
                       ], names=['method'])
 
     df_std = []
@@ -182,9 +182,9 @@ def plot_compare_methods():
 
     df_sort = df_sort.reset_index()
 
-    df_sort = df_sort.query("study not in ['ds006A', 'ds007', 'ds008']")
+    # df_sort = df_sort.query("study not in ['ds006A', 'ds007', 'ds008']")
 
-    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    fig, ax = plt.subplots(1, 1, figsize=(8, 5))
     params = dict(x="score", y="method", hue="study",
                   data=df_sort, dodge=True, ax=ax)
     # g = sns.boxplot(zorder=100, showfliers=False, whis=0, **params)
@@ -206,19 +206,17 @@ def plot_compare_methods():
 
     methods = df_sort['method'].unique()
 
-    y_labels = {'factored': 'Factored model \n (multi-study)',
-                'factored_refit': 'Factored model \n (multi-study, dense init, refit) \n interpretable',
-                'factored_sparse': 'Factored model \n (multi-study, sparse init) \n interpretable',
-                'factored_sparse_sparsify': 'Factored model \n (multi-study, sparse init, sparsify) \n interpretable',
-                'factored_sparse_refit': 'Factored model \n (multi-study, sparse init, refit) \n interpretable',
+    y_labels = {'factored_refit': 'Factored model \n(multi-study \n + interpretability\n boost)',
+                'factored': 'Factored model \n (multi-study)',
                 'single_factored': 'Factored model \n (single-study)',
+                'factored_sparsify': 'Factored model \n (multi-study + sparsify)',
                 'logistic': 'Baseline logistic \n classification'}
     for i, method in enumerate(methods):
-        ax.annotate(y_labels[method], xy=(-0.1, i), xycoords='data',
+        ax.annotate(y_labels[method], xy=(-0.1, i), xycoords='data', va='center',
                     ha='right')
     sns.despine(fig)
     ax.legend(handles, labels, ncol=1, bbox_to_anchor=(1.05, 1),
-              fontsize=5, loc='upper left', title='Study')
+              fontsize=4.5, loc='upper left', title='Study')
     fig.subplots_adjust(left=0.16, right=0.8, top=1, bottom=0.12)
     plt.savefig(join(output_dir, 'comparison_method.pdf'))
     # plt.show()

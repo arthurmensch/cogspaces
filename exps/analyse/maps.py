@@ -1,5 +1,7 @@
 import numpy as np
-from joblib import load
+import os
+import re
+from joblib import load, delayed, Parallel
 from nilearn.input_data import NiftiMasker
 from os.path import join
 
@@ -52,5 +54,15 @@ def get_proj_and_masker():
     return dictionary, masker
 
 
+def inspect_all(output_dir, n_jobs=1):
+    regex = re.compile(r'[0-9]+$')
+    Parallel(n_jobs=n_jobs, verbose=10)(
+        delayed(inspect_components)(join(output_dir, this_dir), n_jobs=1)
+        for this_dir in filter(regex.match, os.listdir(output_dir)))
+
+
 if __name__ == '__main__':
-    inspect_components(join(get_output_dir(), 'multi_studies', '87'))
+    # inspect_all(join(get_output_dir(), 'factored_sparsify'), n_jobs=10)
+    # inspect_all(join(get_output_dir(), 'factored'), n_jobs=10)
+    inspect_components(join(get_output_dir(), 'factored', '1'), n_jobs=3)
+    # inspect_components(join(get_output_dir(), 'multi_studies'))

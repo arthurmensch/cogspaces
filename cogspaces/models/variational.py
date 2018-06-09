@@ -468,12 +468,12 @@ class VarMultiStudyClassifier(BaseEstimator):
                         classifier.linear.make_adaptive()
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         module.parameters()),
-                                 lr=self.lr, amsgrad=True)
+                                 lr=self.lr * .05, amsgrad=True)
             else:
                 module.embedder.linear.make_additive()
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         module.parameters()),
-                                 lr=self.lr, amsgrad=True)
+                                 lr=self.lr * .1, amsgrad=True)
 
             best_state = module.state_dict()
 

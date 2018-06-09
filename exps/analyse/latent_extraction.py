@@ -18,7 +18,6 @@ from sklearn.utils import check_random_state
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir
-from cogspaces.plotting import plot_all
 from exps.analyse.maps import get_proj_and_masker
 
 
@@ -105,8 +104,6 @@ def compute_coefs(output_dir):
             this_dropout = info['dropout']
         except (FileNotFoundError, json.decoder.JSONDecodeError, KeyError):
             print('Skipping exp %i' % this_dir)
-            continue
-        if config['factored']['max_iter']['sparsify'] > 0:
             continue
         seed = config['seed']
         model_seed = config['factored']['seed']
@@ -268,7 +265,7 @@ def compute_all_decomposition(output_dir):
                 delayed(compute_sparse_components)
                 (output_dir, seed,
                  symmetric_init=False,
-                 alpha=5e-5,
+                 alpha=1e-4,
                  init='rest')
                 for seed in seeds)
         elif decomposition == 'dl_random':
@@ -290,7 +287,7 @@ def compute_all_decomposition(output_dir):
                                               rcond=None)
                 classif_coefs[study] = classif_coef.T
             dump((components, classif_coefs, classif_biases, dropout),
-                 join(output_dir, '%s_dense_coefs_%i.pkl' % (decomposition, seed)))
+                 join(output_dir, '%s_%i.pkl' % (decomposition, seed)))
 
 
 def nifti_all(output_dir):
@@ -306,12 +303,12 @@ def nifti_all(output_dir):
             components = components.dot(dictionary)
             components = masker.inverse_transform(components)
             components.to_filename(join(output_dir, '%s.nii.gz' % name))
-            plot_all(components, name=name,
-                     output_dir=join(output_dir, name), n_jobs=20)
+            # plot_all(components, name=name,
+            #          output_dir=join(output_dir, name), n_jobs=20)
 
 
 if __name__ == '__main__':
-    output_dir = join(get_output_dir(), 'factored_pretrain_many')
+    output_dir = join(get_output_dir(), 'factored')
     compute_coefs(output_dir)
     compute_all_decomposition(output_dir)
-    # nifti_all(output_dir)
+    nifti_all(output_dir)
