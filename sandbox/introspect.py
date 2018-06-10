@@ -18,10 +18,10 @@ from scipy.linalg import svd
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import TensorDataset
 
+from cogspaces.data import MultiStudyLoader
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
 from cogspaces.model_selection import train_test_split
-from cogspaces.models.factored_fast import MultiStudyLoader
 from cogspaces.preprocessing import MultiTargetEncoder
 from cogspaces.utils.dict_learning import dict_learning
 from exps.train import load_data

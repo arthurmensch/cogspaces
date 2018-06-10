@@ -204,7 +204,7 @@ def gather_reduced_logistic(output_dir):
     res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
 
 
-def gather_single_factored(output_dir):
+def gather_single_study(output_dir):
     regex = re.compile(r'[0-9]+$')
     res = []
     for this_dir in filter(regex.match, os.listdir(output_dir)):
@@ -214,18 +214,21 @@ def gather_single_factored(output_dir):
             config = json.load(
                 open(join(this_exp_dir, 'config.json'), 'r'))
             run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
-        except (FileNotFoundError, json.decoder.JSONDecodeError):
+            seed = config['seed']
+            # study = config['data']['studies']
+            study = config['model']['target_study']
+            score = run['result'][study]
+        except (FileNotFoundError, json.decoder.JSONDecodeError, TypeError,
+                KeyError):
             print('Skipping exp %i' % this_dir)
             continue
-        seed = config['seed']
-        study = config['data']['studies']
-        score = run['result'][study]
         this_res = dict(seed=seed, study=study, score=score)
         res.append(this_res)
     res = pd.DataFrame(res)
     res = res.set_index(['study', 'seed'])
 
     res.sort_index(inplace=True)
+    res = res['score']
     res_mean = res.groupby(['study']).aggregate(['mean', 'std'])
     print(res_mean)
     res.to_pickle(join(output_dir, 'gathered.pkl'))
@@ -338,7 +341,9 @@ if __name__ == '__main__':
     # gather_init_refit(join(get_output_dir(), 'init_refit_dense'))
     # gather_factored_refit(join(get_output_dir(), 'factored_refit_cautious'))
     # gather_factored_sparsify(join(get_output_dir(), 'factored'))
-    gather_factored_sparsify(join(get_output_dir(), 'factored_sparsify_less'))
+    # gather_factored_sparsify(join(get_output_dir(), 'factored_sparsify_less'))
+    # gather_single_study(join(get_output_dir(), 'logistic'))
+    gather_single_study(join(get_output_dir(), 'factored_study_selector'))
     # gather_factored_pretrain(join(get_output_dir(), 'factored_pretrain'))
     # gather_logistic_refit_l2(join(get_output_dir(), 'logistic_refit_l2'))
     # gather_weight_power(join(get_output_dir(), 'gather_weight_power'))

@@ -27,6 +27,7 @@ def factored():
     model = dict(
         estimator='factored',
         normalize=False)
+
     factored = dict(
         weight_power=0.6,
         latent_size=128,
@@ -43,8 +44,8 @@ def factored():
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-5,
                   'finetune': 1e-3},
         batch_size=128,
-        max_iter={'pretrain': 200, 'train': 300,
-                  'sparsify': 0, 'finetune': 200},
+        max_iter={'pretrain': 10, 'train': 10,
+                  'sparsify': 0, 'finetune': 10},
         seed=100,
     )
 
@@ -186,6 +187,54 @@ def full_logistic():
     )
 
 
+def study_selector():
+    seed = 10
+    full = False
+    system = dict(
+        device=-1,
+        verbose=2,
+        n_jobs=1,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512'),
+        studies='all',
+    )
+    model = dict(
+        estimator='factored',
+        normalize=False,
+        seed=100,
+        study_selector=True,
+        target_study='brainomics',
+    )
+    factored = dict(
+        optimizer='adam',
+        latent_size=128,
+        activation='linear',
+        regularization=1,
+        adaptive_dropout=True,
+        sampling='random',
+        weight_power=0.6,
+        batch_size=128,
+        init='rest',
+        batch_norm=True,
+        # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
+        dropout=0.75,
+        seed=100,
+        lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
+                  'finetune': 1e-3},
+        input_dropout=0.25,
+        max_iter={'pretrain': 200, 'train': 300, 'sparsify': 0,
+                  'finetune': 200},
+    )
+
+    logistic = dict(
+        estimator='logistic',
+        l2_penalty=np.logspace(-5, 1, 7).tolist(),
+        max_iter=1000,
+        reduction=None
+    )
+
+
 def run_exp(output_dir, config_updates, _id, mock=False):
     """Boiler plate function that has to be put in every multiple
         experiment script, as exp does not pickle."""
@@ -230,6 +279,11 @@ if __name__ == '__main__':
         exp.config(factored)
         config_updates = ParameterGrid({'seed': seeds,
                                         'factored.seed': model_seeds,
+                                        })
+    elif grid == 'factored_study_selector':
+        exp.config(study_selector)
+        config_updates = ParameterGrid({'model.target_study': studies,
+                                        'factored.seed': model_seeds[:5],
                                         })
     elif grid == 'factored_refit_cautious':
         exp.config(factored_refit)

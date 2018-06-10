@@ -1,14 +1,16 @@
-import os
-import re
-from os.path import join
+import itertools
 
+import numpy as np
+import os
 import pandas as pd
+import re
 import torch
 from joblib import load
+from os.path import join
+from sklearn.utils import check_random_state
 from torch.utils.data import Dataset, DataLoader
 
 from cogspaces.utils import unzip_data
-import numpy as np
 
 idx = pd.IndexSlice
 
@@ -55,11 +57,6 @@ class NiftiTargetDataset(Dataset):
         return self.data.shape[0]
 
 
-def infinite_iter(iterable):
-    while True:
-        for elem in iterable:
-            yield elem
-
 
 def load_data_from_dir(data_dir):
     expr = re.compile("data_(.*).pt")
@@ -71,3 +68,79 @@ def load_data_from_dir(data_dir):
             study = match.group(1)
             data[study] = np.asarray(load(join(data_dir, file)))
     return unzip_data(data)
+
+
+def infinite_iter(iterable):
+    while True:
+        for elem in iterable:
+            yield elem
+
+
+class RandomChoiceIter:
+    def __init__(self, choices, p, seed=None):
+        self.random_state = check_random_state(seed)
+        self.choices = choices
+        self.p = p
+
+    def __next__(self):
+        return self.random_state.choice(self.choices, p=self.p)
+
+
+class MultiStudyLoaderIter:
+    def __init__(self, loader):
+        studies = loader.studies
+        loaders = {study: DataLoader(data,
+                                     shuffle=True,
+                                     batch_size=loader.batch_size,
+                                     pin_memory=loader.device.type == 'cuda')
+                   for study, data in studies.items()}
+        self.loader_iters = {study: infinite_iter(loader)
+                             for study, loader in loaders.items()}
+
+        studies = list(studies.keys())
+        self.sampling = loader.sampling
+        if self.sampling == 'random':
+            p = np.array([loader.study_weights[study] for study in studies])
+            assert (np.all(p >= 0))
+            p /= np.sum(p)
+            self.study_iter = RandomChoiceIter(studies, p, loader.seed)
+        elif self.sampling == 'cycle':
+            self.study_iter = itertools.cycle(studies)
+        elif self.sampling == 'all':
+            self.studies = studies
+        else:
+            raise ValueError('Wrong value for `sampling`')
+
+        self.device = loader.device
+
+    def __next__(self):
+        inputs, targets = {}, {}
+        if self.sampling == 'all':
+            for study in self.studies:
+                input, target = next(self.loader_iters[study])
+                input = input.to(device=self.device)
+                target = target.to(device=self.device)
+                inputs[study], targets[study] = input, target
+        else:
+            study = next(self.study_iter)
+            input, target = next(self.loader_iters[study])
+            input = input.to(device=self.device)
+            target = target.to(device=self.device)
+            inputs[study], targets[study] = input, target
+        return inputs, targets
+
+
+class MultiStudyLoader:
+    def __init__(self, studies,
+                 batch_size=128, sampling='cycle',
+                 study_weights=None, seed=None, device=-1):
+        self.studies = studies
+        self.batch_size = batch_size
+        self.sampling = sampling
+        self.study_weights = study_weights
+
+        self.device = device
+        self.seed = seed
+
+    def __iter__(self):
+        return MultiStudyLoaderIter(self)

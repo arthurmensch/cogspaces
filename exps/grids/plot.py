@@ -152,21 +152,20 @@ def plot_compare_methods(sort):
     #     join(output_dir, 'logistic_refit_l2/gathered.pkl'))
 
     single_factored = \
-        pd.read_pickle(join(output_dir, 'single_factored/gathered.pkl'))[
-            'score']
+        pd.read_pickle(join(output_dir, 'single_factored/gathered.pkl'))['score']
     logistic = pd.read_pickle(
-        join(output_dir, 'reduced_logistic/gathered.pkl'))
+        join(output_dir, 'logistic/gathered.pkl'))['score']
 
     # factored_sparse_refit = factored_sparse_refit[idx[:, 'dl_rest', :]]
     factored_refit = factored_refit[idx[:, 'dl_rest', :]]
-    factored = factored[idx[:, False, :]].groupby(['study', 'seed']).mean()
-    factored_sparsify = factored_sparsify[idx[:, True, :]]
+    # factored = factored[idx[:, False, :]].groupby(['study', 'seed']).mean()
+    # factored_sparsify = factored_sparsify[idx[:, True, :]]
 
     logistic.name = 'score'
     single_factored.name = 'score'
-    factored.name = 'score'
+    # factored.name = 'score'
     factored_refit.name = 'score'
-    factored_sparsify.name = 'score'
+    # factored_sparsify.name = 'score'
     # factored_sparse_refit.name = 'score'
 
     df = pd.concat(
@@ -231,7 +230,7 @@ def plot_compare_methods(sort):
     ax.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
     ax.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1))
-    ax.set_xlabel('Increase in accuracy compared to logistic median')
+    ax.set_xlabel('Increase in accuracy compared to logistic median per study')
     ax.set_ylabel('')
     ax.spines['left'].set_position('zero')
     plt.setp(ax.spines['left'], zorder=2)

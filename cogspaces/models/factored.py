@@ -7,175 +7,17 @@ import tempfile
 import torch
 import torch.nn.functional as F
 import warnings
-from cogspaces.models.factored_fast import MultiStudyLoader, MultiStudyLoss
 from joblib import load
 from sklearn.base import BaseEstimator
 from torch import nn
-from torch.nn import Parameter
 from torch.optim import Adam
 from torch.utils.data import TensorDataset, DataLoader
 
+from cogspaces.data import MultiStudyLoader
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.models.cross_val import Identity
-
-k1 = 0.63576
-k2 = 1.87320
-k3 = 1.48695
-
-
-class DropoutLinear(nn.Linear):
-    def __init__(self, in_features, out_features, bias=True, p=1e-8,
-                 level='layer', var_penalty=0., adaptive=False,
-                 init='normal',
-                 sparsify=False):
-        super().__init__(in_features, out_features, bias)
-
-        assert p >= 1e-8
-        self.p = p
-        self.var_penalty = var_penalty
-
-        if level == 'layer':
-            self.log_alpha = Parameter(torch.Tensor(1, 1),
-                                       requires_grad=adaptive)
-
-        elif level == 'atom':
-            self.log_alpha = Parameter(torch.Tensor(1, in_features),
-                                       requires_grad=adaptive)
-        elif level == 'coef':
-            self.log_alpha = Parameter(torch.Tensor(out_features, in_features),
-                                       requires_grad=adaptive)
-        elif level == 'additive':
-            assert adaptive
-            self.log_sigma2 = Parameter(
-                torch.Tensor(out_features, in_features),
-                requires_grad=True)
-        else:
-            raise ValueError()
-
-        self.sparsify = sparsify
-        self.adaptive = adaptive
-        self.level = level
-
-        self.init = init
-
-        self.reset_dropout()
-
-    def reset_parameters(self):
-        if hasattr(self, 'init'):
-            if self.init == 'normal':
-                super().reset_parameters()
-            elif self.init == 'symmetric':
-                super().reset_parameters()
-                dataset = fetch_atlas_modl()
-                assign = dataset['assign512']
-                assign = np.load(assign).tolist()
-                self.weight.data += self.weight.data[:, assign]
-                self.weight.data /= 2
-            elif self.init == 'orthogonal':
-                nn.init.orthogonal_(self.weight.data,
-                                    gain=1 / math.sqrt(self.weight.shape[1]))
-            elif self.init == 'rest':
-                assert self.out_features == 128
-                dataset = fetch_atlas_modl()
-                weight = np.load(dataset['loadings128'])
-                self.weight.data = torch.from_numpy(weight)
-        else:
-            super().reset_parameters()
-        if hasattr(self, 'level'):
-            self.reset_dropout()
-
-    def reset_dropout(self):
-        log_alpha = math.log(self.p) - math.log(1 - self.p)
-
-        if self.level != 'additive':
-            self.log_alpha.data.fill_(log_alpha)
-        else:
-            self.log_sigma2.data = log_alpha + torch.log(
-                self.weight.data ** 2 + 1e-8)
-
-    def make_additive(self):
-        assert self.level != 'additive'
-        self.log_alpha.requires_grad = False
-        self.level = 'additive'
-        self.adaptive = True
-        out_features, in_features = self.weight.shape
-        self.log_sigma2 = Parameter(torch.Tensor(out_features, in_features),
-                                    requires_grad=True)
-        self.log_sigma2.data = (self.log_alpha.expand(*self.weight.shape)
-                                + torch.log(self.weight ** 2 + 1e-8)
-                                ).detach()
-
-        self.log_alpha.requires_grad = False
-        print(np.array2string(self.get_p().detach().numpy(), precision=3))
-
-    def make_non_adaptive(self):
-        assert self.level != 'additive'
-        self.adaptive = False
-        self.log_alpha.requires_grad = False
-
-    def make_adaptive(self):
-        assert self.level != 'additive'
-        self.adaptive = True
-        self.log_alpha.requires_grad = True
-
-    def get_var_weight(self):
-        if self.level == 'additive':
-            return torch.exp(self.log_sigma2)
-            # return self.sigma ** 2
-        else:
-            return torch.exp(self.log_alpha) * self.weight ** 2
-
-    def get_log_alpha(self):
-        if self.level == 'additive':
-            return torch.clamp(
-                self.log_sigma2 - torch.log(self.weight ** 2 + 1e-8), -8, 8)
-        else:
-            return torch.clamp(self.log_alpha, -8, 8)
-
-    def get_p(self):
-        return 1 / (1 + torch.exp(-self.get_log_alpha())).squeeze()
-
-    def forward(self, input):
-        if self.training:
-            if self.adaptive:
-                output = F.linear(input, self.weight, self.bias)
-                # Local reparemtrization trick: gaussian dropout noise on input
-                # <-> gaussian noise on output
-                std = torch.sqrt(
-                    F.linear(input ** 2, self.get_var_weight(), None) + 1e-8)
-                eps = torch.randn_like(output, requires_grad=False)
-                return output + std * eps
-            else:
-                eps = torch.randn_like(input, requires_grad=False)
-                input = input * (
-                        1 + torch.exp(.5 * self.get_log_alpha()) * eps)
-                return F.linear(input, self.weight, self.bias)
-        else:
-            if self.sparsify:
-                weight = self.sparse_weight
-            else:
-                weight = self.weight
-            return F.linear(input, weight, self.bias)
-
-    def penalty(self):
-        if not self.adaptive or self.var_penalty == 0:
-            return torch.tensor(0., device=self.weight.device,
-                                dtype=torch.float)
-        else:
-            log_alpha = self.get_log_alpha()
-            var_penalty = - k1 * (F.sigmoid(k2 + k3 * log_alpha)
-                                  - .5 * F.softplus(-log_alpha)
-                                  - 1).expand(*self.weight.shape).sum()
-            return var_penalty * self.var_penalty
-
-    @property
-    def density(self):
-        return (self.sparse_weight != 0).float().mean().item()
-
-    @property
-    def sparse_weight(self):
-        mask = self.get_log_alpha() > 3
-        return self.weight.masked_fill(mask, 0)
+from cogspaces.modules.linear import DropoutLinear
+from cogspaces.modules.loss import MultiStudyLoss
+from cogspaces.modules.utils import Identity
 
 
 class Embedder(nn.Module):
@@ -203,7 +45,25 @@ class Embedder(nn.Module):
         return self.activation(self.linear(input))
 
     def reset_parameters(self):
-        self.linear.reset_parameters()
+        if self.init == 'normal':
+            self.linear.reset_parameters()
+        elif self.init == 'symmetric':
+            super().reset_parameters()
+            dataset = fetch_atlas_modl()
+            assign = dataset['assign512']
+            assign = np.load(assign).tolist()
+            self.linear.weight.data += self.linear.weight.data[:, assign]
+            self.linear.weight.data /= 2
+        elif self.init == 'orthogonal':
+            nn.init.orthogonal_(self.linear.weight.data,
+                                gain=1 / math.sqrt(self.weight.shape[1]))
+        elif self.init == 'rest':
+            assert self.linear.out_features == 128
+            dataset = fetch_atlas_modl()
+            weight = np.load(dataset['loadings128'])
+            self.linear.weight.data = torch.from_numpy(weight)
+        else:
+            raise ValueError('Wrong parameter for `init` %s' % self.init)
         self.linear.reset_dropout()
 
     def penalty(self):
@@ -300,21 +160,18 @@ def regularization_schedule(start_value, stop_value, warmup, cooldown,
         return start_value * (1 - alpha) + stop_value * alpha
 
 
-class DeviceWarning(object):
-    pass
 
-
-class VarMultiStudyClassifier(BaseEstimator):
+class FactoredClassifier(BaseEstimator):
     def __init__(self, latent_size=30,
                  activation='linear',
                  batch_size=128, optimizer='sgd',
-                 epoch_counting='all',
                  lr=0.001,
                  dropout=0.5, input_dropout=0.25,
                  max_iter=10000, verbose=0,
                  device=-1,
                  regularization=1.,
                  weight_power=0.5,
+                 target_study=None,
                  variational=False,
                  batch_norm=True,
                  sampling='cycle',
@@ -349,9 +206,10 @@ class VarMultiStudyClassifier(BaseEstimator):
 
         self.variational = variational
 
-        self.epoch_counting = epoch_counting
         self.patience = patience
         self.max_iter = max_iter
+
+        self.target_study = target_study
 
         self.adaptive_dropout = adaptive_dropout
 
@@ -379,8 +237,20 @@ class VarMultiStudyClassifier(BaseEstimator):
         total_length = np.sum(lengths_arr)
         study_weights = np.float_power(lengths_arr, self.weight_power)
         study_weights /= np.sum(study_weights)
+
+        # if self.target_study is not None:
+        #     target_study_pos = 0
+        #     length = iter(lengths)
+        #     while next(length) != self.target_study:
+        #         target_study_pos += 1
+        #     study_weights[target_study_pos] = 0
+        #     study_weights *= .5
+        #     study_weights[target_study_pos] = .5
+
         study_weights = {study: study_weight for study, study_weight
                          in zip(lengths, study_weights)}
+        print(study_weights)
+
         if self.sampling == 'random':
             eff_lengths = {study: total_length * study_weight for
                            study, study_weight
@@ -430,17 +300,10 @@ class VarMultiStudyClassifier(BaseEstimator):
                 log_alpha = np.log(p / (1 - p))
                 classifier.linear.log_alpha.fill_(log_alpha)
         # Verbosity + epoch counting
-        if self.epoch_counting == 'all':
+        if self.target_study is None:
             n_samples = sum(len(this_X) for this_X in X.values())
-        elif self.epoch_counting == 'target':
-            if self.sampling == 'random':
-                multiplier = (sum(study_weights.values()) /
-                              next(iter(study_weights.values())))
-            else:
-                multiplier = len(X)
-            n_samples = len(next(iter(X.values()))) * multiplier
-        else:
-            raise ValueError
+        elif self.target_study is not None:
+            n_samples = len(X[self.target_study]) * 2
 
         epoch = 0
         for phase in ['pretrain', 'train', 'sparsify']:
@@ -561,6 +424,9 @@ class VarMultiStudyClassifier(BaseEstimator):
             else:
                 report_every = None
             X_red = {}
+
+            if self.target_study is not None:
+                X = {self.target_study: X[self.target_study]}
             for study, this_X in X.items():
                 print('Fine tuning %s' % study)
                 this_X = this_X.to(device=device)
@@ -735,8 +601,7 @@ class VarMultiStudyClassifier(BaseEstimator):
         if disable_cuda:
             warnings.warn(
                 "Model configured to use CUDA but no CUDA devices "
-                "available. Loading on CPU instead.",
-                DeviceWarning)
+                "available. Loading on CPU instead.")
             state['device'] = 'cpu'
 
         self.__dict__.update(state)

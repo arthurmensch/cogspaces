@@ -10,7 +10,8 @@ from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.model_selection import train_test_split
 from cogspaces.models.baseline import MultiLogisticClassifier
-from cogspaces.models.factored import VarMultiStudyClassifier
+from cogspaces.models.factored import FactoredClassifier
+from cogspaces.models.factored_cv import StudySelector
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
@@ -25,22 +26,24 @@ def default():
     system = dict(
         device=-1,
         verbose=2,
+        n_jobs=1,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
         studies='all',
     )
     model = dict(
-        estimator='logistic',
+        estimator='factored',
         normalize=False,
         seed=100,
+        study_selector=True,
+        target_study='brainomics',
     )
     factored = dict(
         optimizer='adam',
         latent_size=128,
         activation='linear',
         regularization=1,
-        epoch_counting='all',
         adaptive_dropout=True,
         sampling='random',
         weight_power=0.6,
@@ -50,11 +53,11 @@ def default():
         # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
         dropout=0.75,
         seed=100,
-        lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-3,
+        lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
                   'finetune': 1e-3},
         input_dropout=0.25,
-        max_iter={'pretrain': 100, 'train': 100, 'sparsify': 100,
-                  'finetune': 100},
+        max_iter={'pretrain': 200, 'train': 300, 'sparsify': 0,
+                  'finetune': 200},
     )
 
     logistic = dict(
@@ -120,19 +123,36 @@ def train(system, model, logistic,
         standard_scaler = None
 
     if model['estimator'] == 'factored':
-        estimator = VarMultiStudyClassifier(verbose=system['verbose'],
-                                            device=system['device'],
-                                            **factored)
+        estimator = FactoredClassifier(verbose=system['verbose'],
+                                       device=system['device'],
+                                       target_study=model['target_study'],
+                                       **factored)
+        if model['target_study'] is not None:
+            target_study = model['target_study']
+            test_data = {target_study: test_data[target_study]}
+            test_targets = {target_study: test_targets[target_study]}
+            train_test_data = {target_study: train_data[target_study]}
+            train_test_targets = {target_study: train_targets[target_study]}
+            if model['study_selector']:
+                estimator = StudySelector(estimator, target_study,
+                                          n_jobs=system['n_jobs'],
+                                          n_runs=1, n_splits=5,
+                                          seed=0)
+        else:
+            train_test_data = train_data
+            train_test_targets = train_targets
     elif model['estimator'] == 'logistic':
         estimator = MultiLogisticClassifier(verbose=system['verbose'],
                                             **logistic)
+        train_test_data = train_data
+        train_test_targets = train_targets
     else:
         return ValueError("Wrong value for parameter "
                           "`model.estimator`: got '%s'."
                           % model['estimator'])
     test_callback = ScoreCallback(X=test_data, y=test_targets,
                                   score_function=accuracy_score)
-    train_callback = ScoreCallback(X=train_data, y=train_targets,
+    train_callback = ScoreCallback(X=train_test_data, y=train_test_targets,
                                    score_function=accuracy_score)
     callback = MultiCallback({'train': train_callback,
                               'test': test_callback})
@@ -144,6 +164,8 @@ def train(system, model, logistic,
 
     if hasattr(estimator, 'dropout_'):
         _run.info['dropout'] = estimator.dropout_
+    if hasattr(estimator, 'studies_'):
+        _run.info['studies'] = estimator.studies_
 
     test_preds = estimator.predict(test_data)
 
