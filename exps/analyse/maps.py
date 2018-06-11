@@ -56,82 +56,70 @@ def inspect_classification(output_dir, n_jobs=3):
 
     data = {study: torch.from_numpy(this_data).float() for study, this_data in
             data.items()}
-    target = {study: torch.from_numpy(this_target['contrast'].values) for study, this_target
-              in target.items()}
+    target = {study: torch.from_numpy(this_target['contrast'].values)
+              for study, this_target in target.items()}
 
     module.eval()
 
+    components = module.embedder.linear.weight.detach()
+
+    classification = []
     with torch.no_grad():
         preds = []
         names = []
         for study, this_data in data.items():
+            classifier = module.classifiers[study]
+            these_classif = classifier.linear.weight.detach()
+            multiplier = (classifier.batch_norm.weight.detach()
+                          / torch.sqrt(classifier.batch_norm.running_var))
+            these_classif *= multiplier
+            classification.append(these_classif)
+
             this_target = target[study]
             contrasts = target_encoder.le_[study]['contrast'].classes_
             for contrast in range(len(contrasts)):
-                data_contrast = this_data[this_target
-                                          == contrast].mean(dim=0, keepdim=True)
-                pred = module.embedder(data_contrast)
+                data_contrast = this_data[this_target == contrast].mean(dim=0, keepdim=True)
+                pred = classifier.batch_norm(module.embedder(data_contrast))
                 preds.append(pred)
             names.extend(['%s_%s' % (study, name) for name in contrasts])
         preds = torch.cat(preds, dim=0)
-        preds -= torch.mean(preds, dim=1, keepdim=True)
-        preds /= torch.sqrt(torch.sum(preds ** 2, dim=1, keepdim=True))
+        # preds -= torch.mean(preds, dim=1, keepdim=True)
+        # preds /= torch.sqrt(torch.sum(preds ** 2, dim=1, keepdim=True))
         preds = preds.numpy()
     names = np.array(names)
+
+    comp_text = []
     for i in range(preds.shape[1]):
         sort = np.argsort(preds[:, i])[::-1]
-        print(preds[:, i][sort][:10])
-        print(names[sort][:10])
+        sort = sort[:10]
+        tags = {tag: activation for tag, activation
+                in zip(names[sort], preds[:, i][sort])}
+        comp_text.append(repr(tags))
 
-    # classification = []
-    # preds = []
-    # names = []
-    # for study, classifier in module.classifiers.items():
-    #     classifier_coef = classifier.linear.weight.detach()
-    #     multiplier = (classifier.batch_norm.weight.detach()\
-    #                   / torch.sqrt(classifier.batch_norm.running_var))
-    #     classifier_coef *= multiplier
-    #
-    #     classifier_coef = classifier_coef.numpy()
-    #
-    #     with torch.no_grad():
-    #         latent_size = classifier_coef.shape[1]
-    #         input = torch.diag(torch.from_numpy(mean)).float()
-    #         input += module.embedder.linear.bias[None, :]
-    #         classifier.eval()
-    #         pred = F.softmax(classifier(input), dim=1)
-    #         pred = pred.detach().numpy()
-    #         print('---------------')
-    #         print(study)
-    #         print('---------------')
-    #         print(np.array2string(pred, precision=3))
-    #         classification.append(classifier_coef)
-    #         preds.append(pred)
-    #         these_names = np.array(['%s_%s' % (study, name) for name in
-    #                        target_encoder.le_[study]['contrast'].classes_])
-    #         names.append(these_names)
+    components = components.numpy()
+    dictionary, masker = get_proj_and_masker()
+    components = components.dot(dictionary)
+    component_imgs = masker.inverse_transform(components)
+    filename = join(output_dir, 'components.nii.gz')
+    component_imgs.to_filename(filename)
+    plot_all(filename, name='components',
+             texts=comp_text,
+             output_dir=join(output_dir, 'components'),
+             draw=False,
+             n_jobs=n_jobs)
 
-    # classification = np.concatenate(classification, axis=0)
-    # names = np.concatenate(names)
+    # classification = torch.cat(classification, dim=0)
+    # classification = classification.dot(components)
+    # classification = masker.inverse_transform(classification)
+    # filename = join(output_dir, 'classification.nii.gz')
+    # classification.to_filename(filename)
     #
-    # classifications = {'classification': classification,}
-    #
-    # dump(classifications, join(output_dir, 'classifications.pkl'))
-    #
-    # for i in range(classification_std.shape[1]):
-    #     sort = np.argsort(classification_std[:, i])[::-1]
-    #     print(classification_std[:, i][sort][:5])
-    #     print(names[sort][:5])
-
-    # for name, classif in classifications.items():
-    #     classif = classif.dot(dictionary)
-    #     classif = masker.inverse_transform(classif)
-    #     filename = join(output_dir, '%s.nii.gz' % name)
-    #     classif.to_filename(filename)
-        # plot_all(filename, name=name,
-        #          names=names,
-        #          output_dir=join(output_dir, 'components'),
-        #          n_jobs=n_jobs)
+    # names = np.concatenate(names).tolist()
+    # dump(names, 'names.pkl')
+    # plot_all(filename, name='classification',
+    #          names=names,
+    #          output_dir=join(output_dir, 'classification'),
+    #          n_jobs=n_jobs)
 
 
 def get_proj_and_masker():
