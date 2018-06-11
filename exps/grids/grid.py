@@ -213,6 +213,7 @@ def study_selector():
         regularization=1,
         adaptive_dropout=True,
         sampling='random',
+        epoch_counting='target_study',
         weight_power=0.6,
         batch_size=128,
         init='rest',
@@ -283,7 +284,7 @@ if __name__ == '__main__':
     elif grid == 'factored_study_selector':
         exp.config(study_selector)
         config_updates = ParameterGrid({'model.target_study': studies,
-                                        'factored.seed': model_seeds[:5],
+                                        'seed': seeds,
                                         })
     elif grid == 'factored_refit_cautious':
         exp.config(factored_refit)

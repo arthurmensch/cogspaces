@@ -12,6 +12,7 @@ from cogspaces.model_selection import train_test_split
 from cogspaces.models.baseline import MultiLogisticClassifier
 from cogspaces.models.factored import FactoredClassifier
 from cogspaces.models.factored_cv import StudySelector
+from cogspaces.models.factored_dl import FactoredDL
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
@@ -26,7 +27,7 @@ def default():
     system = dict(
         device=-1,
         verbose=2,
-        n_jobs=1,
+        n_jobs=3,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
@@ -36,8 +37,8 @@ def default():
         estimator='factored',
         normalize=False,
         seed=100,
-        study_selector=True,
-        target_study='brainomics',
+        refinement='dl',
+        target_study=None,
     )
     factored = dict(
         optimizer='adam',
@@ -47,14 +48,15 @@ def default():
         adaptive_dropout=True,
         sampling='random',
         weight_power=0.6,
-        batch_size=128,
+        batch_size=32,
+        epoch_counting='target_study',
         init='rest',
         batch_norm=True,
         # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
         dropout=0.75,
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
-                  'finetune': 1e-3},
+            'finetune': 1e-3},
         input_dropout=0.25,
         max_iter={'pretrain': 200, 'train': 300, 'sparsify': 0,
                   'finetune': 200},
@@ -65,6 +67,11 @@ def default():
         l2_penalty=np.logspace(-5, 1, 7).tolist(),
         max_iter=1000,
         reduction=None
+    )
+
+    refinement = dict(
+        n_runs=45,
+        n_splits=3
     )
 
 
@@ -100,7 +107,7 @@ def load_data(source_dir, studies):
 
 
 @exp.main
-def train(system, model, logistic,
+def train(system, model, logistic, refinement,
           factored, full,
           _run, _seed):
     data, target = load_data()
@@ -126,6 +133,7 @@ def train(system, model, logistic,
         estimator = FactoredClassifier(verbose=system['verbose'],
                                        device=system['device'],
                                        target_study=model['target_study'],
+                                       n_jobs=system['n_jobs'],
                                        **factored)
         if model['target_study'] is not None:
             target_study = model['target_study']
@@ -133,14 +141,26 @@ def train(system, model, logistic,
             test_targets = {target_study: test_targets[target_study]}
             train_test_data = {target_study: train_data[target_study]}
             train_test_targets = {target_study: train_targets[target_study]}
-            if model['study_selector']:
-                estimator = StudySelector(estimator, target_study,
-                                          n_jobs=system['n_jobs'],
-                                          n_runs=1, n_splits=5,
-                                          seed=0)
         else:
             train_test_data = train_data
             train_test_targets = train_targets
+        if model['refinement'] == 'study_selector':
+            if model['target_study'] is None:
+                raise ValueError("Refinement 'study_selector' requires"
+                                 " 'target_study' to be set.")
+            estimator = StudySelector(estimator, model['target_study'],
+                                      n_jobs=system['n_jobs'],
+                                      n_runs=refinement['n_runs'],
+                                      n_splits=5,
+                                      seed=factored['seed'])
+        elif model['refinement'] == 'dl':
+            estimator = FactoredDL(estimator,
+                                   n_jobs=system['n_jobs'],
+                                   n_runs=refinement['n_runs'],
+                                   seed=factored['seed'])
+        elif model['refinement'] is not None:
+            raise ValueError('Wrong parameter for `refinement`: %s' %
+                             model['refinement'])
     elif model['estimator'] == 'logistic':
         estimator = MultiLogisticClassifier(verbose=system['verbose'],
                                             **logistic)

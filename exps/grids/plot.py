@@ -33,6 +33,8 @@ def plot_joined():
     joined_mean['chance'] = chance_level
     joined_mean['n_subjects'] = n_subjects
 
+    print(joined_mean)
+
     data = pd.read_pickle(join(output_dir, 'joined_mean.pkl'))
 
     with open(expanduser('~/work/repos/cogspaces/cogspaces/'

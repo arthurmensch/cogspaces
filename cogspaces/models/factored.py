@@ -45,23 +45,28 @@ class Embedder(nn.Module):
         return self.activation(self.linear(input))
 
     def reset_parameters(self):
-        if self.init == 'normal':
-            self.linear.reset_parameters()
-        elif self.init == 'symmetric':
-            super().reset_parameters()
-            dataset = fetch_atlas_modl()
-            assign = dataset['assign512']
-            assign = np.load(assign).tolist()
-            self.linear.weight.data += self.linear.weight.data[:, assign]
-            self.linear.weight.data /= 2
-        elif self.init == 'orthogonal':
-            nn.init.orthogonal_(self.linear.weight.data,
-                                gain=1 / math.sqrt(self.weight.shape[1]))
-        elif self.init == 'rest':
-            assert self.linear.out_features == 128
-            dataset = fetch_atlas_modl()
-            weight = np.load(dataset['loadings128'])
-            self.linear.weight.data = torch.from_numpy(weight)
+        if isinstance(self.init, str):
+            if self.init == 'normal':
+                self.linear.reset_parameters()
+            elif self.init == 'symmetric':
+                super().reset_parameters()
+                dataset = fetch_atlas_modl()
+                assign = dataset['assign512']
+                assign = np.load(assign).tolist()
+                self.linear.weight.data += self.linear.weight.data[:, assign]
+                self.linear.weight.data /= 2
+            elif self.init == 'orthogonal':
+                nn.init.orthogonal_(self.linear.weight.data,
+                                    gain=1 / math.sqrt(self.weight.shape[1]))
+            elif self.init == 'rest':
+                assert self.linear.out_features == 128
+                dataset = fetch_atlas_modl()
+                weight = np.load(dataset['loadings128'])
+                self.linear.weight.data = torch.from_numpy(weight)
+            else:
+                raise ValueError('Wrong parameter for `init` %s' % self.init)
+        elif isinstance(self.init, np.ndarray):
+            self.linear.weight.data = torch.from_numpy(self.init)
         else:
             raise ValueError('Wrong parameter for `init` %s' % self.init)
         self.linear.reset_dropout()
@@ -160,7 +165,6 @@ def regularization_schedule(start_value, stop_value, warmup, cooldown,
         return start_value * (1 - alpha) + stop_value * alpha
 
 
-
 class FactoredClassifier(BaseEstimator):
     def __init__(self, latent_size=30,
                  activation='linear',
@@ -175,10 +179,10 @@ class FactoredClassifier(BaseEstimator):
                  variational=False,
                  batch_norm=True,
                  sampling='cycle',
+                 epoch_counting='all',
                  init='normal',
                  full_init=None,
                  adaptive_dropout=True,
-                 rotation=False,
                  n_jobs=1,
                  patience=200,
                  seed=None):
@@ -191,8 +195,6 @@ class FactoredClassifier(BaseEstimator):
         self.regularization = regularization
 
         self.full_init = full_init
-
-        self.rotation = rotation
 
         self.sampling = sampling
         self.batch_size = batch_size
@@ -212,6 +214,8 @@ class FactoredClassifier(BaseEstimator):
         self.target_study = target_study
 
         self.adaptive_dropout = adaptive_dropout
+
+        self.epoch_counting = epoch_counting
 
         self.verbose = verbose
         self.device = device
@@ -238,18 +242,8 @@ class FactoredClassifier(BaseEstimator):
         study_weights = np.float_power(lengths_arr, self.weight_power)
         study_weights /= np.sum(study_weights)
 
-        # if self.target_study is not None:
-        #     target_study_pos = 0
-        #     length = iter(lengths)
-        #     while next(length) != self.target_study:
-        #         target_study_pos += 1
-        #     study_weights[target_study_pos] = 0
-        #     study_weights *= .5
-        #     study_weights[target_study_pos] = .5
-
         study_weights = {study: study_weight for study, study_weight
                          in zip(lengths, study_weights)}
-        print(study_weights)
 
         if self.sampling == 'random':
             eff_lengths = {study: total_length * study_weight for
@@ -294,18 +288,29 @@ class FactoredClassifier(BaseEstimator):
             module.embedder.linear.weight.data = torch.from_numpy(latent_coefs)
             module.embedder.linear.bias.data.fill_(0.)
             for study, classifier in module.classifiers.items():
-                # classifier.linear.weight.data = torch.from_numpy(classif_coefs[study])
-                # classifier.linear.bias.data = torch.from_numpy(classif_biases[study])
+                # classifier.linear.weight.data =
+                #  torch.from_numpy(classif_coefs[study])
+                # classifier.linear.bias.data =
+                #  torch.from_numpy(classif_biases[study])
                 p = dropout[study]
                 log_alpha = np.log(p / (1 - p))
                 classifier.linear.log_alpha.fill_(log_alpha)
-        # Verbosity + epoch counting
-        if self.target_study is None:
-            n_samples = sum(len(this_X) for this_X in X.values())
-        elif self.target_study is not None:
-            n_samples = len(X[self.target_study]) * 2
 
-        epoch = 0
+        # Verbosity + epoch counting
+        if self.epoch_counting == 'target_study':
+            if self.target_study is None:
+                raise ValueError('`target_study` should be specified'
+                                 ' if `epoch_counting` is True.')
+            else:
+                n_samples = ceil(len(X[self.target_study]) / study_weights[self.target_study])
+        elif self.epoch_counting == 'all':
+            n_samples = sum(len(this_X) for this_X in X.values())
+        else:
+            raise ValueError('Wrong value for `epoch_counting`: %s' %
+                             self.epoch_counting)
+
+        print('n_samples:', n_samples)
+
         for phase in ['pretrain', 'train', 'sparsify']:
             if self.max_iter[phase] == 0:
                 continue
@@ -361,13 +366,13 @@ class FactoredClassifier(BaseEstimator):
                         dropout = {}
                         for study, classifier in self.module_.classifiers.items():
                             dropout[study] = classifier.linear.get_p().item()
-                        print('Dropout', ' '.join('%s: %.2f'
-                                                  % (study, this_dropout) for
-                                                  study, this_dropout in dropout.items()))
-                        p = module.embedder.linear.get_p().detach().numpy()
-                        print('Input dropout', np.array2string(p, precision=3,
-                                                               suppress_small=True,
-                                                               edgeitems=5))
+                        # print('Dropout', ' '.join('%s: %.2f'
+                        #                           % (study, this_dropout) for
+                        #                           study, this_dropout in dropout.items()))
+                        # p = module.embedder.linear.get_p().detach().numpy()
+                        # print('Input dropout', np.array2string(p, precision=3,
+                        #                                        suppress_small=True,
+                        #                                        edgeitems=5))
                         if callback is not None:
                             callback(self, epoch)
 
@@ -387,12 +392,12 @@ class FactoredClassifier(BaseEstimator):
                         module.load_state_dict(best_state)
                         print('-----------------------------------')
 
-                        dropout = {}
-                        for study, classifier in self.module_.classifiers.items():
-                            dropout[study] = classifier.linear.get_p().item()
-                        print('Dropout', ' '.join('%s: %.2f'
-                                                  % (study, this_dropout) for
-                                                  study, this_dropout in dropout.items()))
+                        # dropout = {}
+                        # for study, classifier in self.module_.classifiers.items():
+                        #     dropout[study] = classifier.linear.get_p().item()
+                        # print('Dropout', ' '.join('%s: %.2f'
+                        #                           % (study, this_dropout) for
+                        #                           study, this_dropout in dropout.items()))
                         self.dropout_ = dropout
 
                         break
@@ -480,7 +485,8 @@ class FactoredClassifier(BaseEstimator):
                     if (report_every is not None
                             and epoch % report_every == 0):
                         print(
-                            'Epoch %.2f, train loss: %.4f, penalty: %.4f, p: %.2f'
+                            'Epoch %.2f, train loss: %.4f,'
+                            ' penalty: %.4f, p: %.2f'
                             % (epoch, epoch_loss, epoch_penalty,
                                this_module.linear.get_p().item()))
 
