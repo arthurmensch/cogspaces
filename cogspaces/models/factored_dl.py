@@ -64,18 +64,19 @@ class FactoredDL(BaseEstimator):
 
         self.classifier_ = copy.deepcopy(self.classifier)
 
+        self.classifier_.max_iter['finetune'] = 0
         self.classifier_.n_jobs = 1
         self.classifier_.init = dict_init
 
         seeds = check_random_state(
             self.seed).randint(0, np.iinfo('int32').max,
                                size=self.n_runs)
-        components = Parallel(n_jobs=self.n_jobs, verbose=10)(
+        coefs = Parallel(n_jobs=self.n_jobs, verbose=10)(
             delayed(compute_coefs)(
                 self.classifier_, X, y, seed)
             for seed in seeds)
 
-        coefs = np.concatenate(components, axis=0)
+        coefs = np.concatenate(coefs, axis=0)
         sc = StandardScaler(with_std=False, with_mean=True)
         sc.fit(coefs)
         coefs_ = sc.transform(coefs)

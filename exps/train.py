@@ -22,12 +22,67 @@ exp = Experiment('multi_studies')
 
 @exp.config
 def default():
-    seed = 10
-    full = False
+    seed = 100
+    full = True
     system = dict(
         device=-1,
         verbose=2,
-        n_jobs=3,
+        n_jobs=10,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512'),
+        studies='all',
+    )
+    model = dict(
+        estimator='factored',
+        normalize=False,
+        seed=100,
+        refinement=None,
+        target_study=None,
+    )
+    factored = dict(
+        optimizer='adam',
+        latent_size=128,
+        activation='linear',
+        regularization=1,
+        adaptive_dropout=True,
+        sampling='random',
+        weight_power=0.6,
+        batch_size=128,
+        epoch_counting='all',
+        init='rest',
+        batch_norm=True,
+        # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
+        dropout=0.25,
+        input_dropout=0.25,
+        seed=100,
+        lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
+            'finetune': 1e-3},
+        max_iter={'pretrain': 200, 'train': 300, 'sparsify': 0,
+                  'finetune': 200},
+    )
+
+    logistic = dict(
+        estimator='logistic',
+        l2_penalty=np.logspace(-5, 1, 7).tolist(),
+        max_iter=1000,
+        reduction=None
+    )
+
+    refinement = dict(
+        n_runs=45,
+        n_splits=3
+    )
+
+
+@exp.named_config
+def dl():
+    seed = 10
+    full = True
+    system = dict(
+        device=-1,
+        verbose=2,
+        n_jobs=45,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
@@ -48,8 +103,8 @@ def default():
         adaptive_dropout=True,
         sampling='random',
         weight_power=0.6,
-        batch_size=32,
-        epoch_counting='target_study',
+        batch_size=128,
+        epoch_counting='all',
         init='rest',
         batch_norm=True,
         # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
@@ -70,7 +125,61 @@ def default():
     )
 
     refinement = dict(
-        n_runs=45,
+        n_runs=90,
+    )
+
+
+@exp.named_config
+def study_selector():
+    seed = 10
+    full = False
+    system = dict(
+        device=-1,
+        verbose=2,
+        n_jobs=3,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512'),
+        studies='all',
+    )
+    model = dict(
+        estimator='factored',
+        normalize=False,
+        seed=100,
+        refinement='study_selector',
+        target_study='ds008',
+    )
+    factored = dict(
+        optimizer='adam',
+        latent_size=128,
+        activation='linear',
+        regularization=1,
+        adaptive_dropout=True,
+        sampling='random',
+        weight_power=0.6,
+        batch_size=32,
+        epoch_counting='all',
+        init='rest',
+        batch_norm=True,
+        # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
+        dropout=0.75,
+        seed=100,
+        lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
+            'finetune': 1e-3},
+        input_dropout=0.25,
+        max_iter={'pretrain': 200, 'train': 300, 'sparsify': 0,
+                  'finetune': 200},
+    )
+
+    logistic = dict(
+        estimator='logistic',
+        l2_penalty=np.logspace(-5, 1, 7).tolist(),
+        max_iter=1000,
+        reduction=None
+    )
+
+    refinement = dict(
+        n_runs=1,
         n_splits=3
     )
 
@@ -201,5 +310,5 @@ def train(system, model, logistic, refinement,
 if __name__ == '__main__':
     output_dir = join(get_output_dir(), 'multi_studies')
     exp.observers.append(OurFileStorageObserver.create(basedir=output_dir))
-    run = exp.run()
+    run = exp.run_commandline()
     output_dir = join(output_dir, str(run._id))

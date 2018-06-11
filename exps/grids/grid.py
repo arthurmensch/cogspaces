@@ -14,11 +14,12 @@ from exps.train import exp
 
 
 def factored():
-    seed = 10
+    seed = 100
     full = False
     system = dict(
         device=-1,
         verbose=2,
+        n_jobs=3,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
@@ -26,29 +27,31 @@ def factored():
     )
     model = dict(
         estimator='factored',
-        normalize=False)
-
+        normalize=False,
+        seed=100,
+        refinement=None,
+        target_study=None,
+    )
     factored = dict(
-        weight_power=0.6,
+        optimizer='adam',
         latent_size=128,
         activation='linear',
-        epoch_counting='all',
-        sampling='random',
-        init='rest',
-        adaptive_dropout=True,
-        batch_norm=True,
         regularization=1,
-        input_dropout=0.25,
-        dropout=0.75,
-        optimizer='adam',
-        lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-5,
-                  'finetune': 1e-3},
+        adaptive_dropout=True,
+        sampling='random',
+        weight_power=0.6,
         batch_size=128,
-        max_iter={'pretrain': 10, 'train': 10,
-                  'sparsify': 0, 'finetune': 10},
+        epoch_counting='all',
+        init='rest',
+        batch_norm=True,
+        dropout=0.25,
         seed=100,
+        lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
+            'finetune': 1e-3},
+        input_dropout=0.25,
+        max_iter={'pretrain': 200, 'train': 300, 'sparsify': 0,
+                  'finetune': 200},
     )
-
 
 def factored_single():
     seed = 10
@@ -75,7 +78,7 @@ def factored_single():
         batch_norm=True,
         regularization=1,
         input_dropout=0.25,
-        dropout=0.75,
+        dropout=0.5,
         optimizer='adam',
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-3,
                   'finetune': 1e-3},
@@ -188,12 +191,12 @@ def full_logistic():
 
 
 def study_selector():
-    seed = 10
+    seed = 100
     full = False
     system = dict(
         device=-1,
         verbose=2,
-        n_jobs=1,
+        n_jobs=3,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
@@ -203,8 +206,8 @@ def study_selector():
         estimator='factored',
         normalize=False,
         seed=100,
-        study_selector=True,
-        target_study='brainomics',
+        refinement='study_selector',
+        target_study=None,
     )
     factored = dict(
         optimizer='adam',
@@ -213,26 +216,23 @@ def study_selector():
         regularization=1,
         adaptive_dropout=True,
         sampling='random',
-        epoch_counting='target_study',
         weight_power=0.6,
         batch_size=128,
+        epoch_counting='all',
         init='rest',
         batch_norm=True,
-        # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
-        dropout=0.75,
+        dropout=0.5,
+        input_dropout=0.25,
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
-                  'finetune': 1e-3},
-        input_dropout=0.25,
+            'finetune': 1e-3},
         max_iter={'pretrain': 200, 'train': 300, 'sparsify': 0,
                   'finetune': 200},
     )
 
-    logistic = dict(
-        estimator='logistic',
-        l2_penalty=np.logspace(-5, 1, 7).tolist(),
-        max_iter=1000,
-        reduction=None
+    refinement = dict(
+        n_runs=1,
+        n_splits=3
     )
 
 
@@ -276,10 +276,10 @@ if __name__ == '__main__':
         config_updates = ParameterGrid({'seed': seeds,
                                         'factored.max_iter.sparsify': [200],
                                         })
-    elif grid == 'factored':
+    elif grid == 'factored_mid_dropout':
         exp.config(factored)
         config_updates = ParameterGrid({'seed': seeds,
-                                        'factored.seed': model_seeds,
+                                        # 'factored.seed': model_seeds,
                                         })
     elif grid == 'factored_study_selector':
         exp.config(study_selector)

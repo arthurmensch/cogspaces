@@ -62,7 +62,7 @@ class Embedder(nn.Module):
                 assert self.linear.out_features == 128
                 dataset = fetch_atlas_modl()
                 weight = np.load(dataset['loadings128'])
-                self.linear.weight.data = torch.from_numpy(weight)
+                self.linear.weight.data = torch.from_numpy(np.array(weight))
             else:
                 raise ValueError('Wrong parameter for `init` %s' % self.init)
         elif isinstance(self.init, np.ndarray):
@@ -89,7 +89,7 @@ class LatentClassifier(nn.Module):
                                     level='layer')
 
     def forward(self, input):
-        if hasattr(self, 'batch_norm'):
+        if hasattr(self, 'batch_norm') and len(input) > 1:
             input = self.batch_norm(input)
         return F.log_softmax(self.linear(input), dim=1)
 
@@ -300,7 +300,7 @@ class FactoredClassifier(BaseEstimator):
         if self.epoch_counting == 'target_study':
             if self.target_study is None:
                 raise ValueError('`target_study` should be specified'
-                                 ' if `epoch_counting` is True.')
+                                 ' if `epoch_counting` is "target_study".')
             else:
                 n_samples = ceil(len(X[self.target_study]) / study_weights[self.target_study])
         elif self.epoch_counting == 'all':
@@ -504,6 +504,7 @@ class FactoredClassifier(BaseEstimator):
                 print('-----------------------------------')
         if callback is not None:
             callback(self, epoch)
+
         return self
 
     def _check_device(self):

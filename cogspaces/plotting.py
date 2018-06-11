@@ -30,16 +30,25 @@ def plot_single(img, name, output_dir):
     return src, glass_src
 
 
-def plot_all(imgs, output_dir, name, n_jobs=1, verbose=10):
+def numbered_names(name):
+    i = 0
+    while True:
+        yield '%s_%i' % (name, i)
+        i += 1
+
+
+def plot_all(imgs, output_dir, name, names=None, n_jobs=1, verbose=10):
     img_dir = join(output_dir, 'imgs')
     if not os.path.exists(img_dir):
         os.makedirs(img_dir)
+
+    if isinstance(names, str):
+        names = numbered_names(names)
+
     imgs = check_niimg(imgs)
     srcs = Parallel(n_jobs=n_jobs, verbose=verbose)(
-        delayed(plot_single)(img,
-                             ('%s_%i' % (name, i)), img_dir)
-        for i, img in
-        enumerate(iter_img(imgs)))
+        delayed(plot_single)(img, name, img_dir)
+        for name, img in zip(names, iter_img(imgs)))
     with open(join(output_dir, '%s.html' % name), 'w+') as f:
         f.write("""<html><head><title>%s</title></head>\n<body>\n
                 <h1>%s</h1>""" % (name, name))

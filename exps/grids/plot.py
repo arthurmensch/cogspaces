@@ -16,13 +16,12 @@ def plot_joined():
     output_dir = get_output_dir()
 
     factored_output_dir = join(output_dir, 'factored_refit_cautious')
-    baseline_output_dir = join(output_dir, 'reduced_logistic')
+    baseline_output_dir = join(output_dir, 'logistic')
 
-    factored = pd.read_pickle(join(factored_output_dir,
-                                   'gathered.pkl'))
+    factored = pd.read_pickle(join(factored_output_dir, 'gathered.pkl'))
     factored = factored[idx[:, 'dl_rest', :]]
 
-    baseline = pd.read_pickle(join(baseline_output_dir, 'gathered.pkl'))
+    baseline = pd.read_pickle(join(baseline_output_dir, 'gathered.pkl'))['score']
 
     chance_level, n_subjects = get_chance_subjects()
 
@@ -33,8 +32,7 @@ def plot_joined():
     joined_mean['chance'] = chance_level
     joined_mean['n_subjects'] = n_subjects
 
-    print(joined_mean)
-
+    joined_mean.to_pickle(join(output_dir, 'joined_mean.pkl'))
     data = pd.read_pickle(join(output_dir, 'joined_mean.pkl'))
 
     with open(expanduser('~/work/repos/cogspaces/cogspaces/'
@@ -117,13 +115,13 @@ def plot_joined():
     ax2.set_xlabel('Decoding accuracy on test set')
 
     handles = [rects1, rects2, lines]
-    labels = [ 'Baseline logistic regression', 'Factored model', 'Chance level']
+    labels = ['Baseline decoder', 'Multi-study decoder', 'Chance level']
     ax2.legend(handles, labels, loc='lower right', frameon=False, bbox_to_anchor=(1.15, -.01))
 
     ax2.set_yticks(ind + width / 2)
 
     labels = [
-        '%s' % (names[label]['title']) if label in names else label
+        '%s' % (names[label]['title']) if False else label  # if label in names else label
         for label in data.index.values]
     ax2.set_yticklabels(labels, ha='right',
                         va='center')
@@ -134,7 +132,6 @@ def plot_joined():
     plt.close(fig)
 
     sort = data.index.values.tolist()[::-1]
-    print(sort)
     return sort
 
 
@@ -143,49 +140,26 @@ def plot_compare_methods(sort):
 
     factored_refit = pd.read_pickle(
         join(output_dir, 'factored_refit_cautious/gathered.pkl'))
-    factored = pd.read_pickle(
-        join(output_dir, 'factored/gathered.pkl'))
-    factored_sparsify = pd.read_pickle(
-        join(output_dir, 'factored_sparsify_less/gathered.pkl'))
-    # factored_dense_refit = pd.read_pickle(
-    #     join(output_dir, 'init_refit_finetune/gathered.pkl'))
-    # factored_dense = pd.read_pickle(join(output_dir, 'seed_split_init/gathered.pkl'))
-    # factored_logistic_refit = pd.read_pickle(
-    #     join(output_dir, 'logistic_refit_l2/gathered.pkl'))
 
     single_factored = \
         pd.read_pickle(join(output_dir, 'single_factored/gathered.pkl'))['score']
     logistic = pd.read_pickle(
         join(output_dir, 'logistic/gathered.pkl'))['score']
 
-    # factored_sparse_refit = factored_sparse_refit[idx[:, 'dl_rest', :]]
     factored_refit = factored_refit[idx[:, 'dl_rest', :]]
-    # factored = factored[idx[:, False, :]].groupby(['study', 'seed']).mean()
-    # factored_sparsify = factored_sparsify[idx[:, True, :]]
 
     logistic.name = 'score'
     single_factored.name = 'score'
-    # factored.name = 'score'
     factored_refit.name = 'score'
-    # factored_sparsify.name = 'score'
-    # factored_sparse_refit.name = 'score'
 
     df = pd.concat(
         [logistic,
          single_factored,
-         # factored,
          factored_refit,
-         # factored_sparsify
-         # factored_sparse,
-         # factored_sparse_refit
          ],
         axis=0, keys=['logistic',
                       'single_factored',
-                      # 'factored',
                       'factored_refit',
-                      # 'factored_sparsify',
-                      # 'factored_sparse',
-                      # 'factored_sparse_refit',
                       ], names=['method'])
 
     df_std = []
@@ -201,27 +175,23 @@ def plot_compare_methods(sort):
         by=['method', 'study']).median().reset_index().sort_values(
         ['method', 'score'], ascending=False).set_index(['method', 'study'])
 
-    # sort = median.loc['factored_refit'].index.get_level_values(level='study')
     sort = pd.MultiIndex.from_product([methods, sort],
                                       names=['method', 'study'])
-    # print(sort)
     df_sort = df_std.reset_index('seed').loc[sort]
 
     df_sort = df_sort.reset_index()
 
     n_studies = len(df_sort['study'].unique())
 
-    # df_sort = df_sort.query("study not in ['ds006A', 'ds007', 'ds008']")
+    diff_color = sns.color_palette("husl", n_studies)
 
-    diff_color = sns.color_palette("husl", 35)
+    print(df.groupby(['method', 'study']).aggregate(['mean', 'std']))
 
     fig, ax = plt.subplots(1, 1, figsize=(6, 3))
     params = dict(x="score", y="method", hue="study",
                   data=df_sort, dodge=True, ax=ax,
                   palette=diff_color
-                  # palette=sns.color_palette('gist_rainbow', n_colors=n_studies)
                   )
-    # g = sns.boxplot(zorder=100, showfliers=False, whis=0, **params)
     g = sns.stripplot(alpha=1, zorder=200, size=3.5, linewidth=0, jitter=True,
                       **params)
     handles, labels = g.get_legend_handles_labels()
@@ -241,11 +211,9 @@ def plot_compare_methods(sort):
 
     methods = df_sort['method'].unique()
 
-    y_labels = {'factored_refit': 'Factored \n model \n(multi-study)',
-                # 'factored': 'Factored model \n (multi-study)',
-                'single_factored': 'Factored \n model \n (single-study)',
-                # 'factored_sparsify': 'Factored model \n (multi-study + sparsify)',
-                'logistic': 'Baseline \n logistic \n regression'}
+    y_labels = {'factored_refit': 'Multi-study \n decoder',
+                'single_factored': 'Single-study \n decoder',
+                'logistic': 'Baseline \n decoder'}
     for i, method in enumerate(methods):
         ax.annotate(y_labels[method], xy=(-0.1, i), xycoords='data',
                     va='center',
