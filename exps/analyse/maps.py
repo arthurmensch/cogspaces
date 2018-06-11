@@ -2,14 +2,14 @@ import numpy as np
 import os
 import re
 import torch
-import torch.nn.functional as F
-from joblib import load, delayed, Parallel, dump
+from joblib import load, delayed, Parallel
 from nilearn.input_data import NiftiMasker
 from os.path import join
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask, get_output_dir
+from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
 from cogspaces.plotting import plot_all
+from exps.train import load_data
 
 
 def inspect_components(output_dir, n_jobs=3):
@@ -51,41 +51,72 @@ def inspect_classification(output_dir, n_jobs=3):
     target_encoder = load(join(output_dir, 'target_encoder.pkl'))
     module = estimator.classifier_.module_
 
-    # components = module.embedder.linear.weight.detach().numpy()
-    # dictionary, masker = get_proj_and_masker()
-    # dictionary = components.dot(dictionary)
+    data, target = load_data(join(get_data_dir(), 'reduced_512'), 'all')
+    target = target_encoder.transform(target)
 
-    classification = []
-    preds = []
-    names = []
-    for study, classifier in module.classifiers.items():
-        classifier_coef = classifier.linear.weight.detach()
-        multiplier = (classifier.batch_norm.weight.detach()\
-                      / torch.sqrt(classifier.batch_norm.running_var))
-        classifier_coef *= multiplier
+    data = {study: torch.from_numpy(this_data).float() for study, this_data in
+            data.items()}
+    target = {study: torch.from_numpy(this_target['contrast'].values) for study, this_target
+              in target.items()}
 
-        classifier_coef = classifier_coef.numpy()
+    module.eval()
 
-        latent_size = classifier_coef.shape[1]
-        input = torch.eye(latent_size)
-        classifier.eval()
-        pred = F.softmax(classifier.linear(input), dim=1)
-        print('---------------')
-        print(study)
-        print('---------------')
-        print(np.array2string(pred.detach().numpy(), precision=3))
-        classification.append(classifier_coef)
-        preds.append(pred)
-        these_names = np.array(['%s_%s' % (study, name) for name in
-                       target_encoder.le_[study]['contrast'].classes_])
-        names.append(these_names)
+    with torch.no_grad():
+        preds = []
+        names = []
+        for study, this_data in data.items():
+            this_target = target[study]
+            contrasts = target_encoder.le_[study]['contrast'].classes_
+            for contrast in range(len(contrasts)):
+                data_contrast = this_data[this_target
+                                          == contrast].mean(dim=0, keepdim=True)
+                pred = module.embedder(data_contrast)
+                preds.append(pred)
+            names.extend(['%s_%s' % (study, name) for name in contrasts])
+        preds = torch.cat(preds, dim=0)
+        preds -= torch.mean(preds, dim=1, keepdim=True)
+        preds /= torch.sqrt(torch.sum(preds ** 2, dim=1, keepdim=True))
+        preds = preds.numpy()
+    names = np.array(names)
+    for i in range(preds.shape[1]):
+        sort = np.argsort(preds[:, i])[::-1]
+        print(preds[:, i][sort][:10])
+        print(names[sort][:10])
 
-    classification = np.concatenate(classification, axis=0)
-    names = np.concatenate(names)
+    # classification = []
+    # preds = []
+    # names = []
+    # for study, classifier in module.classifiers.items():
+    #     classifier_coef = classifier.linear.weight.detach()
+    #     multiplier = (classifier.batch_norm.weight.detach()\
+    #                   / torch.sqrt(classifier.batch_norm.running_var))
+    #     classifier_coef *= multiplier
+    #
+    #     classifier_coef = classifier_coef.numpy()
+    #
+    #     with torch.no_grad():
+    #         latent_size = classifier_coef.shape[1]
+    #         input = torch.diag(torch.from_numpy(mean)).float()
+    #         input += module.embedder.linear.bias[None, :]
+    #         classifier.eval()
+    #         pred = F.softmax(classifier(input), dim=1)
+    #         pred = pred.detach().numpy()
+    #         print('---------------')
+    #         print(study)
+    #         print('---------------')
+    #         print(np.array2string(pred, precision=3))
+    #         classification.append(classifier_coef)
+    #         preds.append(pred)
+    #         these_names = np.array(['%s_%s' % (study, name) for name in
+    #                        target_encoder.le_[study]['contrast'].classes_])
+    #         names.append(these_names)
 
-    classifications = {'classification': classification,}
-
-    dump(classifications, join(output_dir, 'classifications.pkl'))
+    # classification = np.concatenate(classification, axis=0)
+    # names = np.concatenate(names)
+    #
+    # classifications = {'classification': classification,}
+    #
+    # dump(classifications, join(output_dir, 'classifications.pkl'))
     #
     # for i in range(classification_std.shape[1]):
     #     sort = np.argsort(classification_std[:, i])[::-1]
