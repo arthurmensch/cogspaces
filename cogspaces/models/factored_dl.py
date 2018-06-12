@@ -1,13 +1,10 @@
 import copy
 import numpy as np
-from joblib import Parallel, delayed
+from joblib import Parallel, delayed, Memory
 from modl import DictFact
 from sklearn.base import BaseEstimator
 from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler
 from sklearn.utils import check_random_state
-
-from cogspaces.datasets.dictionaries import fetch_atlas_modl
 
 
 def explained_variance(X, components, per_component=True):
@@ -50,52 +47,49 @@ def explained_variance(X, components, per_component=True):
 
 
 class FactoredDL(BaseEstimator):
-    def __init__(self, classifier, n_jobs=1, seed=None, n_runs=2):
+    def __init__(self, classifier, n_jobs=1, seed=None, n_runs=2,
+                 alpha=1e-4, memory=Memory(cachedir=None),
+                 warmup=True):
         self.classifier = classifier
 
         self.n_jobs = n_jobs
         self.n_runs = n_runs
+        self.alpha = alpha
 
         self.seed = seed
 
-    def fit(self, X, y, callback=None):
-        loadings_128 = fetch_atlas_modl()['loadings128']
-        dict_init = np.load(loadings_128)
+        self.warmup = warmup
 
+        self.memory = memory
+
+    def fit(self, X, y, callback=None):
         self.classifier_ = copy.deepcopy(self.classifier)
 
         self.classifier_.max_iter['finetune'] = 0
         self.classifier_.n_jobs = 1
-        self.classifier_.init = dict_init
 
         seeds = check_random_state(
             self.seed).randint(0, np.iinfo('int32').max,
-                               size=self.n_runs)
+                               size=(self.n_runs + 1))
         coefs = Parallel(n_jobs=self.n_jobs, verbose=10)(
-            delayed(compute_coefs)(
+            delayed(self.memory.cache(compute_coefs))(
                 self.classifier_, X, y, seed)
-            for seed in seeds)
+            for seed in seeds[:-1])
+
+        self.classifier_.max_iter = {'train': 0,
+                                     'pretrain': 0,
+                                     'sparsify': 0,
+                                     'finetune': 0}
+        self.classifier_.fit(X, y)
+        dict_init = self.classifier_.module_.embedder.linear.weight.detach().numpy()
+        dict_init = np.array(dict_init)
 
         coefs = np.concatenate(coefs, axis=0)
-        sc = StandardScaler(with_std=False, with_mean=True)
-        sc.fit(coefs)
-        coefs_ = sc.transform(coefs)
+        coefs -= coefs.mean(axis=0, keepdims=True)
 
-        dict_fact = DictFact(comp_l1_ratio=0, comp_pos=False,
-                             n_components=128,
-                             code_l1_ratio=0, batch_size=32,
-                             learning_rate=1,
-                             dict_init=dict_init,
-                             code_alpha=5e-5, verbose=0, n_epochs=3,
-                             )
-        dict_fact.fit(coefs_)
-        dict_init = dict_fact.components_
-        dict_fact = DictFact(comp_l1_ratio=1, comp_pos=False, n_components=128,
-                             code_l1_ratio=0, batch_size=32, learning_rate=1,
-                             dict_init=dict_init,
-                             code_alpha=5e-5, verbose=10, n_epochs=40)
-        dict_fact.fit(coefs_)
-        components = dict_fact.components_
+        components = self.memory.cache(compute_components)(coefs, dict_init,
+                                                          self.alpha,
+                                                          self.warmup)
 
         exp_vars = explained_variance(coefs[:500], components,
                                       per_component=True)
@@ -109,7 +103,8 @@ class FactoredDL(BaseEstimator):
         self.classifier_.n_jobs = self.classifier.n_jobs
 
         self.classifier_.fit(X, y)
-        self.components_ = self.classifier_.module_.embedder.linear.weight.detach().numpy()
+        self.components_ = self.classifier_.module_.\
+            embedder.linear.weight.detach().numpy()
         return self
 
     def predict(self, X):
@@ -120,3 +115,24 @@ def compute_coefs(classifier, X, y, seed=0):
     classifier.seed = seed
     classifier.fit(X, y)
     return classifier.module_.embedder.linear.weight.detach().numpy()
+
+
+def compute_components(coefs, dict_init, alpha, warmup):
+    if warmup:
+        dict_fact = DictFact(comp_l1_ratio=0, comp_pos=False,
+                             n_components=dict_init.shape[0],
+                             code_l1_ratio=0, batch_size=32,
+                             learning_rate=1,
+                             dict_init=dict_init,
+                             code_alpha=alpha, verbose=0, n_epochs=1,
+                             )
+        dict_fact.fit(coefs)
+        dict_init = dict_fact.components_
+    dict_fact = DictFact(comp_l1_ratio=1, comp_pos=False,
+                         n_components=dict_init.shape[0],
+                         code_l1_ratio=0, batch_size=32, learning_rate=1,
+                         dict_init=dict_init,
+                         code_alpha=alpha, verbose=10, n_epochs=40)
+    dict_fact.fit(coefs)
+    components = dict_fact.components_
+    return components

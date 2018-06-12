@@ -1,7 +1,8 @@
 # Load data
 
 import numpy as np
-from joblib import dump
+from joblib import dump, Memory
+from matplotlib.testing.compare import get_cache_dir
 from os.path import join
 from sacred import Experiment
 from sklearn.metrics import accuracy_score
@@ -71,7 +72,9 @@ def default():
 
     refinement = dict(
         n_runs=45,
-        n_splits=3
+        n_splits=3,
+        alpha=1e-3,
+        warmup=False
     )
 
 
@@ -105,9 +108,8 @@ def dl():
         weight_power=0.6,
         batch_size=128,
         epoch_counting='all',
-        init='rest',
+        init='orthogonal',
         batch_norm=True,
-        # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
         dropout=0.75,
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
@@ -125,7 +127,9 @@ def dl():
     )
 
     refinement = dict(
-        n_runs=90,
+        n_runs=135,
+        alpha=1e-3,
+        warmup=False
     )
 
 
@@ -167,8 +171,8 @@ def study_selector():
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
             'finetune': 1e-3},
         input_dropout=0.25,
-        max_iter={'pretrain': 200, 'train': 300, 'sparsify': 0,
-                  'finetune': 200},
+        max_iter={'pretrain': 2, 'train': 3, 'sparsify': 0,
+                  'finetune': 2},
     )
 
     logistic = dict(
@@ -179,7 +183,7 @@ def study_selector():
     )
 
     refinement = dict(
-        n_runs=1,
+        n_runs=3,
         n_splits=3
     )
 
@@ -260,12 +264,15 @@ def train(system, model, logistic, refinement,
             estimator = StudySelector(estimator, model['target_study'],
                                       n_jobs=system['n_jobs'],
                                       n_runs=refinement['n_runs'],
-                                      n_splits=5,
+                                      n_splits=refinement['n_splits'],
                                       seed=factored['seed'])
         elif model['refinement'] == 'dl':
             estimator = FactoredDL(estimator,
                                    n_jobs=system['n_jobs'],
                                    n_runs=refinement['n_runs'],
+                                   alpha=refinement['alpha'],
+                                   warmup=refinement['warmup'],
+                                   memory=Memory(cachedir=get_cache_dir()),
                                    seed=factored['seed'])
         elif model['refinement'] is not None:
             raise ValueError('Wrong parameter for `refinement`: %s' %

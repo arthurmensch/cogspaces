@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+from itertools import repeat
 
 import numpy as np
 import os
@@ -41,7 +42,8 @@ def numbered_names(name):
         i += 1
 
 
-def plot_all(imgs, output_dir, name, texts=None, names=None, n_jobs=1, verbose=10,
+def plot_all(imgs, output_dir, name, filename=None,
+             texts=None, names=None, n_jobs=1, verbose=10,
              draw=True):
     img_dir = join(output_dir, 'imgs')
     if not os.path.exists(img_dir):
@@ -49,16 +51,20 @@ def plot_all(imgs, output_dir, name, texts=None, names=None, n_jobs=1, verbose=1
 
     if names is None:
         names = numbered_names(name)
+    if texts is None:
+        texts = repeat('')
+    if filename is None:
+        filename = name
 
     imgs = check_niimg(imgs)
     srcs = Parallel(n_jobs=n_jobs, verbose=verbose)(
         delayed(plot_single)(img, name, img_dir, draw)
         for name, img in zip(names, iter_img(imgs)))
-    with open(join(output_dir, '%s.html' % name), 'w+') as f:
+    with open(join(output_dir, '%s.html' % filename), 'w+') as f:
         f.write("""<html><head><title>%s</title></head>\n<body>\n
                 <h1>%s</h1>""" % (name, name))
         for (src, glass_src), text in zip(srcs, texts):
-            f.write("""<h4>%s</h4>\n""" % text)
+            f.write(text)
             f.write("""<p><img src='imgs/%s'>\n<img src='imgs/%s'></p>\n"""
                     % (src, glass_src))
         f.write("""</body>""")

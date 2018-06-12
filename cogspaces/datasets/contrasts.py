@@ -271,6 +271,7 @@ def fetch_brainpedia(data_dir=None, drop_some=True):
     df.set_index(['study', 'subject', 'task', 'contrast', 'direction'],
                  inplace=True)
     if drop_some:
+        df.drop('effects_of_interest', level=4, axis=0, inplace=True)
         df.drop('pinel2007fast', level=0, axis=0, inplace=True)
         df.drop('ds102', level=0, axis=0, inplace=True)
     return df

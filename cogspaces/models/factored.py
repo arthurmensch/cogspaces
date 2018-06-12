@@ -57,7 +57,7 @@ class Embedder(nn.Module):
                 self.linear.weight.data /= 2
             elif self.init == 'orthogonal':
                 nn.init.orthogonal_(self.linear.weight.data,
-                                    gain=1 / math.sqrt(self.weight.shape[1]))
+                                    gain=1 / math.sqrt(self.linear.weight.shape[1]))
             elif self.init == 'rest':
                 assert self.linear.out_features == 128
                 dataset = fetch_atlas_modl()
@@ -309,7 +309,7 @@ class FactoredClassifier(BaseEstimator):
             raise ValueError('Wrong value for `epoch_counting`: %s' %
                              self.epoch_counting)
 
-        print('n_samples:', n_samples)
+        # print('n_samples:', n_samples)
 
         for phase in ['pretrain', 'train', 'sparsify']:
             if self.max_iter[phase] == 0:
