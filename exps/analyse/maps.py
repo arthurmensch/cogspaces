@@ -6,6 +6,7 @@ import numpy as np
 import os
 import re
 import torch
+import torch.nn.functional as F
 from joblib import load, delayed, Parallel, Memory
 from matplotlib.testing.compare import get_cache_dir
 from nilearn.input_data import NiftiMasker
@@ -139,6 +140,12 @@ def grade_components(output_dir, grade_type='data_z_score'):
         for study, classif in classifs.items():
             classif -= classif.mean(axis=0, keepdims=True)
             grades[study] = np.exp(classif)
+    elif grade_type == 'model':
+        module = estimator.classifier_.module_
+        with torch.no_grad():
+            logits = module({study: torch.from_numpy(components) for study in module.classifiers})
+        grades = {study: F.softmax(logit, dim=1).transpose(0, 1).numpy()
+                  for study, logit in logits.items()}
 
     n_components = components_full.shape[0]
 
@@ -191,7 +198,7 @@ def rgb2hex(r,g,b):
     return f'#{int(round(r * 255)):02x}{int(round(g * 255)):02x}{int(round(b * 255)):02x}'
 
 
-def plot_word_clouds(output_dir):
+def plot_word_clouds(output_dir, grade_type='cosine_similarities'):
     import seaborn as sns
     import matplotlib.pyplot as plt
 
@@ -200,13 +207,14 @@ def plot_word_clouds(output_dir):
     if not os.path.exists(wc_dir):
         os.makedirs(wc_dir)
 
-    with open(join(output_dir, 'grades_%s.json' % 'cosine_similarities'), 'r') as f:
+    with open(join(output_dir, 'grades_%s.json' % grade_type), 'r') as f:
         grades = json.load(f)
     with open(join(output_dir, 'names.json'), 'r') as f:
         names = json.load(f)
     for i, these_grades in enumerate(grades['full_grades']):
         contrasts = list(filter(
-            lambda x: 'effects_of_interest' not in x, these_grades))[:15]
+            lambda x: 'effects_of_interest' not in x and 'gauthier' not in x,
+            these_grades))[:15]
         frequencies = []
         studies = []
         for contrast in contrasts:
@@ -232,7 +240,7 @@ def plot_word_clouds(output_dir):
                 else:
                     contrast.append(term)
             if contrast:
-                contrast = ' '.join(contrast[:3])
+                contrast = ' '.join(contrast)
                 curated = contrast.lower()
                 frequencies.append((curated, grade))
                 studies.append(study)
@@ -275,11 +283,10 @@ if __name__ == '__main__':
     #
     grade_components(output_dir, grade_type='cosine_similarities')
 
-    plot_word_clouds(output_dir)
+    plot_word_clouds(output_dir, grade_type='cosine_similarities')
 
     draw = False
     for grade_type in ['cosine_similarities']:
-
         with open(join(output_dir, 'grades_%s.json' % grade_type), 'r') as f:
             grades = json.load(f)
 
