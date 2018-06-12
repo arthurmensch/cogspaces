@@ -44,7 +44,7 @@ def factored():
         epoch_counting='all',
         init='rest',
         batch_norm=True,
-        dropout=0.25,
+        dropout=0.001,
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
             'finetune': 1e-3},
@@ -276,7 +276,7 @@ if __name__ == '__main__':
         config_updates = ParameterGrid({'seed': seeds,
                                         'factored.max_iter.sparsify': [200],
                                         })
-    elif grid == 'factored_mid_dropout':
+    elif grid == 'factored_very_low_dropout':
         exp.config(factored)
         config_updates = ParameterGrid({'seed': seeds,
                                         # 'factored.seed': model_seeds,

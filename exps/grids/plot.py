@@ -141,12 +141,16 @@ def plot_compare_methods(sort):
     factored_refit = pd.read_pickle(
         join(output_dir, 'factored_refit_cautious/gathered.pkl'))
 
+    factored_selector = pd.read_pickle(
+        join(output_dir, 'factored_study_selector/gathered.pkl'))
+
     single_factored = \
         pd.read_pickle(join(output_dir, 'single_factored/gathered.pkl'))['score']
     logistic = pd.read_pickle(
         join(output_dir, 'logistic/gathered.pkl'))['score']
 
     factored_refit = factored_refit[idx[:, 'dl_rest', :]]
+    # factored_selector = factored_refit[idx[:, False, :]]
 
     logistic.name = 'score'
     single_factored.name = 'score'
@@ -156,10 +160,12 @@ def plot_compare_methods(sort):
         [logistic,
          single_factored,
          factored_refit,
+         factored_selector
          ],
         axis=0, keys=['logistic',
                       'single_factored',
                       'factored_refit',
+                      'factored_selector',
                       ], names=['method'])
 
     df_std = []
@@ -213,6 +219,7 @@ def plot_compare_methods(sort):
 
     y_labels = {'factored_refit': 'Multi-study \n decoder',
                 'single_factored': 'Single-study \n decoder',
+                'factored_selector': 'Multi-study \n decoder \n (non-universal)',
                 'logistic': 'Baseline \n decoder'}
     for i, method in enumerate(methods):
         ax.annotate(y_labels[method], xy=(-0.1, i), xycoords='data',

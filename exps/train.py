@@ -24,7 +24,7 @@ exp = Experiment('multi_studies')
 @exp.config
 def default():
     seed = 100
-    full = True
+    full = False
     system = dict(
         device=-1,
         verbose=2,
@@ -54,7 +54,7 @@ def default():
         init='rest',
         batch_norm=True,
         # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
-        dropout=0.25,
+        dropout=0.001,
         input_dropout=0.25,
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
@@ -110,7 +110,7 @@ def dl():
         epoch_counting='all',
         init='orthogonal',
         batch_norm=True,
-        dropout=0.75,
+        dropout=0.01,
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
             'finetune': 1e-3},

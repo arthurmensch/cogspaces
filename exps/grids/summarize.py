@@ -347,7 +347,7 @@ if __name__ == '__main__':
 
 
     gather_single_study(join(get_output_dir(), 'factored_study_selector'))
-    # gather_factored_sparsify(join(get_output_dir(), 'factored_low_dropout'))
+    # gather_factored_sparsify(join(get_output_dir(), 'factored_very_low_dropout'))
 
     # gather_factored_pretrain(join(get_output_dir(), 'factored_pretrain'))
     # gather_logistic_refit_l2(join(get_output_dir(), 'logistic_refit_l2'))

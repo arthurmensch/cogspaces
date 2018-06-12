@@ -43,7 +43,9 @@ def numbered_names(name):
 
 
 def plot_all(imgs, output_dir, name, filename=None,
-             texts=None, names=None, n_jobs=1, verbose=10,
+             texts=None,
+             word_clouds=False,
+             names=None, n_jobs=1, verbose=10,
              draw=True):
     img_dir = join(output_dir, 'imgs')
     if not os.path.exists(img_dir):
@@ -63,8 +65,12 @@ def plot_all(imgs, output_dir, name, filename=None,
     with open(join(output_dir, '%s.html' % filename), 'w+') as f:
         f.write("""<html><head><title>%s</title></head>\n<body>\n
                 <h1>%s</h1>""" % (name, name))
-        for (src, glass_src), text in zip(srcs, texts):
+        for i, ((src, glass_src), text) in enumerate(zip(srcs, texts)):
             f.write(text)
-            f.write("""<p><img src='imgs/%s'>\n<img src='imgs/%s'></p>\n"""
+            f.write("""<p>""")
+            f.write("""<img src='imgs/%s'>\n<img src='imgs/%s'>\n"""
                     % (src, glass_src))
+            f.write("""<img src='wc/wc_%i.png'>\n""" % i)
+            f.write("""</p>""")
+
         f.write("""</body>""")

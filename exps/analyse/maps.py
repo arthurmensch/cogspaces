@@ -1,4 +1,5 @@
 from itertools import islice
+from wordcloud import WordCloud
 
 import json
 import numpy as np
@@ -16,6 +17,32 @@ from cogspaces.plotting import plot_all
 from exps.train import load_data
 
 mem = Memory(cachedir=get_cache_dir())
+
+
+class SimpleGroupedColorFunc(object):
+    """Create a color function object which assigns EXACT colors
+       to certain words based on the color to words mapping
+
+       Parameters
+       ----------
+       color_to_words : dict(str -> list(str))
+         A dictionary that maps a color to the list of words.
+
+       default_color : str
+         Color that will be assigned to a word that's not a member
+         of any value from color_to_words.
+    """
+
+    def __init__(self, color_to_words, default_color):
+        self.word_to_color = {word: color
+                              for (color, words) in color_to_words.items()
+                              for word in words}
+
+        self.default_color = default_color
+
+    def __call__(self, word, **kwargs):
+        return self.word_to_color.get(word, self.default_color)
+
 
 
 def inspect_components(output_dir, dl=False):
@@ -101,13 +128,16 @@ def grade_components(output_dir, grade_type='data_z_score'):
 
     elif grade_type == 'cosine_similarities':
         for study, classif in classifs.items():
-            grades[study] = (classif_full.dot(components_full.T) /
-                             np.sqrt(
-                                 np.sum(classif_full ** 2, axis=1)[:, None])
-                             / np.sqrt(
-                        np.sum(components_full ** 2, axis=1)[None, :]))
+            classif -= classif.mean(axis=0, keepdims=True)
+            classif = classif.dot(components)
+            grades[study] = (classif.dot(components.T)
+                             / np.sqrt(np.sum(classif ** 2, axis=1)[:, None])
+                             / np.sqrt(np.sum(components ** 2, axis=1)[None, :])
+                             )
+            # grades[study] -= grades[study].mean(axis=0, keepdims=True)
     elif grade_type == 'log_odd':
         for study, classif in classifs.items():
+            classif -= classif.mean(axis=0, keepdims=True)
             grades[study] = np.exp(classif)
 
     n_components = components_full.shape[0]
@@ -157,11 +187,76 @@ def inspect_all(output_dir, n_jobs=1):
         for this_dir in filter(regex.match, os.listdir(output_dir)))
 
 
+def rgb2hex(r,g,b):
+    return f'#{int(round(r * 255)):02x}{int(round(g * 255)):02x}{int(round(b * 255)):02x}'
+
+
+def plot_word_clouds(output_dir):
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+
+    wc_dir = join(output_dir, 'components', 'wc')
+
+    if not os.path.exists(wc_dir):
+        os.makedirs(wc_dir)
+
+    with open(join(output_dir, 'grades_%s.json' % 'cosine_similarities'), 'r') as f:
+        grades = json.load(f)
+    with open(join(output_dir, 'names.json'), 'r') as f:
+        names = json.load(f)
+    for i, these_grades in enumerate(grades['full_grades']):
+        contrasts = list(filter(
+            lambda x: 'effects_of_interest' not in x, these_grades))[:15]
+        frequencies = []
+        studies = []
+        for contrast in contrasts:
+            grade = these_grades[contrast]
+            study, contrast = contrast.split('::')
+            if study == 'hcp':
+                contrast = contrast.replace('LF', 'left foot')
+                contrast = contrast.replace('RF', 'right foot')
+                contrast = contrast.replace('LH', 'left hand')
+                contrast = contrast.replace('RH', 'right hand')
+            contrast = contrast.replace('clicGaudio', 'left audio click')
+            contrast = contrast.replace('clicDaudio', 'right audio click')
+            contrast = contrast.replace('calculvideo', 'video calculation')
+            contrast = contrast.replace('calculaudio', 'audio calculation')
+
+            terms = contrast.split('_')
+            contrast = []
+            for term in terms:
+                if term == 'baseline':
+                    break
+                if term == 'vs':
+                    break
+                else:
+                    contrast.append(term)
+            if contrast:
+                contrast = ' '.join(contrast[:3])
+                curated = contrast.lower()
+                frequencies.append((curated, grade))
+                studies.append(study)
+        print(frequencies, studies)
+        colors = sns.color_palette('husl', 35)
+        color_to_words = {rgb2hex(*color): [study] for color, study in zip(colors, names)}
+        color_func = SimpleGroupedColorFunc(color_to_words, default_color='#ffffff')
+        wc = WordCloud(color_func=color_func)
+        wc.generate_from_frequencies(frequencies=frequencies,
+                                     as_tuples=True,
+                                     group_colors=studies)
+        fig, ax = plt.subplots(1, 1)
+        ax.imshow(wc, interpolation="bilinear")
+        ax.axis("off")
+        fig.savefig(join(wc_dir, 'wc_%i.png' % i))
+        plt.close(fig)
+
+
 if __name__ == '__main__':
     output_dir = join(get_output_dir(), 'single_full')
-    inspect_components(output_dir)
+    # inspect_components(output_dir)
+    # inspect_components(output_dir, dl=True)
     # inspect_classification(output_dir)
-
+    #
     # with open(join(output_dir, 'names.json'), 'r') as f:
     #     names = json.load(f)
     # full_names = np.array(['%s::%s' % (study, contrast)
@@ -172,27 +267,43 @@ if __name__ == '__main__':
     #          name='classif',
     #          names=full_names,
     #          n_jobs=3)
+    # plot_all(join(output_dir, 'components_dl.nii.gz'),
+    #          output_dir=join(output_dir, 'components_dl'),
+    #          name='component_dl',
+    #          draw=True,
+    #          n_jobs=3)
+    #
+    grade_components(output_dir, grade_type='cosine_similarities')
 
+    plot_word_clouds(output_dir)
+
+    draw = False
     for grade_type in ['cosine_similarities']:
-        grade_components(output_dir, grade_type=grade_type)
 
         with open(join(output_dir, 'grades_%s.json' % grade_type), 'r') as f:
             grades = json.load(f)
-        # texts = ["""<ul>\n""" + """\n""".join(
-        #     """<li>%s : %.3f</li>""" % (contrast, these_grades[contrast])
-        #     for contrast in islice(filter(lambda x: 'effects_of_interest' not in x,
-        #                                   these_grades), 0, 10))
-        #          + """</ul>""" for these_grades in grades['full_grades']]
 
-        texts = ["""<ul>\n""" + """\n""".join(
-            """<li>%s : %s, %.3f</li>""" % (study, contrast, study_graves[contrast])
-            for study, study_graves in these_grades.items()
-            for contrast in islice(study_graves, 0, 1))
-                 + """</ul>""" for these_grades in grades['grades']]
-
-        plot_all(join(output_dir, 'components.nii.gz'),
-                 output_dir=join(output_dir, 'components'),
-                 name='component',
-                 filename=grade_type + '_study',
-                 draw=False,
-                 texts=texts, n_jobs=3)
+        for per_study in [False]:
+            if per_study:
+                texts = ["""<ul>\n""" + """\n""".join(
+                    """<li>%s : %s, %.3f</li>""" % (
+                    study, contrast, study_graves[contrast])
+                    for study, study_graves in these_grades.items()
+                    for contrast in islice(study_graves, 0, 1))
+                         + """</ul>""" for these_grades in grades['grades']]
+                filename = grade_type + '_study'
+            else:
+                texts = ["""<ul>\n""" + """\n""".join(
+                    """<li>%s : %.3f</li>""" % (contrast, these_grades[contrast])
+                    for contrast in islice(filter(lambda x: 'effects_of_interest' not in x,
+                                                  these_grades), 0, 10))
+                         + """</ul>""" for these_grades in grades['full_grades']]
+                filename = grade_type
+            plot_all(join(output_dir, 'components.nii.gz'),
+                     output_dir=join(output_dir, 'components'),
+                     name='component',
+                     filename=filename,
+                     draw=draw,
+                     word_clouds=True,
+                     texts=texts, n_jobs=3)
+            draw = False

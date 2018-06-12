@@ -17,7 +17,6 @@ class DropoutLinear(nn.Linear):
                  sparsify=False):
         super().__init__(in_features, out_features, bias)
 
-        assert p >= 1e-8
         self.p = p
         self.var_penalty = var_penalty
 
@@ -53,13 +52,14 @@ class DropoutLinear(nn.Linear):
             self.reset_dropout()
 
     def reset_dropout(self):
-        log_alpha = math.log(self.p) - math.log(1 - self.p)
+        if self.p > 0:
+            log_alpha = math.log(self.p) - math.log(1 - self.p)
 
-        if self.level != 'additive':
-            self.log_alpha.data.fill_(log_alpha)
-        else:
-            self.log_sigma2.data = log_alpha + torch.log(
-                self.weight.data ** 2 + 1e-8)
+            if self.level != 'additive':
+                self.log_alpha.data.fill_(log_alpha)
+            else:
+                self.log_sigma2.data = log_alpha + torch.log(
+                    self.weight.data ** 2 + 1e-8)
 
     def make_additive(self):
         assert self.level != 'additive'
