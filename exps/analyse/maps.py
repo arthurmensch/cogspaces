@@ -2,7 +2,7 @@ import numpy as np
 import os
 import re
 import torch
-from joblib import load, delayed, Parallel
+from joblib import load, delayed, Parallel, dump
 from nilearn.input_data import NiftiMasker
 from os.path import join
 
@@ -10,6 +10,17 @@ from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
 from cogspaces.plotting import plot_all
 from exps.train import load_data
+
+
+def logsumexp(x, dim=None, keepdim=False):
+    if dim is None:
+        x, dim = x.view(-1), 0
+    xm, _ = torch.max(x, dim, keepdim=True)
+    x = torch.where(
+        (xm == float('inf')) | (xm == float('-inf')),
+        xm,
+        xm + torch.log(torch.sum(torch.exp(x - xm), dim, keepdim=True)))
+    return x if keepdim else x.squeeze(dim)
 
 
 def inspect_components(output_dir, n_jobs=3):
@@ -59,62 +70,101 @@ def inspect_classification(output_dir, n_jobs=3):
     target = {study: torch.from_numpy(this_target['contrast'].values)
               for study, this_target in target.items()}
 
-    module.eval()
-
-    components = module.embedder.linear.weight.detach()
-
-    classification = []
-    with torch.no_grad():
-        preds = []
-        names = []
-        for study, this_data in data.items():
-            classifier = module.classifiers[study]
-            these_classif = classifier.linear.weight.detach()
-            multiplier = (classifier.batch_norm.weight.detach()
-                          / torch.sqrt(classifier.batch_norm.running_var))
-            these_classif *= multiplier
-            classification.append(these_classif)
-
-            this_target = target[study]
-            contrasts = target_encoder.le_[study]['contrast'].classes_
-            for contrast in range(len(contrasts)):
-                data_contrast = this_data[this_target == contrast].mean(dim=0, keepdim=True)
-                pred = classifier.batch_norm(module.embedder(data_contrast))
-                preds.append(pred)
-            names.extend(['%s_%s' % (study, name) for name in contrasts])
-        preds = torch.cat(preds, dim=0)
-        # preds -= torch.mean(preds, dim=1, keepdim=True)
-        # preds /= torch.sqrt(torch.sum(preds ** 2, dim=1, keepdim=True))
-        preds = preds.numpy()
-    names = np.array(names)
-
-    comp_text = []
-    for i in range(preds.shape[1]):
-        sort = np.argsort(preds[:, i])[::-1]
-        sort = sort[:10]
-        tags = {tag: activation for tag, activation
-                in zip(names[sort], preds[:, i][sort])}
-        comp_text.append(repr(tags))
-
-    components = components.numpy()
     dictionary, masker = get_proj_and_masker()
-    components = components.dot(dictionary)
-    component_imgs = masker.inverse_transform(components)
+    components = module.components_
+    full_components = components.dot(dictionary)
+
+    filename = join(output_dir, 'components.nii.gz')
+    component_imgs = masker.inverse_transform(full_components)
     filename = join(output_dir, 'components.nii.gz')
     component_imgs.to_filename(filename)
+
+    plot_all(filename, name='components',
+             texts=['Components %i' % i for i in range(components.shape[0])],
+             output_dir=join(output_dir, 'components'),
+             draw=False,
+             n_jobs=n_jobs)
+
+    module.eval()
+
+    names = []
+    for study, this_data in data.items():
+        contrasts = target_encoder.le_[study]['contrast'].classes_
+        names.extend(['%s_%s' % (study, name) for name in contrasts])
+    names = np.array(names)
+
+    z_scores = []
+    for study, this_data in data.items():
+        this_target = target[study]
+        contrasts = target_encoder.le_[study]['contrast'].classes_
+        study_all = []
+        study_mean = []
+        for contrast in range(len(contrasts)):
+            data_contrast = this_data[this_target == contrast]
+            with torch.no_grad():
+                pred = module.classifiers[study].batch_norm(module.embedder(data_contrast))
+            study_mean.append(pred.mean(dim=0, keepdim=True))
+            study_all.append(pred)
+        study_mean = torch.cat(study_mean, dim=0)
+        study_all = torch.cat(study_all, dim=0)
+        study_all -= torch.mean(study_all, dim=0, keepdim=True)
+        study_std = torch.sqrt(torch.sum(study_all ** 2, dim=0) / (study_all.shape[0] - 1))
+        study_mean /= study_std[None, :]
+        z_scores.append(study_mean)
+    z_scores = torch.cat(z_scores, dim=0)
+    z_scores = z_scores.numpy()
+
+    n_components = z_scores.shape[1]
+    comp_text = []
+    z_scores_per_comp = []
+    for i in range(n_components):
+        sort = np.argsort(z_scores[:, i])[::-1]
+        z_scores = {tag: activation for tag, activation
+                in zip(names[sort], z_scores[:, i][sort])}
+
+    classification = []
+    for study, this_data in data.items():
+        classifier = module.classifiers[study]
+        these_classif = classifier.linear.weight.detach()
+        multiplier = (classifier.batch_norm.weight.detach()
+                      / torch.sqrt(classifier.batch_norm.running_var))
+        these_classif *= multiplier
+        classification.append(these_classif)
+
+    classification = torch.cat(classification, dim=0)
+    components = components.numpy()
+    components = components.dot(dictionary)
+    classification = classification.numpy()
+    classification = classification.dot(components)
+
+    gram = (classification.dot(components.T) /
+            np.sqrt(np.sum(classification ** 2, axis=1)[:, None])
+            / np.sqrt(np.sum(components ** 2, axis=1)[None, :]))
+    dump(gram, join(output_dir, 'gram.pkl'))
+    gram = load(join(output_dir, 'gram.pkl'))
+    print(gram)
+
+    n_components = gram.shape[1]
+    comp_text = []
+    for i in range(n_components):
+        sort = np.argsort(gram[:, i])[::-1]
+        sort = sort[:10]
+        tags = {tag: activation for tag, activation
+                in zip(names[sort], gram[:, i][sort])}
+        comp_text.append(repr(tags))
+
+    filename = join(output_dir, 'components.nii.gz')
     plot_all(filename, name='components',
              texts=comp_text,
              output_dir=join(output_dir, 'components'),
              draw=False,
              n_jobs=n_jobs)
 
-    # classification = torch.cat(classification, dim=0)
-    # classification = classification.dot(components)
+
     # classification = masker.inverse_transform(classification)
     # filename = join(output_dir, 'classification.nii.gz')
     # classification.to_filename(filename)
-    #
-    # names = np.concatenate(names).tolist()
+
     # dump(names, 'names.pkl')
     # plot_all(filename, name='classification',
     #          names=names,
