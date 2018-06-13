@@ -12,7 +12,7 @@ from os.path import expanduser, join
 
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir
-from exps.analyse.maps_old import introspect
+from sandbox.maps_old import introspect
 
 idx = pd.IndexSlice
 

@@ -1,6 +1,8 @@
 # Load data
 
+
 import numpy as np
+import os
 from joblib import dump, Memory
 from matplotlib.testing.compare import get_cache_dir
 from os.path import join
@@ -10,10 +12,10 @@ from sklearn.metrics import accuracy_score
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.model_selection import train_test_split
-from cogspaces.models.baseline import MultiLogisticClassifier
 from cogspaces.models.factored import FactoredClassifier
-from cogspaces.models.factored_cv import StudySelector
 from cogspaces.models.factored_dl import FactoredDL
+from cogspaces.models.factored_ss import StudySelector
+from cogspaces.models.logistic import MultiLogisticClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
@@ -110,7 +112,7 @@ def dl():
         epoch_counting='all',
         init='rest',
         batch_norm=True,
-        dropout=0.25,
+        dropout=0.5,
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
             'finetune': 1e-3},
@@ -134,7 +136,7 @@ def dl():
 
 
 @exp.named_config
-def study_selector():
+def ss():
     seed = 10
     full = False
     system = dict(
@@ -257,7 +259,7 @@ def train(system, model, logistic, refinement,
         else:
             train_test_data = train_data
             train_test_targets = train_targets
-        if model['refinement'] == 'study_selector':
+        if model['refinement'] == 'ss':
             if model['target_study'] is None:
                 raise ValueError("Refinement 'study_selector' requires"
                                  " 'target_study' to be set.")
@@ -315,7 +317,8 @@ def train(system, model, logistic, refinement,
 
 
 if __name__ == '__main__':
-    output_dir = join(get_output_dir(), 'multi_studies')
+    output_dir = join(get_output_dir(), 'full_dictionary')
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
     exp.observers.append(OurFileStorageObserver.create(basedir=output_dir))
     run = exp.run_commandline()
-    output_dir = join(output_dir, str(run._id))

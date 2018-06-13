@@ -181,7 +181,7 @@ class FactoredClassifier(BaseEstimator):
                  sampling='cycle',
                  epoch_counting='all',
                  init='normal',
-                 full_init=None,
+                 refit_from=None,
                  adaptive_dropout=True,
                  n_jobs=1,
                  patience=200,
@@ -194,7 +194,7 @@ class FactoredClassifier(BaseEstimator):
 
         self.regularization = regularization
 
-        self.full_init = full_init
+        self.refit_from = refit_from
 
         self.sampling = sampling
         self.batch_size = batch_size
@@ -273,7 +273,7 @@ class FactoredClassifier(BaseEstimator):
             in_features=in_features,
             input_dropout=self.input_dropout,
             latent_dropout=self.dropout,
-            adaptive='',
+            adaptive='classifier',
             init=self.init,
             batch_norm=self.batch_norm,
             regularization=self.regularization,
@@ -282,16 +282,16 @@ class FactoredClassifier(BaseEstimator):
             latent_size=self.latent_size,
             target_sizes=target_sizes)
 
-        if self.full_init is not None:
+        if self.refit_from is not None:
             (latent_coefs, classif_coefs,
-             classif_biases, dropout) = load(self.full_init)
+             classif_biases, dropout) = load(self.refit_from)
             module.embedder.linear.weight.data = torch.from_numpy(latent_coefs)
             module.embedder.linear.bias.data.fill_(0.)
             for study, classifier in module.classifiers.items():
-                # classifier.linear.weight.data =
-                #  torch.from_numpy(classif_coefs[study])
-                # classifier.linear.bias.data =
-                #  torch.from_numpy(classif_biases[study])
+                classifier.linear.weight.data = \
+                 torch.from_numpy(classif_coefs[study])
+                classifier.linear.bias.data = \
+                 torch.from_numpy(classif_biases[study])
                 p = dropout[study]
                 log_alpha = np.log(p / (1 - p))
                 classifier.linear.log_alpha.fill_(log_alpha)
@@ -366,13 +366,6 @@ class FactoredClassifier(BaseEstimator):
                         dropout = {}
                         for study, classifier in self.module_.classifiers.items():
                             dropout[study] = classifier.linear.get_p().item()
-                        # print('Dropout', ' '.join('%s: %.2f'
-                        #                           % (study, this_dropout) for
-                        #                           study, this_dropout in dropout.items()))
-                        # p = module.embedder.linear.get_p().detach().numpy()
-                        # print('Input dropout', np.array2string(p, precision=3,
-                        #                                        suppress_small=True,
-                        #                                        edgeitems=5))
                         if callback is not None:
                             callback(self, epoch)
 
@@ -391,13 +384,6 @@ class FactoredClassifier(BaseEstimator):
                               ' %.4f' % (epoch, epoch_loss))
                         module.load_state_dict(best_state)
                         print('-----------------------------------')
-
-                        # dropout = {}
-                        # for study, classifier in self.module_.classifiers.items():
-                        #     dropout[study] = classifier.linear.get_p().item()
-                        # print('Dropout', ' '.join('%s: %.2f'
-                        #                           % (study, this_dropout) for
-                        #                           study, this_dropout in dropout.items()))
                         self.dropout_ = dropout
 
                         break

@@ -7,7 +7,7 @@ from matplotlib import gridspec, ticker
 from os.path import expanduser, join
 
 from cogspaces.datasets.utils import get_output_dir
-from exps.grids.summarize import get_chance_subjects
+from exps.grids.gather_quantitative import get_chance_subjects
 
 idx = pd.IndexSlice
 

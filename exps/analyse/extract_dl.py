@@ -18,7 +18,7 @@ from sklearn.utils import check_random_state
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir
-from exps.analyse.maps import get_proj_and_masker
+from exps.analyse.plot_maps import get_proj_and_masker
 
 
 def explained_variance(X, components, per_component=True):
