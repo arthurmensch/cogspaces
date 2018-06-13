@@ -37,7 +37,7 @@ class MultiLogisticClassifier(BaseEstimator):
             groups = y[study]['subject']
             C = 1. / (n_samples * np.array(self.l2_penalty))
 
-            cv = GroupShuffleSplit(n_splits=3, test_size=0.5)
+            cv = GroupShuffleSplit(n_splits=10, test_size=0.5)
 
             splits = [(train, test) for train, test in cv.split(this_X, this_y, groups)]
 

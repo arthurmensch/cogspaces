@@ -59,7 +59,7 @@ def plot_single(img, name, output_dir, view_types=['stat_map']):
                 plt.close(fig)
         else:
             raise ValueError('Wrong view type in `view_types`: got %s' % view_type)
-        srcs.apppend(src)
+        srcs.append(src)
     return srcs
 
 
@@ -110,9 +110,9 @@ def plot_all(img, names=None, output_dir=None,
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
+    filename = img
     img = check_niimg(img, ensure_ndim=4)
     img.get_data()
-    filename = img.filename
     if names is None or isinstance(names, str):
         if names is None:
             dirname, filename = filename.split(filename)
@@ -163,7 +163,10 @@ def plot_word_clouds(output_dir, grades):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    for i, these_grades in enumerate(grades):
+    studies = list(grades['study'][0].keys())
+    colors = sns.color_palette('husl', len(studies))
+
+    for i, these_grades in enumerate(grades['full']):
         contrasts = list(filter(
             lambda x: 'effects_of_interest' not in x and 'gauthier' not in x,
             these_grades))[:15]
@@ -196,7 +199,6 @@ def plot_word_clouds(output_dir, grades):
                 curated = contrast.lower()
                 frequencies.append((curated, grade))
                 studies.append(study)
-        colors = sns.color_palette('husl', 35)
         color_to_words = {rgb2hex(*color): [study]
                           for color, study in zip(colors, names)}
         color_func = SimpleGroupedColorFunc(color_to_words,

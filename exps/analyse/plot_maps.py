@@ -9,6 +9,7 @@ from os.path import join
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
+from cogspaces.plotting import plot_all, plot_word_clouds
 from exps.train import load_data
 
 mem = Memory(cachedir=get_cache_dir())
@@ -178,37 +179,39 @@ def get_dictionary():
 
 if __name__ == '__main__':
     output_dir = join(get_output_dir(), 'single_full')
-    components_imgs = get_components(output_dir)
-    components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
-    components_imgs_dl = get_components(output_dir, dl=True)
-    components_imgs_dl.to_filename(join(output_dir, 'components_dl.nii.gz'))
-    classifs_imgs = get_classifs(output_dir)
-    classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
-
+    # components_imgs = get_components(output_dir)
+    # components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
+    # components_imgs_dl = get_components(output_dir, dl=True)
+    # components_imgs_dl.to_filename(join(output_dir, 'components_dl.nii.gz'))
+    # classifs_imgs = get_classifs(output_dir)
+    # classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
+    #
     names, full_names = get_names(output_dir)
     with open(join(output_dir, 'names.json'), 'w+') as f:
         json.dump(names, f)
-
+    #
     grades = get_grades(output_dir, grade_type='cosine_similarities')
     with open(join(output_dir, 'grades.json'), 'w+') as f:
         json.dump(grades, f)
-    #
+
     # plot_all(join(output_dir, 'classifs.nii.gz'),
     #          output_dir=join(output_dir, 'classifs'),
     #          names=full_names,
-    #          n_jobs=3)
-    # plot_all(join(output_dir, 'components_dl.nii.gz'),
-    #          output_dir=join(output_dir, 'components_dl'),
-    #          names='component_dl',
-    #          n_jobs=3)
+    #          n_jobs=30)
+    plot_all(join(output_dir, 'components_dl.nii.gz'),
+             output_dir=join(output_dir, 'components_dl'),
+             names='component_dl',
+             n_jobs=3)
     # plot_all(join(output_dir, 'components.nii.gz'),
     #          output_dir=join(output_dir, 'components'),
     #          names='components',
     #          view_types=['stat_map', 'glass_brain', 'surf_stat_map_right',
     #                      'surf_stat_map_left'],
-    #          n_jobs=3)
-
-    # plot_word_clouds(output_dir, grades)
+    #          n_jobs=30)
+    #
+    with open(join(output_dir, 'grades.json'), 'w+') as f:
+        grades = json.load(f)
+    plot_word_clouds(output_dir, grades)
 
     #
     # draw = False

@@ -57,7 +57,6 @@ class NiftiTargetDataset(Dataset):
         return self.data.shape[0]
 
 
-
 def load_data_from_dir(data_dir):
     expr = re.compile("data_(.*).pt")
 
@@ -66,6 +65,10 @@ def load_data_from_dir(data_dir):
         match = re.match(expr, file)
         if match:
             study = match.group(1)
+            # keep = np.load(expanduser('~/work/repos/cogspaces/exps/scripts/keep.npy'))
+            # this_data, this_target = load(join(data_dir, file))
+            # this_data = np.asarray(this_data)
+            # data[study] = this_data, this_target
             data[study] = np.asarray(load(join(data_dir, file)))
     return unzip_data(data)
 

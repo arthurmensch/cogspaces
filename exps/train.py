@@ -25,7 +25,7 @@ exp = Experiment('multi_studies')
 
 @exp.config
 def default():
-    seed = 100
+    seed = 10
     full = False
     system = dict(
         device=-1,
@@ -33,11 +33,11 @@ def default():
         n_jobs=10,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512_gm'),
+        source_dir=join(get_data_dir(), 'reduced_512'),
         studies='vagharchakian2012temporal',
     )
     model = dict(
-        estimator='factored',
+        estimator='logistic',
         normalize=False,
         seed=100,
         refinement=None,
@@ -53,10 +53,10 @@ def default():
         weight_power=0.6,
         batch_size=128,
         epoch_counting='all',
-        init='rest_gm',
+        init='rest',
         batch_norm=True,
         # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
-        dropout=0.25,
+        dropout=0.75,
         input_dropout=0.25,
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,

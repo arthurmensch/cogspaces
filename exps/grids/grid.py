@@ -19,10 +19,10 @@ def factored():
     system = dict(
         device=-1,
         verbose=2,
-        n_jobs=3,
+        n_jobs=1,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512'),
+        source_dir=join(get_data_dir(), 'reduced_512_gm'),
         studies='all',
     )
     model = dict(
@@ -42,7 +42,7 @@ def factored():
         weight_power=0.6,
         batch_size=128,
         epoch_counting='all',
-        init='rest',
+        init='rest_gm',
         batch_norm=True,
         dropout=0.75,
         input_dropout=0.25,
@@ -262,15 +262,14 @@ if __name__ == '__main__':
     _, target = load_data_from_dir(data_dir=source_dir)
     studies = list(target.keys())
     seeds = check_random_state(42).randint(0, 100000, size=20)
-    model_seeds = check_random_state(143).randint(0, 1000000, size=2)
+    model_seeds = check_random_state(143).randint(0, 1000000, size=120)
 
     output_dir = join(get_output_dir(), grid)
 
-    if grid == 'factored':
+    if grid == 'factored_gm':
         exp.config(factored)
         config_updates = ParameterGrid({'seed': seeds,
-                                        'factored.init': 'orthogonal',
-                                        'factored.seed': model_seeds,
+                                        # 'factored.seed': model_seeds,
                                         })
     elif grid == 'factored_sparsify':
         exp.config(factored)
@@ -292,7 +291,7 @@ if __name__ == '__main__':
                                                        (decomposition, seed))}
                           for seed in seeds
                           for decomposition in ['dl_rest', 'dl_random']]
-    elif grid == 'full':
+    elif grid == 'factored_full':
         exp.config(factored)
         config_updates = ParameterGrid({'seed': [0],
                                         'full': [True],
