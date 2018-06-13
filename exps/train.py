@@ -108,9 +108,9 @@ def dl():
         weight_power=0.6,
         batch_size=128,
         epoch_counting='all',
-        init='orthogonal',
+        init='rest',
         batch_norm=True,
-        dropout=0.01,
+        dropout=0.25,
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
             'finetune': 1e-3},
@@ -129,7 +129,7 @@ def dl():
     refinement = dict(
         n_runs=135,
         alpha=1e-3,
-        warmup=False
+        warmup=True
     )
 
 
