@@ -33,8 +33,8 @@ def default():
         n_jobs=10,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512'),
-        studies='all',
+        source_dir=join(get_data_dir(), 'reduced_512_gm'),
+        studies='vagharchakian2012temporal',
     )
     model = dict(
         estimator='factored',
@@ -48,15 +48,15 @@ def default():
         latent_size=128,
         activation='linear',
         regularization=1,
-        adaptive_dropout=True,
+        adaptive_dropout=False,
         sampling='random',
         weight_power=0.6,
         batch_size=128,
         epoch_counting='all',
-        init='rest',
+        init='rest_gm',
         batch_norm=True,
         # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
-        dropout=0.001,
+        dropout=0.25,
         input_dropout=0.25,
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
@@ -317,7 +317,7 @@ def train(system, model, logistic, refinement,
 
 
 if __name__ == '__main__':
-    output_dir = join(get_output_dir(), 'full_dictionary')
+    output_dir = join(get_output_dir(), 'multi_studies')
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     exp.observers.append(OurFileStorageObserver.create(basedir=output_dir))

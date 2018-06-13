@@ -64,7 +64,7 @@ def get_classifs(output_dir, return_type='img'):
         classifs_img = masker.inverse_transform(
             np.concatenate(list(classifs_full.values()), axis=0))
         return classifs_img
-    elif return_type == 'full_arrays':
+    elif return_type == 'arrays_full':
         return classifs_full
     elif return_type == 'arrays':
         return classifs
@@ -113,17 +113,16 @@ def get_grades(output_dir, grade_type='data_z_score'):
             grades[study] = z_scores.numpy()
     else:
         classifs_full = get_classifs(output_dir,
-                                     return_type='full_arrays')
+                                     return_type='arrays_full')
         components_full = get_components(output_dir,
-                                         return_type='full_arrays')
+                                         return_type='arrays_full')
         if grade_type == 'cosine_similarities':
-            for study, classif in classifs_full.items():
-                classif -= classif.mean(axis=0, keepdims=True)
+            for study, classif_full in classifs_full.items():
+                classif_full -= classif_full.mean(axis=0, keepdims=True)
                 grades[study] = (
-                        classifs_full.dot(components_full.T)
-                        / np.sqrt(np.sum(classifs_full ** 2, axis=1)[:, None])
-                        / np.sqrt(
-                    np.sum(components_full ** 2, axis=1)[None, :])
+                        classif_full.dot(components_full.T)
+                        / np.sqrt(np.sum(classif_full ** 2, axis=1)[:, None])
+                        / np.sqrt(np.sum(components_full ** 2, axis=1)[None, :])
                 )
         elif grade_type == 'log_odd':
             classifs = get_classifs(output_dir, return_type='arrays')
@@ -151,12 +150,12 @@ def get_grades(output_dir, grade_type='data_z_score'):
             sort = np.argsort(these_grades[:, i])[::-1]
             these_sorted_grades[study] = {contrast: float(grade) for
                                           contrast, grade
-                                          in zip(names[study][sort],
+                                          in zip(np.array(names[study])[sort],
                                                  these_grades[:, i][sort])}
         sorted_grades.append(these_sorted_grades)
         sort = np.argsort(full_grades[:, i])[::-1]
         sorted_full_grades.append({contrast: float(grade) for contrast, grade
-                                   in zip(full_names[sort],
+                                   in zip(np.array(full_names)[sort],
                                           full_grades[:, i][sort])})
     grades = {'study': sorted_grades,
               'full': sorted_full_grades}
@@ -180,15 +179,19 @@ def get_dictionary():
 if __name__ == '__main__':
     output_dir = join(get_output_dir(), 'single_full')
     components_imgs = get_components(output_dir)
-    components_imgs.to_filename('components.nii.gz')
+    components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
     components_imgs_dl = get_components(output_dir, dl=True)
-    components_imgs_dl.to_filename('components_dl.nii.gz')
+    components_imgs_dl.to_filename(join(output_dir, 'components_dl.nii.gz'))
     classifs_imgs = get_classifs(output_dir)
-    classifs_imgs.to_filename('classifs.nii.gz')
+    classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
 
     names, full_names = get_names(output_dir)
     with open(join(output_dir, 'names.json'), 'w+') as f:
         json.dump(names, f)
+
+    grades = get_grades(output_dir, grade_type='cosine_similarities')
+    with open(join(output_dir, 'grades.json'), 'w+') as f:
+        json.dump(grades, f)
     #
     # plot_all(join(output_dir, 'classifs.nii.gz'),
     #          output_dir=join(output_dir, 'classifs'),
@@ -205,7 +208,6 @@ if __name__ == '__main__':
     #                      'surf_stat_map_left'],
     #          n_jobs=3)
 
-    # grades = get_grades(output_dir, grade_type='cosine_similarities')
     # plot_word_clouds(output_dir, grades)
 
     #

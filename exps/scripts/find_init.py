@@ -9,8 +9,8 @@ from cogspaces.datasets.utils import fetch_mask, get_output_dir
 
 modl_atlas = fetch_atlas_modl()
 mask = fetch_mask()['hcp']
-dict_512 = modl_atlas['components512']
-dict_128 = modl_atlas['components128_small']
+dict_512 = modl_atlas['components512_gm']
+dict_128 = modl_atlas['components128']
 
 mem = Memory(cachedir=expanduser('~/cache'))
 masker = NiftiMasker(mask_img=mask, memory=mem).fit()
@@ -20,4 +20,4 @@ dict_128 = masker.transform(dict_128)
 loadings, _, _, _ = lstsq(dict_512.T, dict_128.T)
 loadings = loadings.T
 output_dir = get_output_dir()
-np.save(join(modl_atlas['data_dir'], 'loadings_128_small.npy'), loadings)
+np.save(join(modl_atlas['data_dir'], 'loadings_128_gm.npy'), loadings)

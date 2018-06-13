@@ -28,6 +28,7 @@ def fetch_atlas_modl(data_dir=None, url=None,
         'components_512_gm.nii.gz',
         'loadings_128.npy',
         'loadings_128_small.npy',
+        'loadings_128_gm.npy',
         'assign_512.npy'
     ]
 
@@ -54,6 +55,7 @@ def fetch_atlas_modl(data_dir=None, url=None,
             'components512_gm',
             'loadings128',
             'loadings128_small',
+            'loadings128_gm',
             'assign512'
             ]
 

@@ -60,8 +60,15 @@ class Embedder(nn.Module):
                                     gain=1 / math.sqrt(self.linear.weight.shape[1]))
             elif self.init == 'rest':
                 assert self.linear.out_features == 128
+                assert self.linear.in_features == 512
                 dataset = fetch_atlas_modl()
                 weight = np.load(dataset['loadings128'])
+                self.linear.weight.data = torch.from_numpy(np.array(weight))
+            elif self.init == 'rest_gm':
+                assert self.linear.out_features == 128
+                assert self.linear.in_features == 480
+                dataset = fetch_atlas_modl()
+                weight = np.load(dataset['loadings128_gm'])
                 self.linear.weight.data = torch.from_numpy(np.array(weight))
             else:
                 raise ValueError('Wrong parameter for `init` %s' % self.init)
