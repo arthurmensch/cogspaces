@@ -43,7 +43,7 @@ def gather_seed_split_init(output_dir):
     res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
 
 
-def gather_factored_sparsify(output_dir):
+def gather_factored(output_dir):
     regex = re.compile(r'[0-9]+$')
     res = []
     for this_dir in filter(regex.match, os.listdir(output_dir)):
@@ -53,23 +53,20 @@ def gather_factored_sparsify(output_dir):
             config = json.load(
                 open(join(this_exp_dir, 'config.json'), 'r'))
             run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
-        except (FileNotFoundError, json.decoder.JSONDecodeError):
+            seed = config['seed']
+            test_scores = run['result']
+            this_res = dict(seed=seed, **test_scores)
+            res.append(this_res)
+        except:
             print('Skipping exp %i' % this_dir)
             continue
-        seed = config['seed']
-        sparsify = config['factored']['max_iter']['sparsify'] > 0
-        print(this_dir, sparsify)
-        test_scores = run['result']
-        this_res = dict(seed=seed, sparsify=sparsify,
-                        **test_scores)
-        res.append(this_res)
     res = pd.DataFrame(res)
-    res = res.set_index(['sparsify', 'seed'])
+    res = res.set_index(['seed'])
     studies = res.columns.values
     res = [res[study] for study in studies]
     res = pd.concat(res, keys=studies, names=['study'], axis=0)
     res.sort_index(inplace=True)
-    res_mean = res.groupby(['study', 'sparsify']).aggregate(['mean', 'std'])
+    res_mean = res.groupby(['study']).aggregate(['mean', 'std'])
     print(res_mean)
     res.to_pickle(join(output_dir, 'gathered.pkl'))
     res.to_pickle(join(output_dir, 'gathered_mean.pkl'))
@@ -340,13 +337,13 @@ if __name__ == '__main__':
     # gather_single_factored(join(get_output_dir(), 'single_factored'))
     # gather_init_refit(join(get_output_dir(), 'init_refit_dense'))
     # gather_factored_refit(join(get_output_dir(), 'factored_refit_cautious'))
-    # gather_factored_sparsify(join(get_output_dir(), 'factored'))
+    gather_factored(join(get_output_dir(), 'factored_gm'))
     # gather_factored_sparsify(join(get_output_dir(), 'factored_sparsify_less'))
     # gather_single_study(join(get_output_dir(), 'logistic'))
 
 
 
-    gather_single_study(join(get_output_dir(), 'factored_study_selector'))
+    # gather_single_study(join(get_output_dir(), 'factored_study_selector'))
     # gather_factored_sparsify(join(get_output_dir(), 'factored_very_low_dropout'))
 
     # gather_factored_pretrain(join(get_output_dir(), 'factored_pretrain'))

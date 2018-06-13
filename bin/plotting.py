@@ -1,6 +1,6 @@
 import argparse
 import os
-from os.path import join
+from os.path import join, expanduser
 
 from cogspaces.plotting import plot_all
 
@@ -25,4 +25,6 @@ assert tailname[-7:] == '.nii.gz', ValueError('Wrong file argument')
 tailname = tailname[:-7]
 if output == '':
     output_dir = join(dirname, tailname)
-plot_all(filename, output_dir=output_dir, name=tailname, n_jobs=n_jobs)
+else:
+    output_dir = expanduser(output)
+plot_all(filename, output_dir=output_dir, n_jobs=n_jobs)

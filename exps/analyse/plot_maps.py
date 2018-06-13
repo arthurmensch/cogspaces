@@ -1,7 +1,7 @@
-import json
 import numpy as np
 import torch
 import torch.nn.functional as F
+from jinja2 import Template
 from joblib import load, Memory
 from matplotlib.testing.compare import get_cache_dir
 from nilearn.input_data import NiftiMasker
@@ -9,7 +9,6 @@ from os.path import join
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
-from cogspaces.plotting import plot_all, plot_word_clouds
 from exps.train import load_data
 
 mem = Memory(cachedir=get_cache_dir())
@@ -123,7 +122,8 @@ def get_grades(output_dir, grade_type='data_z_score'):
                 grades[study] = (
                         classif_full.dot(components_full.T)
                         / np.sqrt(np.sum(classif_full ** 2, axis=1)[:, None])
-                        / np.sqrt(np.sum(components_full ** 2, axis=1)[None, :])
+                        / np.sqrt(
+                    np.sum(components_full ** 2, axis=1)[None, :])
                 )
         elif grade_type == 'log_odd':
             classifs = get_classifs(output_dir, return_type='arrays')
@@ -177,6 +177,47 @@ def get_dictionary():
     return dictionary
 
 
+def components_html(output_dir, components_dir, wc_dir):
+    with open('plot_maps.html', 'r') as f:
+        template = f.read()
+    template = Template(template)
+    imgs = []
+    for i in range(128):
+        title = 'components_%i' % i
+        view_types = ['stat_map', 'glass_brain',
+                      'surf_stat_map_right', 'surf_stat_map_left']
+        srcs = []
+        for view_type in view_types:
+            src = join(components_dir, '%s_%s.png' % (title, view_type))
+            srcs.append(src)
+        srcs.append(join(wc_dir, 'wc_%i.png' % i))
+        imgs.append((srcs, title))
+    html = template.render(imgs=imgs)
+    output_file = join(output_dir, 'components.html')
+    with open(output_file, 'w+') as f:
+        f.write(html)
+
+
+def classifs_html(output_dir, classifs_dir):
+    with open('plot_maps.html', 'r') as f:
+        template = f.read()
+    names, full_names = get_names(output_dir)
+    template = Template(template)
+    imgs = []
+    for name in full_names:
+        view_types = ['stat_map', 'glass_brain',
+                      'surf_stat_map_right', 'surf_stat_map_left']
+        srcs = []
+        for view_type in view_types:
+            src = join(classifs_dir, '%s_%s.png' % (name, view_type))
+            srcs.append(src)
+        imgs.append((srcs, name))
+    html = template.render(imgs=imgs)
+    output_file = join(output_dir, 'classifs.html')
+    with open(output_file, 'w+') as f:
+        f.write(html)
+
+
 if __name__ == '__main__':
     output_dir = join(get_output_dir(), 'single_full')
     # components_imgs = get_components(output_dir)
@@ -186,33 +227,41 @@ if __name__ == '__main__':
     # classifs_imgs = get_classifs(output_dir)
     # classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
     #
-    names, full_names = get_names(output_dir)
-    with open(join(output_dir, 'names.json'), 'w+') as f:
-        json.dump(names, f)
+    # names, full_names = get_names(output_dir)
+    # with open(join(output_dir, 'names.json'), 'w+') as f:
+    #     json.dump(names, f)
     #
-    grades = get_grades(output_dir, grade_type='cosine_similarities')
-    with open(join(output_dir, 'grades.json'), 'w+') as f:
-        json.dump(grades, f)
+    # grades = get_grades(output_dir, grade_type='cosine_similarities')
+    # with open(join(output_dir, 'grades.json'), 'w+') as f:
+    #     json.dump(grades, f)
 
+    # names, full_names = get_names(output_dir)
+    # view_types = ['surf_stat_map_right',
+    #               'surf_stat_map_left']
     # plot_all(join(output_dir, 'classifs.nii.gz'),
     #          output_dir=join(output_dir, 'classifs'),
     #          names=full_names,
+    #          view_types=view_types,
     #          n_jobs=30)
-    plot_all(join(output_dir, 'components_dl.nii.gz'),
-             output_dir=join(output_dir, 'components_dl'),
-             names='component_dl',
-             n_jobs=3)
+    # plot_all(join(output_dir, 'components_dl.nii.gz'),
+    #          output_dir=join(output_dir, 'components_dl'),
+    #          names='component_dl',
+    #          view_types=view_types,
+    #          n_jobs=30)
     # plot_all(join(output_dir, 'components.nii.gz'),
     #          output_dir=join(output_dir, 'components'),
     #          names='components',
-    #          view_types=['stat_map', 'glass_brain', 'surf_stat_map_right',
-    #                      'surf_stat_map_left'],
+    #          view_types=view_types,
     #          n_jobs=30)
     #
-    with open(join(output_dir, 'grades.json'), 'w+') as f:
-        grades = json.load(f)
-    plot_word_clouds(output_dir, grades)
+    # with open(join(output_dir, 'grades.json'), 'r') as f:
+    #     grades = json.load(f)
+    #
+    # plot_word_clouds(join(output_dir, 'wc'), grades)
 
+    components_html(output_dir, 'components',
+                    'wc')
+    classifs_html(output_dir, 'classifs')
     #
     # draw = False
     # for grade_type in ['cosine_similarities']:
