@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -9,6 +10,7 @@ from os.path import join
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
+from cogspaces.plotting import plot_all, plot_word_clouds
 from exps.train import load_data
 
 mem = Memory(cachedir=get_cache_dir())
@@ -171,7 +173,7 @@ def get_masker():
 
 def get_dictionary():
     modl_atlas = fetch_atlas_modl()
-    dictionary = modl_atlas['components512']
+    dictionary = modl_atlas['components512_gm']
     masker = get_masker()
     dictionary = masker.transform(dictionary)
     return dictionary
@@ -220,75 +222,42 @@ def classifs_html(output_dir, classifs_dir):
 
 if __name__ == '__main__':
     output_dir = join(get_output_dir(), 'single_full')
-    # components_imgs = get_components(output_dir)
-    # components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
-    # components_imgs_dl = get_components(output_dir, dl=True)
-    # components_imgs_dl.to_filename(join(output_dir, 'components_dl.nii.gz'))
-    # classifs_imgs = get_classifs(output_dir)
-    # classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
-    #
-    # names, full_names = get_names(output_dir)
-    # with open(join(output_dir, 'names.json'), 'w+') as f:
-    #     json.dump(names, f)
-    #
-    # grades = get_grades(output_dir, grade_type='cosine_similarities')
-    # with open(join(output_dir, 'grades.json'), 'w+') as f:
-    #     json.dump(grades, f)
+    components_imgs = get_components(output_dir)
+    components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
+    components_imgs_dl = get_components(output_dir, dl=True)
+    components_imgs_dl.to_filename(join(output_dir, 'components_dl.nii.gz'))
+    classifs_imgs = get_classifs(output_dir)
+    classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
 
-    # names, full_names = get_names(output_dir)
-    # view_types = ['surf_stat_map_right',
-    #               'surf_stat_map_left']
-    # plot_all(join(output_dir, 'classifs.nii.gz'),
-    #          output_dir=join(output_dir, 'classifs'),
-    #          names=full_names,
-    #          view_types=view_types,
-    #          n_jobs=30)
-    # plot_all(join(output_dir, 'components_dl.nii.gz'),
-    #          output_dir=join(output_dir, 'components_dl'),
-    #          names='component_dl',
-    #          view_types=view_types,
-    #          n_jobs=30)
-    # plot_all(join(output_dir, 'components.nii.gz'),
-    #          output_dir=join(output_dir, 'components'),
-    #          names='components',
-    #          view_types=view_types,
-    #          n_jobs=30)
-    #
-    # with open(join(output_dir, 'grades.json'), 'r') as f:
-    #     grades = json.load(f)
-    #
-    # plot_word_clouds(join(output_dir, 'wc'), grades)
+    names, full_names = get_names(output_dir)
+    with open(join(output_dir, 'names.json'), 'w+') as f:
+        json.dump(names, f)
 
-    components_html(output_dir, 'components',
-                    'wc')
+    view_types = ['surf_stat_map_right',
+                  'surf_stat_map_left']
+    plot_all(join(output_dir, 'classifs.nii.gz'),
+             output_dir=join(output_dir, 'classifs'),
+             names=full_names,
+             view_types=view_types,
+             n_jobs=30)
+    plot_all(join(output_dir, 'components_dl.nii.gz'),
+             output_dir=join(output_dir, 'components_dl'),
+             names='component_dl',
+             view_types=view_types,
+             n_jobs=30)
+    plot_all(join(output_dir, 'components.nii.gz'),
+             output_dir=join(output_dir, 'components'),
+             names='components',
+             view_types=view_types,
+             n_jobs=30)
+
+    grades = get_grades(output_dir, grade_type='cosine_similarities')
+    with open(join(output_dir, 'grades.json'), 'w+') as f:
+        json.dump(grades, f)
+
+    with open(join(output_dir, 'grades.json'), 'r') as f:
+        grades = json.load(f)
+    plot_word_clouds(join(output_dir, 'wc'), grades)
+
+    components_html(output_dir, 'components', 'wc')
     classifs_html(output_dir, 'classifs')
-    #
-    # draw = False
-    # for grade_type in ['cosine_similarities']:
-    #     with open(join(output_dir, 'grades_%s.json' % grade_type), 'r') as f:
-    #         grades = json.load(f)
-    #
-    #     for per_study in [False]:
-    #         if per_study:
-    #             texts = ["""<ul>\n""" + """\n""".join(
-    #                 """<li>%s : %s, %.3f</li>""" % (
-    #                 study, contrast, study_graves[contrast])
-    #                 for study, study_graves in these_grades.items()
-    #                 for contrast in islice(study_graves, 0, 1))
-    #                      + """</ul>""" for these_grades in grades['grades']]
-    #             filename = grade_type + '_study'
-    #         else:
-    #             texts = ["""<ul>\n""" + """\n""".join(
-    #                 """<li>%s : %.3f</li>""" % (contrast, these_grades[contrast])
-    #                 for contrast in islice(filter(lambda x: 'effects_of_interest' not in x,
-    #                                               these_grades), 0, 10))
-    #                      + """</ul>""" for these_grades in grades['full_grades']]
-    #             filename = grade_type
-    #         plot_all(join(output_dir, 'components.nii.gz'),
-    #                  output_dir=join(output_dir, 'components'),
-    #                  name='component',
-    #                  filename=filename,
-    #                  draw=draw,
-    #                  word_clouds=True,
-    #                  texts=texts, n_jobs=3)
-    #         draw = False

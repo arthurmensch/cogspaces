@@ -1,8 +1,11 @@
 import argparse
 import os
-from os.path import join, expanduser
+from jinja2 import Template
+from os.path import join, expanduser, abspath
 
 from cogspaces.plotting import plot_all
+
+path = abspath(__file__)
 
 parser = argparse.ArgumentParser(
     description='Convert a Nifti image to an html file with'
@@ -20,11 +23,23 @@ args = parser.parse_args()
 filename = args.filename
 output = args.output
 n_jobs = args.n_jobs
-dirname, tailname = os.path.split(filename)
-assert tailname[-7:] == '.nii.gz', ValueError('Wrong file argument')
-tailname = tailname[:-7]
+dirname, filename = os.path.split(filename)
+assert filename.endswith('.nii.gz'), ValueError('Wrong file argument')
 if output == '':
-    output_dir = join(dirname, tailname)
+    output_dir = join(dirname, filename.replace('.nii.gz', ''))
 else:
     output_dir = expanduser(output)
-plot_all(filename, output_dir=output_dir, n_jobs=n_jobs)
+print(output_dir)
+    
+imgs = plot_all(filename, output_dir=output_dir, n_jobs=n_jobs)
+
+
+template = join(os.path.dirname(path), 'plotting.html')
+
+with open(template, 'r') as f:
+    template = f.read()
+template = Template(template)
+html = template.render(imgs=imgs)
+html_name = filename.replace('.nii.gz', '.html')
+with open(html_name, 'w+') as f:
+    f.write(html)

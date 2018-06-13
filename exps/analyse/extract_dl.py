@@ -18,7 +18,8 @@ from sklearn.utils import check_random_state
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir
-from exps.analyse.plot_maps import get_proj_and_masker
+from exps.analyse.plot_maps import get_dictionary, \
+    get_masker
 
 
 def explained_variance(X, components, per_component=True):
@@ -187,16 +188,16 @@ def compute_sparse_components(output_dir, seed, init='rest',
                               alpha=1e-2):
     coefs, _, _, _ = load(
         join(output_dir, 'combined_models_%s.pkl' % seed))
-
+    n_features = coefs.shape[1]
     if init == 'random':
         random_state = check_random_state(0)
-        dict_init = random_state.randn(512, 128)
+        dict_init = random_state.randn(n_features, 128)
         q, r = qr(dict_init)
         q = q * np.sign(np.diag(r))
         dict_init = q.T
-        dict_init /= np.sqrt(512)
+        dict_init /= np.sqrt(n_features)
     elif init == 'rest':
-        loadings_128 = fetch_atlas_modl()['loadings128']
+        loadings_128 = fetch_atlas_modl()['loadings128_gm']
         dict_init = np.load(loadings_128)
     elif init == 'data':
         random_state = check_random_state(0)
@@ -255,7 +256,7 @@ def compute_all_decomposition(output_dir):
     seeds = pd.read_pickle(join(output_dir, 'seeds.pkl'))
     seeds = seeds['seed'].unique()
 
-    for decomposition in ['pca', 'dl_rest', 'dl_random']:
+    for decomposition in ['dl_rest']:
         if decomposition == 'pca':
             components_list = Parallel(n_jobs=20, verbose=10)(
                 delayed(compute_pca)(output_dir, seed)
@@ -294,21 +295,20 @@ def nifti_all(output_dir):
     seeds = pd.read_pickle(join(output_dir, 'seeds.pkl'))
     seeds = seeds['seed'].unique()
 
-    dictionary, masker = get_proj_and_masker()
+    dictionary = get_dictionary()
+    masker = get_masker()
 
-    for decomposition in ['pca', 'dl_rest', 'dl_random']:
+    for decomposition in ['dl_rest']:
         for seed in seeds:
             name = '%s_%i' % (decomposition, seed)
             (components, _, _, _) = load(join(output_dir, '%s.pkl' % name))
             components = components.dot(dictionary)
             components = masker.inverse_transform(components)
             components.to_filename(join(output_dir, '%s.nii.gz' % name))
-            # plot_all(components, name=name,
-            #          output_dir=join(output_dir, name), n_jobs=20)
 
 
 if __name__ == '__main__':
-    output_dir = join(get_output_dir(), 'factored_sparser')
-    compute_coefs(output_dir)
-    compute_all_decomposition(output_dir)
+    output_dir = join(get_output_dir(), 'factored_full')
+    # compute_coefs(output_dir)
+    # compute_all_decomposition(output_dir)
     nifti_all(output_dir)

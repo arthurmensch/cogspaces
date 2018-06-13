@@ -7,7 +7,8 @@ from joblib import dump, Memory
 from matplotlib.testing.compare import get_cache_dir
 from os.path import join
 from sacred import Experiment
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix, \
+    precision_recall_fscore_support
 
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
@@ -34,10 +35,10 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512'),
-        studies='vagharchakian2012temporal',
+        studies='all',
     )
     model = dict(
-        estimator='logistic',
+        estimator='factored',
         normalize=False,
         seed=100,
         refinement=None,
@@ -61,8 +62,8 @@ def default():
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
             'finetune': 1e-3},
-        max_iter={'pretrain': 200, 'train': 300, 'sparsify': 0,
-                  'finetune': 200},
+        max_iter={'pretrain': 2, 'train': 2, 'sparsify': 0,
+                  'finetune': 2},
     )
 
     logistic = dict(
@@ -191,7 +192,7 @@ def ss():
 
 
 @exp.capture
-def save_output(target_encoder, standard_scaler, estimator, _run):
+def save_output(target_encoder, standard_scaler, estimator, scores, _run):
     if not _run.unobserved:
         try:
             observer = next(filter(lambda x:
@@ -202,6 +203,7 @@ def save_output(target_encoder, standard_scaler, estimator, _run):
         dump(target_encoder, join(observer.dir, 'target_encoder.pkl'))
         dump(standard_scaler, join(observer.dir, 'standard_scaler.pkl'))
         dump(estimator, join(observer.dir, 'estimator.pkl'))
+        dump(scores, join(observer.dir, 'scores.pkl'))
 
 
 @exp.capture(prefix='data')
@@ -308,10 +310,28 @@ def train(system, model, logistic, refinement,
     test_preds = estimator.predict(test_data)
 
     test_scores = {}
+    all_f1 = {}
+    all_prec = {}
+    all_recall = {}
+    all_confusion = {}
     for study in test_preds:
-        test_scores[study] = accuracy_score(test_preds[study]['contrast'],
-                                            test_targets[study]['contrast'])
-    save_output(target_encoder, standard_scaler, estimator)
+        these_preds = test_preds[study]['contrast']
+        these_targets = test_targets[study]['contrast']
+        test_scores[study] = accuracy_score(these_preds,
+                                            these_targets)
+        precs, recalls, f1s, support = precision_recall_fscore_support(
+            these_preds, these_targets, warn_for=())
+        contrasts = target_encoder.le_[study]['contrast'].classes_
+        all_prec[study] = {contrast: prec for contrast, prec in
+                           zip(contrasts, precs)}
+        all_recall[study] = {contrast: recall for contrast, recall in
+                             zip(contrasts, recalls)}
+        all_f1[study] = {contrast: f1 for contrast, f1 in
+                          zip(contrasts, f1s)}
+        all_confusion[study] = confusion_matrix(these_preds, these_targets)
+    print(all_f1)
+    scores = (all_confusion, all_prec, all_recall, all_f1)
+    save_output(target_encoder, standard_scaler, estimator, scores)
 
     return test_scores
 

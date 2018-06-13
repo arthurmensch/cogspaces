@@ -1,5 +1,4 @@
 #! /usr/bin/env python3
-from itertools import repeat
 
 import numpy as np
 import os
@@ -29,14 +28,14 @@ def plot_single(img, name, output_dir, view_types=['stat_map']):
                 plot_surf_stat_map(fsaverage.infl_right, texture, hemi='right',
                                    bg_map=fsaverage.sulc_right, threshold=0,
                                    vmax=vmax,
-                                   output_file=join(output_dir, src),
+                                   output_file=src,
                                    cmap='cold_hot')
             else:
                 texture = surface.vol_to_surf(img, fsaverage.pial_left)
                 plot_surf_stat_map(fsaverage.infl_left, texture, hemi='left',
                                    bg_map=fsaverage.sulc_right, threshold=0,
                                    vmax=vmax,
-                                   output_file=join(output_dir, src),
+                                   output_file=src,
                                    cmap='cold_hot')
 
         elif view_type in ['stat_map', 'glass_brain']:
@@ -44,14 +43,14 @@ def plot_single(img, name, output_dir, view_types=['stat_map']):
             cut_coords = find_xyz_cut_coords(img, activation_threshold=vmax / 3)
             if view_type == 'stat_map':
                 plot_stat_map(img, threshold=0, cut_coords=cut_coords,
-                              colorbar=False, output_file=join(output_dir, src))
+                              colorbar=False, output_file=src)
             else:
                 plot_glass_brain(img, threshold=0, cut_coords=cut_coords,
-                                 plot_abs=False, output_file=join(output_dir, src))
+                                 plot_abs=False, output_file=src)
         else:
             raise ValueError('Wrong view type in `view_types`: got %s' % view_type)
         srcs.append(src)
-    return srcs
+    return srcs, name
 
 
 def numbered_names(name):
@@ -59,40 +58,6 @@ def numbered_names(name):
     while True:
         yield '%s_%i' % (name, i)
         i += 1
-
-
-def make_html(imgs, output_dir, name, filename=None,
-             texts=None,
-             word_clouds=False,
-             names=None, n_jobs=1, verbose=10,
-             draw=True):
-    img_dir = join(output_dir, 'imgs')
-    if not os.path.exists(img_dir):
-        os.makedirs(img_dir)
-
-    if names is None:
-        names = numbered_names(name)
-    if texts is None:
-        texts = repeat('')
-    if filename is None:
-        filename = name
-
-    imgs = check_niimg(imgs)
-    srcs = Parallel(n_jobs=n_jobs, verbose=verbose)(
-        delayed(plot_single)(img, name, img_dir, draw)
-        for name, img in zip(names, iter_img(imgs)))
-    with open(join(output_dir, '%s.html' % filename), 'w+') as f:
-        f.write("""<html><head><title>%s</title></head>\n<body>\n
-                <h1>%s</h1>""" % (name, name))
-        for i, ((src, glass_src), text) in enumerate(zip(srcs, texts)):
-            f.write(text)
-            f.write("""<p>""")
-            f.write("""<img src='imgs/%s'>\n<img src='imgs/%s'>\n"""
-                    % (src, glass_src))
-            f.write("""<img src='wc/wc_%i.png'>\n""" % i)
-            f.write("""</p>""")
-
-        f.write("""</body>""")
 
 
 def plot_all(img, names=None, output_dir=None,
@@ -113,9 +78,10 @@ def plot_all(img, names=None, output_dir=None,
         names = numbered_names(names)
     else:
         assert len(names) == img.get_shape()[3]
-    Parallel(n_jobs=n_jobs, verbose=verbose)(
+    imgs = Parallel(n_jobs=n_jobs, verbose=verbose)(
         delayed(plot_single)(img, name, output_dir, view_types)
         for name, img in zip(names, iter_img(img)))
+    return imgs
 
 
 class SimpleGroupedColorFunc(object):

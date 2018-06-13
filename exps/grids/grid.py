@@ -262,14 +262,14 @@ if __name__ == '__main__':
     _, target = load_data_from_dir(data_dir=source_dir)
     studies = list(target.keys())
     seeds = check_random_state(42).randint(0, 100000, size=20)
-    model_seeds = check_random_state(143).randint(0, 1000000, size=120)
+    model_seeds = check_random_state(243).randint(0, 1000000, size=60)
 
     output_dir = join(get_output_dir(), grid)
 
-    if grid == 'factored_gm':
+    if grid == 'factored_gm_many_2':
         exp.config(factored)
         config_updates = ParameterGrid({'seed': seeds,
-                                        # 'factored.seed': model_seeds,
+                                        'factored.seed': model_seeds,
                                         })
     elif grid == 'factored_sparsify':
         exp.config(factored)
@@ -342,6 +342,7 @@ if __name__ == '__main__':
         raise ValueError('Directory exists.')
 
     _id = get_id(output_dir)
+    _id = 1201
     Parallel(n_jobs=40, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       mock=False,
