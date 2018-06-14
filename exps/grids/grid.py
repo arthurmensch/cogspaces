@@ -122,32 +122,9 @@ def factored_refit():
         lr={'pretrain': 1e-3, 'train': 1e-4, 'sparsify': 1e-3,
             'finetune': 1e-3},
         batch_size=128,
-        max_iter={'pretrain': 0, 'train': 0,
-                  'sparsify': 0, 'finetune': 400},
+        max_iter={'pretrain': 200, 'train': 300,
+                  'sparsify': 0, 'finetune': 200},
         seed=100)
-
-
-def factored_logistic_refit():
-    seed = 10
-    full = False
-    system = dict(
-        device=-1,
-        verbose=2,
-    )
-    data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512_gm'),
-        studies='all',
-    )
-    model = dict(
-        estimator='logistic',
-        normalize=False,
-    )
-    logistic = dict(
-        max_iter=4000,
-        solver='lbfgs',
-        l2_penalty=np.logspace(-5, 1, 7).tolist(),
-        refit_from=None,
-    )
 
 
 def logistic():
@@ -168,6 +145,8 @@ def logistic():
         max_iter=2000,
         solver='lbfgs',
         l2_penalty=np.logspace(-5, 1, 7).tolist(),
+        refit_from=None
+
     )
 
 
@@ -267,7 +246,7 @@ if __name__ == '__main__':
 
     output_dir = join(get_output_dir(), grid)
 
-    if grid == 'factored_gm_many_2':
+    if grid == 'factored_gm':
         exp.config(factored)
         config_updates = ParameterGrid({'seed': seeds,
                                         'factored.seed': model_seeds,
@@ -282,7 +261,7 @@ if __name__ == '__main__':
         config_updates = ParameterGrid({'model.target_study': studies,
                                         'seed': seeds,
                                         })
-    elif grid == 'factored_refit_gm_tune_last_dense':
+    elif grid == 'factored_refit_gm_low_lr':
         exp.config(factored_refit)
         init_dir = join(get_output_dir(), 'factored_gm')
 
@@ -291,30 +270,47 @@ if __name__ == '__main__':
                                                        '%s_%i_%.0e.pkl' %
                                                        (decomposition, seed,
                                                         alpha)),
-                           'factored.refit_data': ['dropout']}
+                           'factored.refit_data': []}
                           for seed in seeds
-                          for alpha in [1e-5]
+                          for alpha in [1e-3, 1e-4, 1e-5]
                           for decomposition in ['dl_rest']]
-    elif grid == 'factored_full':
+    elif grid == 'factored_refit_gm_notune':
+        exp.config(factored_refit)
+        init_dir = join(get_output_dir(), 'factored_gm')
+
+        config_updates = [{'seed': seed,
+                           'factored.refit_from': join(init_dir,
+                                                       '%s_%i_%.0e.pkl' %
+                                                       (decomposition, seed,
+                                                        alpha)),
+                           'factored.refit_data': ['dropout', 'classifier'],
+                           'factored.max_iter': {'pretrain': 0, 'train': 0,
+                                                 'sparsify': 0,
+                                                 'finetune': 0}}
+                          for seed in seeds
+                          for alpha in [1e-3, 1e-4]
+                          for decomposition in ['dl_rest']]
+    elif grid == 'factored_refit_gm_full_notune':
+        exp.config(factored_refit)
+        init_dir = join(get_output_dir(), 'factored_gm_full')
+        config_updates = [{'seed': 0,
+                           'factored.refit_from': join(init_dir,
+                                                       '%s_%i_%.0e.pkl' %
+                                                       (decomposition, 0,
+                                                        alpha)),
+                           'factored.refit_data': ['dropout', 'classifier'],
+                           'factored.max_iter': {'pretrain': 0, 'train': 0,
+                                                 'sparsify': 0,
+                                                 'finetune': 0},
+                           'full': True}
+                          for alpha in [1e-3, 1e-4, 1e-5]
+                          for decomposition in ['dl_rest']]
+    elif grid == 'factored_gm_full':
         exp.config(factored)
         config_updates = ParameterGrid({'seed': [0],
                                         'full': [True],
                                         'factored.seed': model_seeds,
                                         })
-
-    elif grid == 'factored_refit_gm_logistic':
-        exp.config(factored_logistic_refit)
-        init_dir = join(get_output_dir(), 'factored_gm_many')
-
-
-        config_updates = [{'seed': seed,
-                           'logistic.refit_from': join(init_dir,
-                                                       '%s_%i_%.0e.pkl' %
-                                                       (decomposition, seed,
-                                                        alpha))}
-                          for seed in seeds
-                          for alpha in [1e-2, 5e-3, 1e-3, 5e-4, 1e-4]
-                          for decomposition in ['dl_rest']]
     elif grid == 'single_factored':
         exp.config(factored)
         config_updates = ParameterGrid({'data.studies': studies,

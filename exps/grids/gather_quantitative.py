@@ -55,7 +55,7 @@ def gather_factored(output_dir, flavor='simple'):
                             *extra_indices]).aggregate(['mean', 'std'])
     print(res_mean)
     res.to_pickle(join(output_dir, 'gathered.pkl'))
-    res.to_pickle(join(output_dir, 'gathered_mean.pkl'))
+    res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
 
     studies = confusions[0].keys()
     confusions = {study: np.mean(np.concatenate([confusion[study][:, :, None]
@@ -145,9 +145,8 @@ def get_chance_subjects():
 
 if __name__ == '__main__':
     # gather_factored(join(get_output_dir(), 'factored_gm'))
-    # gather_factored(join(get_output_dir(), 'factored_refit_gm_notune'),
-    #                 flavor='refit')
-    # gather_factored(join(get_output_dir(), 'factored_refit_gm_tune'),
-    #                 flavor='refit')
-    gather_factored(join(get_output_dir(), 'factored_refit_gm_tune_last_no_bn'),
-                    flavor='refit')
+    # gather_factored(join(get_output_dir(), 'factored_refit_gm'), flavor='refit')
+    # gather_factored(join(get_output_dir(), 'factored_refit_gm_tune_last'), flavor='refit')
+    # gather_factored(join(get_output_dir(), 'old/factored_refit_gm_notune'), flavor='refit')
+    gather_factored(join(get_output_dir(), 'factored_refit_gm'), flavor='refit')
+    gather_factored(join(get_output_dir(), 'factored_refit_gm_notune'), flavor='refit')

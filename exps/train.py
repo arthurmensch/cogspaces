@@ -5,7 +5,7 @@ import numpy as np
 import os
 from joblib import dump, Memory
 from matplotlib.testing.compare import get_cache_dir
-from os.path import join, expanduser
+from os.path import join
 from sacred import Experiment
 from sklearn.metrics import accuracy_score, confusion_matrix, \
     precision_recall_fscore_support
@@ -72,8 +72,8 @@ def default():
         estimator='logistic',
         l2_penalty=np.logspace(-5, 1, 7).tolist(),
         max_iter=3000,
-        refit_from=expanduser('~/dl_rest_860_1e-04.pkl'),
-
+        # refit_from=expanduser('~/dl_rest_860_1e-04.pkl'),
+        refit_from=None
     )
 
     refinement = dict(

@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -9,6 +10,7 @@ from os.path import join
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
+from cogspaces.plotting import plot_word_clouds, plot_all
 from exps.train import load_data
 
 mem = Memory(cachedir=get_cache_dir())
@@ -232,44 +234,46 @@ def classifs_html(output_dir, classifs_dir):
 
 
 if __name__ == '__main__':
-    output_dir = join(get_output_dir(), 'factored_gm_many', '2')
-    # components_imgs = get_components(output_dir)
-    # components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
-    # components_imgs_dl = get_components(output_dir, dl=True)
-    # components_imgs_dl.to_filename(join(output_dir, 'components_dl.nii.gz'))
-    # classifs_imgs = get_classifs(output_dir)
-    # classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
-    # #
-    # grades = get_grades(output_dir, grade_type='cosine_similarities')
-    # with open(join(output_dir, 'grades.json'), 'w+') as f:
-    #     json.dump(grades, f)
+    output_dir = join(get_output_dir(), 'factored_refit_gm_full_notune', '1')
+    components_imgs = get_components(output_dir)
+    components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
+    # # components_imgs_dl = get_components(output_dir, dl=True)
+    # # components_imgs_dl.to_filename(join(output_dir, 'components_dl.nii.gz'))
+    classifs_imgs = get_classifs(output_dir)
+    classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
+
+    grades = get_grades(output_dir, grade_type='cosine_similarities')
+    with open(join(output_dir, 'grades.json'), 'w+') as f:
+        json.dump(grades, f)
+
+    names, full_names = get_names(output_dir)
     #
-    # names, full_names = get_names(output_dir)
-    # #
-    # view_types = ['stat_map', 'glass_brain',
-    #               'surf_stat_map_lateral_left',
-    #               'surf_stat_map_medial_left',
-    #               'surf_stat_map_lateral_right',
-    #               'surf_stat_map_medial_right']
-    # plot_all(join(output_dir, 'classifs.nii.gz'),
-    #          output_dir=join(output_dir, 'classifs'),
-    #          names=full_names,
-    #          view_types=view_types,
-    #          n_jobs=40)
-    # plot_all(join(output_dir, 'components_dl.nii.gz'),
-    #          output_dir=join(output_dir, 'components_dl'),
-    #          names='component_dl',
-    #          view_types=view_types,
-    #          n_jobs=40)
-    # plot_all(join(output_dir, 'components.nii.gz'),
-    #          output_dir=join(output_dir, 'components'),
-    #          names='components',
-    #          view_types=view_types,
-    #          n_jobs=40)
-    #
-    # with open(join(output_dir, 'grades.json'), 'r') as f:
-    #     grades = json.load(f)
-    # plot_word_clouds(join(output_dir, 'wc'), grades)
-    #
+    view_types = ['stat_map', 'glass_brain',
+                  'surf_stat_map_lateral_left',
+                  'surf_stat_map_medial_left',
+                  'surf_stat_map_lateral_right',
+                  'surf_stat_map_medial_right']
+
+    # fetch_surf_fsaverage5()
+    plot_all(join(output_dir, 'classifs.nii.gz'),
+             output_dir=join(output_dir, 'classifs'),
+             names=full_names,
+             view_types=view_types,
+             n_jobs=40)
+    # # plot_all(join(output_dir, 'components_dl.nii.gz'),
+    # #          output_dir=join(output_dir, 'components_dl'),
+    # #          names='component_dl',
+    # #          view_types=view_types,
+    # #          n_jobs=40)
+    plot_all(join(output_dir, 'components.nii.gz'),
+             output_dir=join(output_dir, 'components'),
+             names='components',
+             view_types=view_types,
+             n_jobs=40)
+
+    with open(join(output_dir, 'grades.json'), 'r') as f:
+        grades = json.load(f)
+    plot_word_clouds(join(output_dir, 'wc'), grades)
+
     components_html(output_dir, 'components', 'wc')
-    # classifs_html(output_dir, 'classifs')
+    classifs_html(output_dir, 'classifs')

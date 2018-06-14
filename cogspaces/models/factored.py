@@ -503,7 +503,7 @@ class FactoredClassifier(BaseEstimator):
                             ' penalty: %.4f, p: %.2f'
                             % (epoch, epoch_loss, epoch_penalty,
                                this_module.linear.get_p().item()))
-                        callback(self, epoch)
+                        # callback(self, epoch)
 
                     if epoch_loss > best_loss:
                         no_improvement += 1
