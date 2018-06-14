@@ -105,6 +105,8 @@ class DropoutLinear(nn.Linear):
 
     def forward(self, input):
         if self.training:
+            if self.p == 0:
+                return F.linear(input, self.weight, self.bias)
             if self.adaptive:
                 output = F.linear(input, self.weight, self.bias)
                 # Local reparemtrization trick: gaussian dropout noise on input

@@ -5,7 +5,7 @@ import numpy as np
 import os
 from joblib import dump, Memory
 from matplotlib.testing.compare import get_cache_dir
-from os.path import join
+from os.path import join, expanduser
 from sacred import Experiment
 from sklearn.metrics import accuracy_score, confusion_matrix, \
     precision_recall_fscore_support
@@ -26,16 +26,16 @@ exp = Experiment('multi_studies')
 
 @exp.config
 def default():
-    seed = 10
+    seed = 860
     full = False
     system = dict(
         device=-1,
         verbose=2,
-        n_jobs=10,
+        n_jobs=3,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512'),
-        studies='all',
+        source_dir=join(get_data_dir(), 'reduced_512_gm'),
+        studies=['archi']
     )
     model = dict(
         estimator='factored',
@@ -49,28 +49,31 @@ def default():
         latent_size=128,
         activation='linear',
         regularization=1,
-        adaptive_dropout=False,
+        adaptive_dropout=True,
         sampling='random',
         weight_power=0.6,
         batch_size=128,
         epoch_counting='all',
-        init='rest',
+        init='rest_gm',
         batch_norm=True,
-        # full_init=join(get_output_dir(), 'seed_split_init', 'pca_15795.pkl'),
-        dropout=0.75,
+        refit_from=join(get_output_dir(), 'factored_gm',
+                        'dl_rest_860_1e-04.pkl'),
+        dropout=0.,
         input_dropout=0.25,
         seed=100,
-        lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
-            'finetune': 1e-3},
-        max_iter={'pretrain': 2, 'train': 2, 'sparsify': 0,
-                  'finetune': 2},
+        lr={'pretrain': 1e-3, 'train': 1e-6, 'sparsify': 1e-4,
+            'finetune': 1e-2},
+        max_iter={'pretrain': 100, 'train': 0, 'sparsify': 0,
+                  'finetune': 0},
+        refit_data=['dropout']
     )
 
     logistic = dict(
         estimator='logistic',
         l2_penalty=np.logspace(-5, 1, 7).tolist(),
-        max_iter=1000,
-        reduction=None
+        max_iter=3000,
+        refit_from=expanduser('~/dl_rest_860_1e-04.pkl'),
+
     )
 
     refinement = dict(
@@ -126,7 +129,7 @@ def dl():
         estimator='logistic',
         l2_penalty=np.logspace(-5, 1, 7).tolist(),
         max_iter=1000,
-        reduction=None
+        refit_from=None
     )
 
     refinement = dict(
@@ -182,7 +185,7 @@ def ss():
         estimator='logistic',
         l2_penalty=np.logspace(-5, 1, 7).tolist(),
         max_iter=1000,
-        reduction=None
+        refit_from=None
     )
 
     refinement = dict(
@@ -329,7 +332,6 @@ def train(system, model, logistic, refinement,
         all_f1[study] = {contrast: f1 for contrast, f1 in
                           zip(contrasts, f1s)}
         all_confusion[study] = confusion_matrix(these_preds, these_targets)
-    print(all_f1)
     scores = (all_confusion, all_prec, all_recall, all_f1)
     save_output(target_encoder, standard_scaler, estimator, scores)
 

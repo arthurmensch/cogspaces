@@ -20,14 +20,19 @@ def plot_single(img, name, output_dir, view_types=['stat_map']):
     srcs = []
     for view_type in view_types:
         src = join(output_dir, '%s_%s.png' % (name, view_type))
-        if view_type in ['surf_stat_map_right', 'surf_stat_map_left']:
+        if view_type in ['surf_stat_map_lateral_right',
+                         'surf_stat_map_lateral_left',
+                         'surf_stat_map_medial_right',
+                         'surf_stat_map_medial_left']:
             fsaverage = fetch_surf_fsaverage5()
             vmax = np.abs(img.get_data()).max()
-            if view_type == 'surf_stat_map_right':
+            view = 'lateral' if 'lateral' in view_type else 'medial'
+            if 'right' in view_type:
                 texture = surface.vol_to_surf(img, fsaverage.pial_right)
                 plot_surf_stat_map(fsaverage.infl_right, texture, hemi='right',
                                    bg_map=fsaverage.sulc_right, threshold=0,
                                    vmax=vmax,
+                                   view=view,
                                    output_file=src,
                                    cmap='cold_hot')
             else:
@@ -35,6 +40,7 @@ def plot_single(img, name, output_dir, view_types=['stat_map']):
                 plot_surf_stat_map(fsaverage.infl_left, texture, hemi='left',
                                    bg_map=fsaverage.sulc_right, threshold=0,
                                    vmax=vmax,
+                                   view=view,
                                    output_file=src,
                                    cmap='cold_hot')
 
@@ -134,15 +140,31 @@ def plot_word_clouds(output_dir, grades):
         for contrast in contrasts:
             grade = these_grades[contrast]
             study, contrast = contrast.split('::')
+            contrast = contrast.lower()
             if study == 'hcp':
-                contrast = contrast.replace('LF', 'left foot')
-                contrast = contrast.replace('RF', 'right foot')
-                contrast = contrast.replace('LH', 'left hand')
-                contrast = contrast.replace('RH', 'right hand')
-            contrast = contrast.replace('clicGaudio', 'left audio click')
-            contrast = contrast.replace('clicDaudio', 'right audio click')
+                contrast = contrast.replace('lf', 'left foot')
+                contrast = contrast.replace('rh', 'right foot')
+                contrast = contrast.replace('lh', 'left hand')
+                contrast = contrast.replace('rh', 'right hand')
+            contrast = contrast.replace('clicgaudio', 'left audio click')
+            contrast = contrast.replace('clicgvideo', 'left video click')
+            contrast = contrast.replace('clicdvideo', 'left video click')
+            contrast = contrast.replace('clicdaudio', 'right audio click')
             contrast = contrast.replace('calculvideo', 'video calculation')
             contrast = contrast.replace('calculaudio', 'audio calculation')
+
+            contrast = contrast.replace('audvid600', 'audio video 600ms')
+            contrast = contrast.replace('audvid300', 'audio video 300ms')
+            contrast = contrast.replace('bck', '-back')
+            contrast = contrast.replace('realrt', 'real risk-taking')
+            contrast = contrast.replace('rt', 'risk-taking')
+            contrast = contrast.replace('C08/C16', 'long sentences')
+            contrast = contrast.replace('C01/C02', 'short sentences')
+            contrast = contrast.replace('reapp', 'reappraise')
+            contrast = contrast.replace('neu', 'neutral')
+            # contrast = contrast.replace('neg', 'negative')
+            contrast = contrast.replace('ant', 'anticipated')
+
 
             terms = contrast.split('_')
             contrast = []
@@ -155,8 +177,7 @@ def plot_word_clouds(output_dir, grades):
                     contrast.append(term)
             if contrast:
                 contrast = ' '.join(contrast)
-                curated = contrast.lower()
-                frequencies.append((curated, grade))
+                frequencies.append((contrast, grade))
                 studies.append(study)
         color_to_words = {rgb2hex(*color): [study]
                           for color, study in zip(colors, studies)}

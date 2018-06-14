@@ -1,4 +1,3 @@
-import json
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -10,7 +9,6 @@ from os.path import join
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
-from cogspaces.plotting import plot_all, plot_word_clouds
 from exps.train import load_data
 
 mem = Memory(cachedir=get_cache_dir())
@@ -49,25 +47,32 @@ def get_names(output_dir):
 
 
 def get_classifs(output_dir, return_type='img'):
-    components_full = get_components(output_dir, dl=False,
-                                     return_type='arrays_full')
     module = get_module(output_dir)
-    classifs = {}
-    classifs_full = {}
-    for study, classifier in module.classifiers.items():
-        these_classif = classifier.linear.weight.detach()
-        multiplier = (classifier.batch_norm.weight.detach()
-                      / torch.sqrt(classifier.batch_norm.running_var))
-        these_classif *= multiplier
-        classifs[study] = these_classif.numpy()
-        classifs_full[study] = classifs[study].dot(components_full)
-    if return_type == 'img':
-        masker = get_masker()
-        classifs_img = masker.inverse_transform(
-            np.concatenate(list(classifs_full.values()), axis=0))
-        return classifs_img
-    elif return_type == 'arrays_full':
-        return classifs_full
+    module.eval()
+
+    studies = module.classifiers.keys()
+    in_features = module.embedder.linear.in_features
+
+    with torch.no_grad():
+        classifs = module({study: torch.eye(in_features)
+                           for study in studies}, logits=True)
+        biases = module({study: torch.zeros((1, in_features))
+                         for study in studies}, logits=True)
+        classifs = {study: classifs[study] - biases[study]
+                    for study in studies}
+    classifs = {study: classif.numpy().T
+                for study, classif in classifs.items()}
+    if return_type in ['img', 'arrays_full']:
+        dictionary = get_dictionary()
+        classifs_full = {study: classif.dot(dictionary)
+                         for study, classif in classifs.items()}
+        if return_type == 'img':
+            masker = get_masker()
+            classifs_img = masker.inverse_transform(
+                np.concatenate(list(classifs_full.values()), axis=0))
+            return classifs_img
+        else:
+            return classifs_full
     elif return_type == 'arrays':
         return classifs
 
@@ -187,7 +192,10 @@ def components_html(output_dir, components_dir, wc_dir):
     for i in range(128):
         title = 'components_%i' % i
         view_types = ['stat_map', 'glass_brain',
-                      'surf_stat_map_right', 'surf_stat_map_left']
+                      'surf_stat_map_lateral_left',
+                      'surf_stat_map_medial_left',
+                      'surf_stat_map_lateral_right',
+                      'surf_stat_map_medial_right']
         srcs = []
         for view_type in view_types:
             src = join(components_dir, '%s_%s.png' % (title, view_type))
@@ -208,7 +216,10 @@ def classifs_html(output_dir, classifs_dir):
     imgs = []
     for name in full_names:
         view_types = ['stat_map', 'glass_brain',
-                      'surf_stat_map_right', 'surf_stat_map_left']
+                      'surf_stat_map_lateral_left',
+                      'surf_stat_map_medial_left',
+                      'surf_stat_map_lateral_right',
+                      'surf_stat_map_medial_right']
         srcs = []
         for view_type in view_types:
             src = join(classifs_dir, '%s_%s.png' % (name, view_type))
@@ -221,43 +232,44 @@ def classifs_html(output_dir, classifs_dir):
 
 
 if __name__ == '__main__':
-    output_dir = join(get_output_dir(), 'single_full')
-    components_imgs = get_components(output_dir)
-    components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
-    components_imgs_dl = get_components(output_dir, dl=True)
-    components_imgs_dl.to_filename(join(output_dir, 'components_dl.nii.gz'))
-    classifs_imgs = get_classifs(output_dir)
-    classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
-
-    names, full_names = get_names(output_dir)
-    with open(join(output_dir, 'names.json'), 'w+') as f:
-        json.dump(names, f)
-
-    view_types = ['surf_stat_map_right',
-                  'surf_stat_map_left']
-    plot_all(join(output_dir, 'classifs.nii.gz'),
-             output_dir=join(output_dir, 'classifs'),
-             names=full_names,
-             view_types=view_types,
-             n_jobs=30)
-    plot_all(join(output_dir, 'components_dl.nii.gz'),
-             output_dir=join(output_dir, 'components_dl'),
-             names='component_dl',
-             view_types=view_types,
-             n_jobs=30)
-    plot_all(join(output_dir, 'components.nii.gz'),
-             output_dir=join(output_dir, 'components'),
-             names='components',
-             view_types=view_types,
-             n_jobs=30)
-
-    grades = get_grades(output_dir, grade_type='cosine_similarities')
-    with open(join(output_dir, 'grades.json'), 'w+') as f:
-        json.dump(grades, f)
-
-    with open(join(output_dir, 'grades.json'), 'r') as f:
-        grades = json.load(f)
-    plot_word_clouds(join(output_dir, 'wc'), grades)
-
+    output_dir = join(get_output_dir(), 'factored_gm_many', '2')
+    # components_imgs = get_components(output_dir)
+    # components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
+    # components_imgs_dl = get_components(output_dir, dl=True)
+    # components_imgs_dl.to_filename(join(output_dir, 'components_dl.nii.gz'))
+    # classifs_imgs = get_classifs(output_dir)
+    # classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
+    # #
+    # grades = get_grades(output_dir, grade_type='cosine_similarities')
+    # with open(join(output_dir, 'grades.json'), 'w+') as f:
+    #     json.dump(grades, f)
+    #
+    # names, full_names = get_names(output_dir)
+    # #
+    # view_types = ['stat_map', 'glass_brain',
+    #               'surf_stat_map_lateral_left',
+    #               'surf_stat_map_medial_left',
+    #               'surf_stat_map_lateral_right',
+    #               'surf_stat_map_medial_right']
+    # plot_all(join(output_dir, 'classifs.nii.gz'),
+    #          output_dir=join(output_dir, 'classifs'),
+    #          names=full_names,
+    #          view_types=view_types,
+    #          n_jobs=40)
+    # plot_all(join(output_dir, 'components_dl.nii.gz'),
+    #          output_dir=join(output_dir, 'components_dl'),
+    #          names='component_dl',
+    #          view_types=view_types,
+    #          n_jobs=40)
+    # plot_all(join(output_dir, 'components.nii.gz'),
+    #          output_dir=join(output_dir, 'components'),
+    #          names='components',
+    #          view_types=view_types,
+    #          n_jobs=40)
+    #
+    # with open(join(output_dir, 'grades.json'), 'r') as f:
+    #     grades = json.load(f)
+    # plot_word_clouds(join(output_dir, 'wc'), grades)
+    #
     components_html(output_dir, 'components', 'wc')
-    classifs_html(output_dir, 'classifs')
+    # classifs_html(output_dir, 'classifs')

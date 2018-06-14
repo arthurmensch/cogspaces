@@ -5,6 +5,7 @@ import numpy as np
 import os
 import pandas as pd
 import re
+import torch
 from joblib import Parallel, delayed, load, dump
 from modl.decomposition.dict_fact import DictFact
 from nilearn._utils import check_niimg
@@ -12,52 +13,14 @@ from nilearn.input_data import NiftiMasker
 from numpy.linalg import qr, lstsq
 from os.path import join
 from sklearn.decomposition import PCA
-from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import check_random_state
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir
+from cogspaces.models.factored_dl import explained_variance
 from exps.analyse.plot_maps import get_dictionary, \
     get_masker
-
-
-def explained_variance(X, components, per_component=True):
-    """Score function based on explained variance
-
-        Parameters
-        ----------
-        data: ndarray,
-            Holds single subject data to be tested against components
-
-        per_component: boolean,
-            Specify whether the explained variance ratio is desired for each
-            map or for the global set of components_
-
-        Returns
-        -------
-        score: ndarray,
-            Holds the score for each subjects. score is two dimensional if
-            per_component = True
-        """
-    full_var = np.var(X)
-    n_components = components.shape[0]
-    S = np.sqrt(np.sum(components ** 2, axis=1))
-    S[S == 0] = 1
-    components = components / S[:, np.newaxis]
-    projected_data = X.dot(components.T)
-    if per_component:
-        res_var = np.zeros(n_components)
-        for i in range(n_components):
-            res = X - projected_data[:, i][:, None] * components[i][None, :]
-            res_var[i] = np.var(res)
-        return np.maximum(0., 1. - res_var / full_var)
-    else:
-        lr = LinearRegression(fit_intercept=True)
-        lr.fit(components.T, X.T)
-        residuals = X - lr.coef_.dot(components)
-        res_var = np.var(residuals)
-        return np.maximum(0., 1. - res_var / full_var)
 
 
 class DictionaryScorer:
@@ -120,41 +83,42 @@ def compute_coefs(output_dir):
     dropout = dropout.groupby('seed').mean()
 
     for seed, sub_res in res.groupby(by='seed'):
-        print(seed)
+        print('Gathering coef for seed', seed)
         seed_dropout = dropout.loc[seed].to_dict()
+        studies = seed_dropout.keys()
         n_runs = 0
         latent_coefs = []
+        full_coefs = {study: 0 for study in studies}
+        full_biases = {study: 0 for study in studies}
         for this_dir in sub_res['dir']:
             try:
                 estimator = load(join(output_dir, str(this_dir),
                                       'estimator.pkl'))
+                module = estimator.module_
             except FileNotFoundError:
                 print('Skipping exp %i' % this_dir)
                 continue
-            full_coefs = {study: 0 for study in estimator.module_.classifiers}
-            classif_biases = {study: 0 for study in
-                              estimator.module_.classifiers}
-            latent_coef = estimator.module_.embedder.linear.weight.detach().numpy()
-            latent_bias = estimator.module_.embedder.linear.bias.detach().numpy()
+            latent_coef = module.embedder.linear.weight.detach().numpy()
             latent_coefs.append(latent_coef)
-            for study, classifier in estimator.module_.classifiers.items():
-                classif_coef = classifier.linear.weight.detach().numpy()
-                classif_bias = classifier.linear.bias.detach().numpy()
-                var = classifier.batch_norm.running_var.numpy()
-                mean = classifier.batch_norm.running_mean.numpy()
-                classif_coef /= np.sqrt(var[None, :])
-                classif_bias += classif_coef.dot(latent_bias - mean)
-                full_coef = classif_coef.dot(latent_coef)
-                full_coefs[study] += full_coef
-                classif_biases[study] += classif_bias
+            in_features = module.embedder.linear.in_features
+            module.eval()
+            with torch.no_grad():
+                full_bias = module({study: torch.zeros((1, in_features))
+                                    for study in studies}, logits=True)
+                full_coef = module({study: torch.eye(in_features)
+                                    for study in studies}, logits=True)
+                full_coef = {study: full_coef[study] - full_bias[study]
+                             for study in studies}
+            for study in studies:
+                full_coefs[study] += full_coef[study]
+                full_biases[study] += full_bias[study]
             n_runs += 1
-        n_runs = len(estimator.module_.classifiers)
-        full_coefs = {study: coef / n_runs for
+        full_coefs = {study: coef.numpy().T / n_runs for
                       study, coef in full_coefs.items()}
-        classif_biases = {study: coef / n_runs for
-                      study, coef in classif_biases.items()}
+        full_biases = {study: bias.numpy()[0] / n_runs for
+                          study, bias in full_biases.items()}
         latent_coefs = np.concatenate(latent_coefs, axis=0)
-        dump((latent_coefs, full_coefs, classif_biases, seed_dropout),
+        dump((latent_coefs, full_coefs, full_biases, seed_dropout),
              join(output_dir, 'combined_models_%i.pkl' % seed))
 
 
@@ -225,14 +189,14 @@ def compute_sparse_components(output_dir, seed, init='rest',
                              code_l1_ratio=0, batch_size=32,
                              learning_rate=1,
                              dict_init=dict_init,
-                             code_alpha=alpha, verbose=0, n_epochs=3,
+                             code_alpha=alpha, verbose=0, n_epochs=2,
                              )
         dict_fact.fit(coefs_)
         dict_init = dict_fact.components_
     dict_fact = DictFact(comp_l1_ratio=1, comp_pos=False, n_components=128,
                          code_l1_ratio=0, batch_size=32, learning_rate=1,
                          dict_init=dict_init,
-                         code_alpha=alpha, verbose=10, n_epochs=40)
+                         code_alpha=alpha, verbose=10, n_epochs=20)
     dict_fact.fit(coefs_)
 
     components = dict_fact.components_
@@ -252,43 +216,53 @@ def compute_sparse_components(output_dir, seed, init='rest',
     return components
 
 
-def compute_all_decomposition(output_dir):
+def compute_all_decomposition(output_dir, n_jobs=1):
     seeds = pd.read_pickle(join(output_dir, 'seeds.pkl'))
     seeds = seeds['seed'].unique()
 
-    for decomposition in ['dl_rest']:
+    decompositions = ['dl_rest']
+    # alphas = [1e-2, 5e-3, 1e-3, 5e-4, 1e-4]
+    alphas = [1e-5]
+
+    for decomposition in decompositions:
         if decomposition == 'pca':
-            components_list = Parallel(n_jobs=20, verbose=10)(
+            components_list = Parallel(n_jobs=n_jobs, verbose=10)(
                 delayed(compute_pca)(output_dir, seed)
                 for seed in seeds)
         elif decomposition == 'dl_rest':
-            components_list = Parallel(n_jobs=20, verbose=10)(
+            components_list = Parallel(n_jobs=n_jobs, verbose=10)(
                 delayed(compute_sparse_components)
                 (output_dir, seed,
                  symmetric_init=False,
-                 alpha=1e-3,
+                 alpha=alpha,
                  init='rest')
-                for seed in seeds)
+                for seed in seeds
+                for alpha in alphas)
         elif decomposition == 'dl_random':
-            components_list = Parallel(n_jobs=20, verbose=10)(
+            components_list = Parallel(n_jobs=n_jobs, verbose=10)(
                 delayed(compute_sparse_components)
                 (output_dir, seed,
                  symmetric_init=False,
-                 alpha=1e-3,
+                 alpha=alpha,
                  init='random')
-                for seed in seeds)
-        for components, seed in zip(components_list, seeds):
-            (latent_coefs, full_coefs,
-             classif_biases, dropout) = load(
-                join(output_dir, 'combined_models_%s.pkl' % seed))
-            classif_coefs = {}
-            for study in full_coefs:
-                classif_coef, _, _, _ = lstsq(components.T,
-                                              full_coefs[study].T,
-                                              rcond=None)
-                classif_coefs[study] = classif_coef.T
-            dump((components, classif_coefs, classif_biases, dropout),
-                 join(output_dir, '%s_%i.pkl' % (decomposition, seed)))
+                for seed in seeds
+                for alpha in alphas)
+        for seed in seeds:
+            for alpha in alphas:
+                components = components_list[0]
+                components_list = components_list[1:]
+                (latent_coefs, full_coefs, full_biases, dropout) = load(
+                    join(output_dir, 'combined_models_%s.pkl' % seed))
+                classif_coefs = {}
+                for study in full_coefs:
+                    classif_coef, _, _, _ = lstsq(components.T,
+                                                  full_coefs[study].T,
+                                                  rcond=None)
+                    classif_coefs[study] = classif_coef.T
+                classif_biases = full_biases
+                dump((components, classif_coefs, classif_biases, dropout),
+                     join(output_dir, '%s_%i_%.0e.pkl' % (decomposition,
+                                                          seed, alpha)))
 
 
 def nifti_all(output_dir):
@@ -308,7 +282,7 @@ def nifti_all(output_dir):
 
 
 if __name__ == '__main__':
-    output_dir = join(get_output_dir(), 'factored_full')
-    # compute_coefs(output_dir)
-    # compute_all_decomposition(output_dir)
-    nifti_all(output_dir)
+    output_dir = join(get_output_dir(), 'factored_gm')
+    compute_coefs(output_dir)
+    compute_all_decomposition(output_dir, n_jobs=40)
+    # nifti_all(output_dir)

@@ -88,17 +88,22 @@ class LatentClassifier(nn.Module):
         super().__init__()
 
         if batch_norm:
-            self.batch_norm = nn.BatchNorm1d(latent_size)
+            self.batch_norm = nn.BatchNorm1d(latent_size, affine=False,)
         self.linear = DropoutLinear(latent_size,
                                     target_size, bias=True, p=dropout,
                                     var_penalty=var_penalty,
                                     adaptive=adaptive,
                                     level='layer')
 
-    def forward(self, input):
-        if hasattr(self, 'batch_norm') and len(input) > 1:
-            input = self.batch_norm(input)
-        return F.log_softmax(self.linear(input), dim=1)
+    def forward(self, input, logits=False):
+        if hasattr(self, 'batch_norm'):
+            if not self.training or len(input) > 1:
+                input = self.batch_norm(input)
+        logits_ = self.linear(input)
+        if logits:
+            return logits_
+        else:
+            return F.log_softmax(logits_, dim=1)
 
     def reset_parameters(self):
         self.linear.reset_parameters()
@@ -147,10 +152,11 @@ class VarMultiStudyModule(nn.Module):
         for classifier in self.classifiers.values():
             classifier.reset_parameters()
 
-    def forward(self, inputs):
+    def forward(self, inputs, logits=False):
         preds = {}
         for study, input in inputs.items():
-            preds[study] = self.classifiers[study](self.embedder(input))
+            preds[study] = self.classifiers[study](self.embedder(input),
+                                                   logits=logits)
         return preds
 
     def penalty(self, inputs):
@@ -189,6 +195,7 @@ class FactoredClassifier(BaseEstimator):
                  epoch_counting='all',
                  init='normal',
                  refit_from=None,
+                 refit_data=['dropout', 'classifier'],
                  adaptive_dropout=True,
                  n_jobs=1,
                  patience=200,
@@ -227,6 +234,8 @@ class FactoredClassifier(BaseEstimator):
         self.verbose = verbose
         self.device = device
         self.seed = seed
+
+        self.refit_data = refit_data
 
         self.init = init
         self.n_jobs = n_jobs
@@ -280,7 +289,7 @@ class FactoredClassifier(BaseEstimator):
             in_features=in_features,
             input_dropout=self.input_dropout,
             latent_dropout=self.dropout,
-            adaptive='classifier',
+            adaptive='',
             init=self.init,
             batch_norm=self.batch_norm,
             regularization=self.regularization,
@@ -290,18 +299,32 @@ class FactoredClassifier(BaseEstimator):
             target_sizes=target_sizes)
 
         if self.refit_from is not None:
-            (latent_coefs, classif_coefs,
-             classif_biases, dropout) = load(self.refit_from)
+            (latent_coefs, classif_coefs, classif_biases,
+             dropout) = load(self.refit_from)
             module.embedder.linear.weight.data = torch.from_numpy(latent_coefs)
             module.embedder.linear.bias.data.fill_(0.)
             for study, classifier in module.classifiers.items():
-                classifier.linear.weight.data = \
-                 torch.from_numpy(classif_coefs[study])
-                classifier.linear.bias.data = \
-                 torch.from_numpy(classif_biases[study])
-                p = dropout[study]
-                log_alpha = np.log(p / (1 - p))
-                classifier.linear.log_alpha.fill_(log_alpha)
+                if 'classifier' in self.refit_data:
+                    coefs = torch.from_numpy(classif_coefs[study])
+                    biases = torch.from_numpy(classif_biases[study])
+                    if hasattr(classifier, 'batch_norm'):
+                        with torch.no_grad():
+                            embedding = module.embedder(X[study])
+                            mean = embedding.mean(dim=0)
+                            embedding = embedding - mean[None, :]
+                            var = embedding.var(dim=0)
+                            denom = (torch.sqrt(var) + 1e-5)
+                            biases += torch.matmul(coefs, mean)
+                            coefs *= denom[None, :]
+                            classifier.batch_norm.running_var = var
+                            classifier.batch_norm.running_mean = mean
+                            classifier.batch_norm.momemtum = 0
+                    classifier.linear.weight.data = coefs
+                    classifier.linear.bias.data = biases
+                if 'dropout' in self.refit_data:
+                    p = dropout[study]
+                    log_alpha = np.log(p / (1 - p))
+                    classifier.linear.log_alpha.fill_(log_alpha)
 
         # Verbosity + epoch counting
         if self.epoch_counting == 'target_study':
@@ -316,8 +339,7 @@ class FactoredClassifier(BaseEstimator):
             raise ValueError('Wrong value for `epoch_counting`: %s' %
                              self.epoch_counting)
 
-        # print('n_samples:', n_samples)
-
+        epoch = 0
         for phase in ['pretrain', 'train', 'sparsify']:
             if self.max_iter[phase] == 0:
                 continue
@@ -474,7 +496,6 @@ class FactoredClassifier(BaseEstimator):
                         epoch_loss = loss.item() / epoch_batch
                         epoch_penalty *= (1 - 1 / epoch_batch)
                         epoch_penalty += penalty.item() / epoch_batch
-
                     if (report_every is not None
                             and epoch % report_every == 0):
                         print(
@@ -482,6 +503,7 @@ class FactoredClassifier(BaseEstimator):
                             ' penalty: %.4f, p: %.2f'
                             % (epoch, epoch_loss, epoch_penalty,
                                this_module.linear.get_p().item()))
+                        callback(self, epoch)
 
                     if epoch_loss > best_loss:
                         no_improvement += 1
@@ -493,7 +515,8 @@ class FactoredClassifier(BaseEstimator):
                         break
                 module.load_state_dict(best_state)
                 print('Stopping at epoch %.2f, train loss'
-                      ' %.4f' % (epoch, epoch_loss))
+                      ' %.4f, best model loss %.2f' %
+                      (epoch, epoch_loss, best_loss))
                 print('-----------------------------------')
         if callback is not None:
             callback(self, epoch)
