@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+from collections import defaultdict
 
 import numpy as np
 import os
@@ -27,22 +28,26 @@ def plot_single(img, name, output_dir, view_types=['stat_map']):
             fsaverage = fetch_surf_fsaverage5()
             vmax = np.abs(img.get_data()).max()
             view = 'lateral' if 'lateral' in view_type else 'medial'
+
             if 'right' in view_type:
-                texture = surface.vol_to_surf(img, fsaverage.pial_right)
-                plot_surf_stat_map(fsaverage.infl_right, texture, hemi='right',
-                                   bg_map=fsaverage.sulc_right, threshold=0,
-                                   vmax=vmax,
-                                   view=view,
-                                   output_file=src,
-                                   cmap='cold_hot')
+                surf_mesh = fsaverage.infl_right
+                bg_map = fsaverage.sulc_right
+                texture_surf_mesh = fsaverage.pial_right
+                texture = surface.vol_to_surf(img, texture_surf_mesh)
+                hemi = 'right'
             else:
-                texture = surface.vol_to_surf(img, fsaverage.pial_left)
-                plot_surf_stat_map(fsaverage.infl_left, texture, hemi='left',
-                                   bg_map=fsaverage.sulc_right, threshold=0,
-                                   vmax=vmax,
-                                   view=view,
-                                   output_file=src,
-                                   cmap='cold_hot')
+                surf_mesh = fsaverage.infl_left
+                bg_map = fsaverage.sulc_left
+                texture_surf_mesh = fsaverage.pial_left
+                texture = surface.vol_to_surf(img, texture_surf_mesh)
+                hemi = 'left'
+            plot_surf_stat_map(surf_mesh, texture, hemi=hemi,
+                               bg_map=bg_map,
+                               vmax=vmax,
+                               threshold=vmax/6,
+                               view=view,
+                               output_file=src,
+                               cmap='cold_hot')
 
         elif view_type in ['stat_map', 'glass_brain']:
             vmax = np.abs(img.get_data()).max()
@@ -121,7 +126,35 @@ def rgb2hex(r, g, b):
            f'{int(round(b * 255)):02x}'
 
 
-def plot_word_clouds(output_dir, grades):
+def filter_contrast(contrast):
+    contrast = contrast.lower()
+    contrast = contrast.replace('lf', 'left foot')
+    contrast = contrast.replace('rh', 'right foot')
+    contrast = contrast.replace('lh', 'left hand')
+    contrast = contrast.replace('rh', 'right hand')
+    contrast = contrast.replace('clicgaudio', 'left audio click')
+    contrast = contrast.replace('clicgvideo', 'left video click')
+    contrast = contrast.replace('clicdvideo', 'left video click')
+    contrast = contrast.replace('clicdaudio', 'right audio click')
+    contrast = contrast.replace('calculvideo', 'video calculation')
+    contrast = contrast.replace('calculaudio', 'audio calculation')
+
+    contrast = contrast.replace('audvid600', 'audio video 600ms')
+    contrast = contrast.replace('audvid1200', 'audio video 1200ms')
+    contrast = contrast.replace('audvid300', 'audio video 300ms')
+    contrast = contrast.replace('bk', 'back')
+    contrast = contrast.replace('realrt', 'real risk-taking')
+    contrast = contrast.replace('rt', 'risk-taking')
+    contrast = contrast.replace('C08/C16', 'long sentences')
+    contrast = contrast.replace('C01/C02', 'short sentences')
+    contrast = contrast.replace('reapp', 'reappraise')
+    contrast = contrast.replace('neu ', 'neutral ')
+    contrast = contrast.replace('neg ', 'negative ')
+    contrast = contrast.replace('ant', 'anticipated')
+    return contrast
+
+
+def plot_word_clouds_all(output_dir, grades):
     import seaborn as sns
     import matplotlib.pyplot as plt
 
@@ -140,32 +173,7 @@ def plot_word_clouds(output_dir, grades):
         for contrast in contrasts:
             grade = these_grades[contrast]
             study, contrast = contrast.split('::')
-            contrast = contrast.lower()
-            if study == 'hcp':
-                contrast = contrast.replace('lf', 'left foot')
-                contrast = contrast.replace('rh', 'right foot')
-                contrast = contrast.replace('lh', 'left hand')
-                contrast = contrast.replace('rh', 'right hand')
-            contrast = contrast.replace('clicgaudio', 'left audio click')
-            contrast = contrast.replace('clicgvideo', 'left video click')
-            contrast = contrast.replace('clicdvideo', 'left video click')
-            contrast = contrast.replace('clicdaudio', 'right audio click')
-            contrast = contrast.replace('calculvideo', 'video calculation')
-            contrast = contrast.replace('calculaudio', 'audio calculation')
-
-            contrast = contrast.replace('audvid600', 'audio video 600ms')
-            contrast = contrast.replace('audvid300', 'audio video 300ms')
-            contrast = contrast.replace('bck', '-back')
-            contrast = contrast.replace('realrt', 'real risk-taking')
-            contrast = contrast.replace('rt', 'risk-taking')
-            contrast = contrast.replace('C08/C16', 'long sentences')
-            contrast = contrast.replace('C01/C02', 'short sentences')
-            contrast = contrast.replace('reapp', 'reappraise')
-            contrast = contrast.replace('neu', 'neutral')
-            # contrast = contrast.replace('neg', 'negative')
-            contrast = contrast.replace('ant', 'anticipated')
-
-
+            contrast = filter_contrast()
             terms = contrast.split('_')
             contrast = []
             for term in terms:
@@ -192,3 +200,64 @@ def plot_word_clouds(output_dir, grades):
         ax.axis("off")
         fig.savefig(join(output_dir, 'wc_%i.png' % i))
         plt.close(fig)
+
+
+def plot_word_clouds(output_dir, grades, f1s=None, n_jobs=1):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_word_cloud_single)
+                                            (output_dir, grades, i,f1s)
+                                        for i, grades in
+                                        enumerate(grades['full']))
+
+
+def plot_word_cloud_single(output_dir, grades, index, f1s=None):
+    import matplotlib.pyplot as plt
+
+    contrasts = list(filter(
+        lambda x: 'effects_of_interest' not in x and 'gauthier' not in x,
+        grades))[:15]
+    frequencies_cat = defaultdict(lambda: 0.)
+    frequencies_single = defaultdict(lambda: 0.)
+    for contrast in contrasts:
+        grade = grades[contrast]
+        study, contrast = contrast.split('::')
+        f1 = 1 if f1s is None else f1s[study][contrast]
+        contrast = filter_contrast(contrast)
+        terms = contrast.replace(' ', '_').replace('&', '_'). \
+            replace('-', '_').split('_')
+        cat_terms = []
+        for term in terms:
+            if term == 'baseline':
+                break
+            if term == 'vs':
+                break
+            cat_terms.append(term)
+        for term in cat_terms:
+            frequencies_single[term] += grade * f1 / len(cat_terms)
+        cat_terms = ' '.join(cat_terms)
+        frequencies_cat[cat_terms] += grade * f1
+
+    dpi = 40
+    width, height = (400, 200)
+    fig, ax = plt.subplots(1, 1, figsize=(width / dpi, height / dpi))
+    fig, ax = plt.subplots(1, 1)
+    wc = WordCloud(prefer_horizontal=1,
+                   background_color='white',
+                   relative_scaling=0.7)
+    wc.generate_from_frequencies(frequencies=frequencies_single, )
+    ax.imshow(wc, interpolation="bilinear")
+    ax.axis("off")
+    fig.savefig(join(output_dir, 'wc_single_%i.png' % index))
+    plt.close(fig)
+    width, height = (600, 200)
+    fig, ax = plt.subplots(1, 1, figsize=(width / dpi, height / dpi))
+    wc = WordCloud(prefer_horizontal=1,
+                   background_color='white', width=800, height=200,
+                   relative_scaling=0.7)
+    wc.generate_from_frequencies(frequencies=frequencies_cat, )
+    ax.imshow(wc, interpolation="bilinear")
+    ax.axis("off")
+    fig.savefig(join(output_dir, 'wc_cat_%i.png' % index))
+    plt.close(fig)

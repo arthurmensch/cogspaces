@@ -202,7 +202,8 @@ def components_html(output_dir, components_dir, wc_dir):
         for view_type in view_types:
             src = join(components_dir, '%s_%s.png' % (title, view_type))
             srcs.append(src)
-        srcs.append(join(wc_dir, 'wc_%i.png' % i))
+        srcs.append(join(wc_dir, 'wc_single_%i.png' % i))
+        srcs.append(join(wc_dir, 'wc_cat_%i.png' % i))
         imgs.append((srcs, title))
     html = template.render(imgs=imgs)
     output_file = join(output_dir, 'components.html')
@@ -233,47 +234,56 @@ def classifs_html(output_dir, classifs_dir):
         f.write(html)
 
 
-if __name__ == '__main__':
-    output_dir = join(get_output_dir(), 'factored_refit_gm_full_notune', '1')
-    components_imgs = get_components(output_dir)
-    components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
-    # # components_imgs_dl = get_components(output_dir, dl=True)
-    # # components_imgs_dl.to_filename(join(output_dir, 'components_dl.nii.gz'))
-    classifs_imgs = get_classifs(output_dir)
-    classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
-
-    grades = get_grades(output_dir, grade_type='cosine_similarities')
-    with open(join(output_dir, 'grades.json'), 'w+') as f:
-        json.dump(grades, f)
-
-    names, full_names = get_names(output_dir)
-    #
+def make_report(output_dir, dl=False):
     view_types = ['stat_map', 'glass_brain',
                   'surf_stat_map_lateral_left',
                   'surf_stat_map_medial_left',
                   'surf_stat_map_lateral_right',
                   'surf_stat_map_medial_right']
 
+    # components_imgs = get_components(output_dir)
+    # components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
+    # classifs_imgs = get_classifs(output_dir)
+    # classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
+    #
+    # grades = get_grades(output_dir, grade_type='cosine_similarities')
+    # with open(join(output_dir, 'grades.json'), 'w+') as f:
+    #     json.dump(grades, f)
+    #
+    # names, full_names = get_names(output_dir)
+    #
     # fetch_surf_fsaverage5()
-    plot_all(join(output_dir, 'classifs.nii.gz'),
-             output_dir=join(output_dir, 'classifs'),
-             names=full_names,
-             view_types=view_types,
-             n_jobs=40)
-    # # plot_all(join(output_dir, 'components_dl.nii.gz'),
-    # #          output_dir=join(output_dir, 'components_dl'),
-    # #          names='component_dl',
-    # #          view_types=view_types,
-    # #          n_jobs=40)
+    # plot_all(join(output_dir, 'classifs.nii.gz'),
+    #          output_dir=join(output_dir, 'classifs'),
+    #          names=full_names,
+    #          view_types=view_types,
+    #          n_jobs=40)
     plot_all(join(output_dir, 'components.nii.gz'),
              output_dir=join(output_dir, 'components'),
              names='components',
              view_types=view_types,
              n_jobs=40)
+    #
+    #
+    # if dl:
+    #     components_imgs_dl = get_components(output_dir, dl=True)
+    #     components_imgs_dl.to_filename(join(output_dir, 'components_dl.nii.gz'))
+    #     plot_all(join(output_dir, 'components_dl.nii.gz'),
+    #              output_dir=join(output_dir, 'components_dl'),
+    #              names='component_dl',
+    #              view_types=view_types,
+    #              n_jobs=40)
 
     with open(join(output_dir, 'grades.json'), 'r') as f:
         grades = json.load(f)
-    plot_word_clouds(join(output_dir, 'wc'), grades)
+    plot_word_clouds(join(output_dir, 'wc'), grades, n_jobs=40)
 
     components_html(output_dir, 'components', 'wc')
-    classifs_html(output_dir, 'classifs')
+    # classifs_html(output_dir, 'classifs')
+
+
+if __name__ == '__main__':
+    output_dir = join(get_output_dir(), 'factored_refit_gm_full_notune', '1',)
+    make_report(output_dir)
+    output_dir = join(get_output_dir(), 'factored_refit_gm_low_lr', '1')
+    make_report(output_dir)

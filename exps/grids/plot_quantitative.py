@@ -241,10 +241,60 @@ def plot_compare_methods(sort):
     plt.close(fig)
 
 
-def plot_size_vs_transfer():
-    pass
+def plot_gain_vs_accuracy():
+    joined = pd.read_pickle(join(get_output_dir(), 'joined_contrast.pkl'))
+
+    mean = joined.groupby(by=['study', 'contrast']).aggregate(['mean', 'std'])
+    mean = mean.reset_index()
+
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    for score in ['bacc', 'f1']:
+
+        fig, ax = plt.subplots(1, 1, figsize=(3, 2.3), constrained_layout=True)
+
+        sns.regplot(mean['baseline', score, 'mean'], mean['diff', score, 'mean'],
+                    n_boot=10, ax=ax, lowess=True, color='black',
+                    scatter=False)
+
+        studies = joined['study'].unique()
+        colors = sns.color_palette('husl', len(studies))
+        colors = {study: color for study, color in zip(studies, colors)}
+        ax.scatter(mean['baseline', score, 'mean'],
+                   mean['diff', score, 'mean'],
+                   s=4,
+                   c=list(map(lambda x: colors[x], mean['study'])),
+                   marker='o')
+        if score == 'bacc':
+            ax.set_xlim([.49, 1.01])
+            ax.set_ylim([-0.05, 0.1])
+
+            ax.yaxis.set_major_formatter(
+                ticker.PercentFormatter(xmax=1, decimals=0))
+            ax.xaxis.set_major_formatter(
+                ticker.PercentFormatter(xmax=1, decimals=0))
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(0.1))
+            ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.05))
+        else:
+            ax.set_xlim([-0.01, 1.01])
+            ax.set_ylim([-0.05, 0.15])
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(0.2))
+            ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.1))
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(0.05))
+        ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.025))
+        if score == 'bacc':
+            ax.set_xlabel('Baseline balanced accuracy score \n(per contrast)')
+        else:
+            ax.set_xlabel('Baseline F1 score (per contrast)')
+        ax.set_ylabel('Gain from multi-study model')
+        ax.hlines(0, 0, 1, linestyle=(0, [2, 4]))
+        sns.despine(fig)
+        fig.savefig(join(get_output_dir(), 'gain_vs_accuracy_%s.pdf' % score))
+        plt.show()
 
 
 if __name__ == '__main__':
-    sort = plot_joined()
-    plot_compare_methods(sort)
+    # sort = plot_joined()
+    # plot_compare_methods(sort)
+    plot_gain_vs_accuracy()

@@ -8,7 +8,7 @@ from matplotlib.testing.compare import get_cache_dir
 from os.path import join
 from sacred import Experiment
 from sklearn.metrics import accuracy_score, confusion_matrix, \
-    precision_recall_fscore_support
+    precision_recall_fscore_support,
 
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
@@ -324,6 +324,7 @@ def train(system, model, logistic, refinement,
                                             these_targets)
         precs, recalls, f1s, support = precision_recall_fscore_support(
             these_preds, these_targets, warn_for=())
+        balanced_accuracy_score()
         contrasts = target_encoder.le_[study]['contrast'].classes_
         all_prec[study] = {contrast: prec for contrast, prec in
                            zip(contrasts, precs)}

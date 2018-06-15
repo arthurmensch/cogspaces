@@ -4,7 +4,7 @@ import numpy as np
 import os
 import pandas as pd
 import re
-from joblib import load, dump
+from joblib import load
 from os.path import join
 
 from cogspaces.data import load_data_from_dir
@@ -15,12 +15,12 @@ idx = pd.IndexSlice
 
 def gather_factored(output_dir, flavor='simple'):
     regex = re.compile(r'[0-9]+$')
-    res = []
-    confusions = {study: [] for study in get_studies()}
     if flavor == 'refit':
         extra_indices = ['alpha']
     else:
         extra_indices = []
+    accuracies = []
+    metrics = []
     for this_dir in filter(regex.match, os.listdir(output_dir)):
         this_exp_dir = join(output_dir, this_dir)
         this_dir = int(this_dir)
@@ -30,36 +30,79 @@ def gather_factored(output_dir, flavor='simple'):
             run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
             seed = config['seed']
             test_scores = run['result']
-
-            confusion, _, _, _ = load(join(this_exp_dir, 'scores.pkl'))
-            if flavor == 'single_study':
-                study = config['data']['studies']
-                this_res = dict(study=study, score=test_scores[study],
-                                seed=seed)
-                res.append(this_res)
-                confusions[study].append(confusion[study][:, :, None])
-            else:
-                for study, score in test_scores.items():
-                    study_res = dict(seed=seed, study=study, score=score)
-                    if flavor == 'refit':
-                        refit_from = config['factored']['refit_from']
-                        alpha = float(refit_from[-9:-4])
-                        study_res['alpha'] = alpha
-                    res.append(study_res)
-                    confusions[study].append(confusion[study][:, :, None])
-        except:
+        except (FileNotFoundError, json.decoder.JSONDecodeError):
             print('Skipping exp %i' % this_dir)
             continue
-    res = pd.DataFrame(res)
-    res = res.set_index(['study', *extra_indices, 'seed'])['score']
-    res_mean = res.groupby(['study', *extra_indices]).aggregate(['mean', 'std'])
-    print(res_mean)
-    res.to_pickle(join(output_dir, 'gathered.pkl'))
-    res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
 
-    confusions = {study: np.concatenate(confusion, axis=2).mean(axis=2) if confusion else None
-                  for study, confusion in confusions.items()}
-    dump(confusions, 'confusion.pkl')
+        Cs, precs, f1s, recalls = load(
+            join(this_exp_dir, 'scores.pkl'))
+        baccs = {}
+        for study in precs:
+            C = Cs[study]
+            total = np.sum(C)
+            baccs[study] = {}
+            for i, contrast in enumerate(precs[study]):
+                t = np.sum(C[i])
+                p = np.sum(C[:, i])
+                n = total - p
+                tp = C[i, i]
+                fp = p - tp
+                fn = t - tp
+                tn = total - fp - fn - tp
+                baccs[study][contrast] = .5 * (tp / p + tn / n)
+
+        if flavor == 'single_study':
+            study = config['data']['studies']
+            accuracies.append(dict(study=study, accuracy=test_scores[study],
+                                   seed=seed))
+            f1s = f1s[study]
+            recalls = recalls[study]
+            precs = precs[study]
+            baccs = baccs[study]
+
+            metrics.extend([dict(study=study, contrast=contrast,
+                                 prec=precs[contrast],
+                                 recall=recalls[contrast],
+                                 bacc=baccs[contrast],
+                                 f1=f1s[contrast],
+                                 seed=seed)
+                            for contrast in f1s])
+        else:
+            if flavor == 'refit':
+                refit_from = config['factored']['refit_from']
+                extra_dict = dict(alpha=float(refit_from[-9:-4]))
+            else:
+                extra_dict = {}
+            accuracies.extend([dict(seed=seed, study=study, accuracy=score,
+                                    **extra_dict) for study, score in
+                               test_scores.items()])
+            metrics.extend([dict(study=study, contrast=contrast,
+                                 prec=precs[study][contrast],
+                                 recall=recalls[study][contrast],
+                                 f1=f1s[study][contrast],
+                                 bacc=baccs[study][contrast],
+                                 seed=seed,
+                                 **extra_dict
+                                 )
+                            for study in f1s
+                            for contrast in f1s[study]
+                            ])
+    metrics = pd.DataFrame(metrics)
+    metrics = metrics.set_index([*extra_indices, 'study', 'contrast', 'seed'])
+    metrics_mean = metrics.groupby(
+        [*extra_indices, 'study', 'contrast']).aggregate(
+        ['mean', 'std'])
+    metrics.to_pickle(join(output_dir, 'metrics.pkl'))
+    metrics_mean.to_pickle(join(output_dir, 'metrics_mean.pkl'))
+
+    accuracies = pd.DataFrame(accuracies)
+    accuracies = accuracies.set_index([*extra_indices, 'study', 'seed'])[
+        'accuracy']
+    accuracies_mean = accuracies.groupby([*extra_indices, 'study']).aggregate(
+        ['mean', 'std'])
+    print(metrics_mean)
+    accuracies.to_pickle(join(output_dir, 'accuracies.pkl'))
+    accuracies_mean.to_pickle(join(output_dir, 'accuracies_mean.pkl'))
 
 
 def gather_dropout(output_dir):
@@ -149,12 +192,27 @@ def get_studies():
     return studies
 
 
+def compare_accuracies():
+    metrics = pd.read_pickle(join(get_output_dir(),
+                                  'factored_refit_gm_notune',
+                                  'metrics.pkl'))
+    ref_metrics = pd.read_pickle(join(get_output_dir(),
+                                      'logistic_gm', 'metrics.pkl'))
+    metrics = metrics.loc[0.0001]
+    joined = pd.concat([metrics, ref_metrics], axis=1,
+                       keys=['factored', 'baseline'], join='inner')
+    diff = joined['factored'] - joined['baseline']
+    for v in diff.columns:
+        joined['diff', v] = diff[v]
+    joined = joined.reset_index()
+    joined.to_pickle(join(get_output_dir(), 'joined_contrast.pkl'))
+
+
 if __name__ == '__main__':
     # gather_factored(join(get_output_dir(), 'factored_gm'))
-    # gather_factored(join(get_output_dir(), 'factored_refit_gm'), flavor='refit')
-    # gather_factored(join(get_output_dir(), 'factored_refit_gm_tune_last'), flavor='refit')
-    # gather_factored(join(get_output_dir(), 'old/factored_refit_gm_notune'), flavor='refit')
-    # gather_factored(join(get_output_dir(), 'factored_refit_gm'), flavor='refit')
-    # gather_factored(join(get_output_dir(), 'factored_refit_gm_notune'), flavor='refit')
     gather_factored(join(get_output_dir(), 'logistic_gm'), flavor='single_study')
-    gather_factored(join(get_output_dir(), 'logistic_gm_ds009'), flavor='single_study')
+    gather_factored(join(get_output_dir(), 'factored_refit_gm_notune'),
+                    flavor='refit')
+    compare_accuracies()
+    # gather_factored(join(get_output_dir(), 'factored_refit_gm'), flavor='refit')
+    # gather_factored(join(get_output_dir(), 'factored_refit_gm_low_lr'), flavor='refit')
