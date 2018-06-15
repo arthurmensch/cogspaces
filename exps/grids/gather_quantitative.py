@@ -1,4 +1,6 @@
 # Baseline logistic
+from math import ceil
+
 import json
 import numpy as np
 import os
@@ -178,7 +180,7 @@ def get_chance_subjects():
     n_subjects = {}
     for study, this_target in target.items():
         chance_level[study] = 1. / len(this_target['contrast'].unique())
-        n_subjects[study] = len(this_target['subject'].unique())
+        n_subjects[study] = int(ceil(len(this_target['subject'].unique()) / 2))
 
     chance_level = pd.Series(chance_level)
     n_subjects = pd.Series(n_subjects)

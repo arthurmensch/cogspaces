@@ -26,11 +26,11 @@
    "title": "Mixed-gambles",
    "href": "https://openfmri.org/dataset/ds000005"},
  "ds006A": {
-   "title": "Plain or mirror-\n reversed text",
+   "title": "Plain or mirror-reversed text",
    "longtitle": "Living-nonliving decision with plain or mirror-reversed text",
    "href": "https://openfmri.org/dataset/ds000006a"},
  "ds007": {
-   "title": "Stop-signal with spoken \n & manual responses",
+   "title": "Stop-signal with spoken & manual resp.",
    "href": "https://openfmri.org/dataset/ds000007"},
  "ds008": {
    "title": "Stop-signal",
@@ -40,11 +40,11 @@
    "title": "Weather prediction",
    "href": "https://openfmri.org/dataset/ds000011"},
  "ds017B": {
-   "title": "Classification learning \n & stop-signal",
+   "title": "Classification learning  & stop-signal",
    "longtitle": "Classification learning & stop-signal (1 year test-retest)",
    "href": "https://openfmri.org/dataset/ds000017"},
  "ds051": {
-   "title": "Cross-language \n repetition priming",
+   "title": "Cross-language  repetition priming",
    "href": "https://openfmri.org/dataset/ds000051"},
  "ds052": {
    "title": "Classif. learning & reversal",
@@ -71,15 +71,15 @@
    "longtitle": "Incidental encoding (Posner Cueing Paradigm)",
    "href": "https://openfmri.org/dataset/ds000110"},
   "hcp": {
-    "title": "The Human Connectome \n Project",
+    "title": "The Human Connectome  Project",
     "href": "https://www.humanconnectome.org/"
   },
   "gauthier2009resonance": {
-    "title": "Spatio-temporal \n judgement (2009)",
+    "title": "Spatio-temporal  judgement (2009)",
     "href": "www.jneurosci.org/content/32/41/14433"
   },
   "gauthier2010resonance": {
-    "title": "Spatio-temporal \n judgement (2010)",
+    "title": "Spatio-temporal  judgement (2010)",
     "href": "www.jneurosci.org/content/32/41/14433"
   },
   "amalric2012mathematicians": {
@@ -90,8 +90,8 @@
   "la5c": {"title": "UCLA LA5c"},
   "camcan": {"title": "CamCan audio-visual"},
   "brainomics": {"title": "Brainomics localizer"},
-  "cauvet2009muslang": {"title": "Constituent structure of \n sentences & music"},
-  "ds114": {"title": "Motor task &\n word/verb generation"},
+  "cauvet2009muslang": {"title": "Constit. structure of sentences & music"},
+  "ds114": {"title": "Motor task & word/verb generation"},
   "ds116": {"title": "Auditory & Visual Oddball"},
   "henson2010faces": {"title": "Face recognition"},
   "ds017A": {"title": "Stop-signal & classification"},

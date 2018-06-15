@@ -11,17 +11,19 @@ from exps.grids.gather_quantitative import get_chance_subjects
 
 idx = pd.IndexSlice
 
+save_dir = '/home/arthur/work/papers/papers/2018_05_nature/figures/'
+
 
 def plot_joined():
     output_dir = get_output_dir()
 
-    factored_output_dir = join(output_dir, 'factored_refit_cautious')
-    baseline_output_dir = join(output_dir, 'logistic')
+    factored_output_dir = join(output_dir, 'factored_refit_gm_notune')
+    baseline_output_dir = join(output_dir, 'logistic_gm')
 
-    factored = pd.read_pickle(join(factored_output_dir, 'gathered.pkl'))
-    factored = factored[idx[:, 'dl_rest', :]]
+    factored = pd.read_pickle(join(factored_output_dir, 'accuracies.pkl'))
+    factored = factored.loc[0.0001]
 
-    baseline = pd.read_pickle(join(baseline_output_dir, 'gathered.pkl'))['score']
+    baseline = pd.read_pickle(join(baseline_output_dir, 'accuracies.pkl'))
 
     chance_level, n_subjects = get_chance_subjects()
 
@@ -42,10 +44,10 @@ def plot_joined():
     data = data.sort_values(('diff', 'mean'), ascending=True)
 
     gs = gridspec.GridSpec(1, 2,
-                           width_ratios=[2, 1]
+                           width_ratios=[2.3, 1]
                            )
-    gs.update(top=0.98, bottom=0.06, left=0.23, right=0.98)
-    fig = plt.figure(figsize=(7, 8))
+    gs.update(top=0.98, bottom=0.09, left=0.27, right=0.98)
+    fig = plt.figure(figsize=(9, 5.3))
     ax2 = fig.add_subplot(gs[0, 0])
     ax1 = fig.add_subplot(gs[0, 1], sharey=ax2)
     n_study = data.shape[0]
@@ -115,20 +117,20 @@ def plot_joined():
     ax2.set_xlabel('Decoding accuracy on test set')
 
     handles = [rects1, rects2, lines]
-    labels = ['Baseline decoder', 'Multi-study decoder', 'Chance level']
-    ax2.legend(handles, labels, loc='lower right', frameon=False, bbox_to_anchor=(1.15, -.01))
+    labels = ['Baseline decoder', 'Factored decoder with\nmulti-study prior', 'Chance level']
+    ax2.legend(handles, labels, loc='lower right', frameon=False,
+               bbox_to_anchor=(1.15, .15))
 
     ax2.set_yticks(ind + width / 2)
-
+    ax2.annotate('Task fMRI study', xy=(-.4, -.08), xycoords='axes fraction')
     labels = [
-        '%s' % (names[label]['title']) if False else label  # if label in names else label
+        '%s' % (names[label]['title']) if label in names else label
         for label in data.index.values]
     ax2.set_yticklabels(labels, ha='right',
                         va='center')
     sns.despine(fig)
 
-    plt.savefig(join(output_dir, 'joined_mean.pdf'))
-    # plt.show()
+    plt.savefig(join(save_dir, 'joined_mean.pdf'))
     plt.close(fig)
 
     sort = data.index.values.tolist()[::-1]
@@ -139,33 +141,25 @@ def plot_compare_methods(sort):
     output_dir = get_output_dir()
 
     factored_refit = pd.read_pickle(
-        join(output_dir, 'factored_refit_cautious/gathered.pkl'))
+        join(output_dir, 'factored_refit_gm_notune/accuracies.pkl'))
 
-    factored_selector = pd.read_pickle(
-        join(output_dir, 'factored_study_selector/gathered.pkl'))
+    logistic = pd.read_pickle(
+        join(output_dir, 'logistic_gm/accuracies.pkl'))
 
     single_factored = \
         pd.read_pickle(join(output_dir, 'single_factored/gathered.pkl'))['score']
-    logistic = pd.read_pickle(
-        join(output_dir, 'logistic/gathered.pkl'))['score']
+    factored_refit = factored_refit.loc[0.0001]
 
-    factored_refit = factored_refit[idx[:, 'dl_rest', :]]
-    # factored_selector = factored_refit[idx[:, False, :]]
-
-    logistic.name = 'score'
-    single_factored.name = 'score'
-    factored_refit.name = 'score'
+    single_factored.name = 'accuracy'
 
     df = pd.concat(
         [logistic,
          single_factored,
          factored_refit,
-         factored_selector
          ],
         axis=0, keys=['logistic',
                       'single_factored',
                       'factored_refit',
-                      'factored_selector',
                       ], names=['method'])
 
     df_std = []
@@ -179,7 +173,7 @@ def plot_compare_methods(sort):
 
     median = df_std.reset_index().groupby(
         by=['method', 'study']).median().reset_index().sort_values(
-        ['method', 'score'], ascending=False).set_index(['method', 'study'])
+        ['method', 'accuracy'], ascending=False).set_index(['method', 'study'])
 
     sort = pd.MultiIndex.from_product([methods, sort],
                                       names=['method', 'study'])
@@ -194,21 +188,21 @@ def plot_compare_methods(sort):
     print(df.groupby(['method', 'study']).aggregate(['mean', 'std']))
 
     fig, ax = plt.subplots(1, 1, figsize=(6, 3))
-    params = dict(x="score", y="method", hue="study",
+    params = dict(x="accuracy", y="method", hue="study",
                   data=df_sort, dodge=True, ax=ax,
                   palette=diff_color
                   )
     g = sns.stripplot(alpha=1, zorder=200, size=3.5, linewidth=0, jitter=True,
                       **params)
     handles, labels = g.get_legend_handles_labels()
-    g = sns.boxplot(x="score", y="method", color='0.75', showfliers=False,
+    g = sns.boxplot(x="accuracy", y="method", color='0.75', showfliers=False,
                     whis=1.5,
                     data=df_sort, ax=ax, zorder=100)
-    ax.set_xlim([-0.1, 0.16])
+    ax.set_xlim([-0.1, 0.175])
     ax.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
     ax.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1))
-    ax.set_xlabel('Increase in accuracy compared to logistic median per study')
+    ax.set_xlabel('Accuracy gain compared to baseline median')
     ax.set_ylabel('')
     ax.spines['left'].set_position('zero')
     plt.setp(ax.spines['left'], zorder=2)
@@ -217,14 +211,17 @@ def plot_compare_methods(sort):
 
     methods = df_sort['method'].unique()
 
-    y_labels = {'factored_refit': 'Multi-study \n decoder',
-                'single_factored': 'Single-study \n decoder',
+    y_labels = {'factored_refit': 'Factored decoder\nwith multi-\nstudy prior',
+                'single_factored': 'Factored decoder\nwith single-\nstudy prior',
                 'factored_selector': 'Multi-study \n decoder \n (non-universal)',
-                'logistic': 'Baseline \n decoder'}
+                'logistic': 'Baseline \ndecoder'}
     for i, method in enumerate(methods):
-        ax.annotate(y_labels[method], xy=(-0.1, i), xycoords='data',
+        ax.annotate(y_labels[method], xy=(.17, i), xytext=(7, 0),
+                    textcoords="offset points",
+                    fontsize=11,
+                    xycoords='data',
                     va='center',
-                    ha='right')
+                    ha='left')
     sns.despine(fig)
 
     with open(expanduser('~/work/repos/cogspaces/cogspaces/'
@@ -235,13 +232,70 @@ def plot_compare_methods(sort):
                   bbox_to_anchor=(1.05, 1),
                   fontsize=4.5, loc='upper left')
     plt.setp(l, visible=False)
-    fig.subplots_adjust(left=0.16, right=0.98, top=1, bottom=0.18)
-    plt.savefig(join(output_dir, 'comparison_method.pdf'))
-    # plt.show()
+    fig.subplots_adjust(left=0.05, right=0.77, top=1, bottom=0.18)
+    plt.savefig(join(save_dir, 'comparison_method.pdf'))
     plt.close(fig)
 
 
-def plot_gain_vs_accuracy():
+def plot_gain_vs_size(sort):
+    output_dir = get_output_dir()
+
+    colors = sns.color_palette('husl', len(sort))
+    colors = {study: color for study, color in zip(sort, colors)}
+
+    factored_output_dir = join(output_dir, 'factored_refit_gm_notune')
+    baseline_output_dir = join(output_dir, 'logistic_gm')
+
+    factored = pd.read_pickle(join(factored_output_dir, 'accuracies.pkl'))
+    factored = factored.loc[0.0001]
+
+    baseline = pd.read_pickle(join(baseline_output_dir, 'accuracies.pkl'))
+
+    chance_level, n_subjects = get_chance_subjects()
+    print(n_subjects)
+    joined = pd.concat([factored, baseline],
+                       keys=['factored', 'baseline',], axis=1)
+    joined['diff'] = joined['factored'] - joined['baseline']
+    joined = joined.reset_index('study')
+    joined = joined.assign(chance=lambda x:
+    list(map(lambda y: chance_level.loc[y], x.study)),
+                           n_subjects=lambda x:
+                           list(map(lambda y: n_subjects.loc[y], x.study)))
+    joined = joined.set_index(['study'])
+    joined_mean = joined.groupby('study').aggregate(['mean', 'std'])
+
+    fig, ax = plt.subplots(1, 1, figsize=(3, 2.3), constrained_layout=True)
+
+    sns.regplot(joined_mean['n_subjects', 'mean'], joined_mean['diff', 'mean'],
+                n_boot=1000, ax=ax, color='black', logx=True,
+                order=1, truncate=True, lowess=True,
+                scatter=False)
+    # xdata = ax.lines[0].get_xdata()
+    # ax.lines[0].set_xdata(np.exp(xdata))
+    # vertices = ax.collections[0].get_paths()[0].vertices
+    # vertices[:, 0] = np.exp(vertices[:, 0])
+    # print(joined_mean['n_subjects', 'mean'])
+    ax.scatter(joined_mean['n_subjects', 'mean'], joined_mean['diff', 'mean'],
+               c=list(map(lambda x: colors[x],
+                          joined_mean.index.get_level_values('study'))),
+               s=8, )
+    ax.set_xscale('log')
+    ax.set_ylabel('Accuracy gain')
+    ax.set_xlabel('Number of train subjects')
+    ax.set_xlim([3, 420])
+    ax.set_xticks([4, 16, 32, 100, 300, 400])
+    ax.set_xticklabels([4, 16, 32, 100, 400])
+
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(0.05))
+    ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.025))
+    ax.yaxis.set_major_formatter(ticker.PercentFormatter(xmax=1, decimals=0))
+    ax.spines['bottom'].set_position('zero')
+
+    sns.despine(fig)
+    fig.savefig(join(save_dir, 'gain_vs_size.pdf'))
+
+
+def plot_gain_vs_accuracy(sort):
     joined = pd.read_pickle(join(get_output_dir(), 'joined_contrast.pkl'))
 
     mean = joined.groupby(by=['study', 'contrast']).aggregate(['mean', 'std'])
@@ -249,6 +303,9 @@ def plot_gain_vs_accuracy():
 
     import matplotlib.pyplot as plt
     import seaborn as sns
+
+    colors = sns.color_palette('husl', len(sort))
+    colors = {study: color for study, color in zip(sort, colors)}
 
     for score in ['bacc', 'f1']:
 
@@ -258,9 +315,6 @@ def plot_gain_vs_accuracy():
                     n_boot=10, ax=ax, lowess=True, color='black',
                     scatter=False)
 
-        studies = joined['study'].unique()
-        colors = sns.color_palette('husl', len(studies))
-        colors = {study: color for study, color in zip(studies, colors)}
         ax.scatter(mean['baseline', score, 'mean'],
                    mean['diff', score, 'mean'],
                    s=4,
@@ -287,14 +341,14 @@ def plot_gain_vs_accuracy():
             ax.set_xlabel('Baseline balanced accuracy score \n(per contrast)')
         else:
             ax.set_xlabel('Baseline F1 score (per contrast)')
-        ax.set_ylabel('Gain from multi-study model')
+        ax.set_ylabel('Gain from multi-study model   ')
         ax.hlines(0, 0, 1, linestyle=(0, [2, 4]))
         sns.despine(fig)
-        fig.savefig(join(get_output_dir(), 'gain_vs_accuracy_%s.pdf' % score))
-        plt.show()
+        fig.savefig(join(save_dir, 'gain_vs_accuracy_%s.pdf' % score))
 
 
 if __name__ == '__main__':
-    # sort = plot_joined()
+    sort = plot_joined()
     # plot_compare_methods(sort)
-    plot_gain_vs_accuracy()
+    # plot_gain_vs_accuracy(sort)
+    # plot_gain_vs_size(sort)
