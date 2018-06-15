@@ -33,13 +33,20 @@ class MultiLogisticClassifier(BaseEstimator):
                 # this_X = self.sc_[study].transform(this_X)
             else:
                 this_X = X[study]
-            this_y = y[study]['contrast']
-            groups = y[study]['subject']
+            this_y = y[study]['contrast'].values
+            groups = y[study]['subject'].values
             C = 1. / (n_samples * np.array(self.l2_penalty))
 
             cv = GroupShuffleSplit(n_splits=10, test_size=0.5)
 
             splits = [(train, test) for train, test in cv.split(this_X, this_y, groups)]
+
+            splits_ = []
+            n_classes = this_y.max() + 1
+            for train, test in splits:
+                if len(np.unique(this_y[train])) == n_classes:
+                    splits_.append((train, test))
+            splits = splits_
 
             if self.estimator == 'logistic':
                 if len(C) > 1:

@@ -69,7 +69,7 @@ def load_data_from_dir(data_dir):
             # this_data, this_target = load(join(data_dir, file))
             # this_data = np.asarray(this_data)
             # data[study] = this_data, this_target
-            data[study] = np.asarray(load(join(data_dir, file)))
+            data[study] = np.array(load(join(data_dir, file)))
     return unzip_data(data)
 
 

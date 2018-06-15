@@ -135,7 +135,7 @@ def logistic():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_gm'),
-        studies='all'
+        studies='ds009'
     )
     model = dict(
         normalize=False,
@@ -327,7 +327,8 @@ if __name__ == '__main__':
         adaptive_dropout = [False, True]
         config_updates = ParameterGrid({'seed': seeds,
                                         'factored.dropout': dropout,
-                                        'factored.adaptive_dropout': adaptive_dropout})
+                                        'factored.adaptive_dropout':
+                                            adaptive_dropout})
     elif grid in ['logistic_gm', 'full_logistic']:
         if grid == 'logistic_gm':
             exp.config(logistic)

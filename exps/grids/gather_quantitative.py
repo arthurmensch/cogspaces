@@ -16,7 +16,7 @@ idx = pd.IndexSlice
 def gather_factored(output_dir, flavor='simple'):
     regex = re.compile(r'[0-9]+$')
     res = []
-    confusions = []
+    confusions = {study: [] for study in get_studies()}
     if flavor == 'refit':
         extra_indices = ['alpha']
     else:
@@ -31,11 +31,13 @@ def gather_factored(output_dir, flavor='simple'):
             seed = config['seed']
             test_scores = run['result']
 
+            confusion, _, _, _ = load(join(this_exp_dir, 'scores.pkl'))
             if flavor == 'single_study':
-                study = config['data']['target_study']
+                study = config['data']['studies']
                 this_res = dict(study=study, score=test_scores[study],
                                 seed=seed)
                 res.append(this_res)
+                confusions[study].append(confusion[study][:, :, None])
             else:
                 for study, score in test_scores.items():
                     study_res = dict(seed=seed, study=study, score=score)
@@ -44,23 +46,19 @@ def gather_factored(output_dir, flavor='simple'):
                         alpha = float(refit_from[-9:-4])
                         study_res['alpha'] = alpha
                     res.append(study_res)
-            confusion, _, _, _ = load(join(this_exp_dir, 'scores.pkl'))
-            confusions.append(confusion)
+                    confusions[study].append(confusion[study][:, :, None])
         except:
             print('Skipping exp %i' % this_dir)
             continue
     res = pd.DataFrame(res)
     res = res.set_index(['study', *extra_indices, 'seed'])['score']
-    res_mean = res.groupby(['study',
-                            *extra_indices]).aggregate(['mean', 'std'])
+    res_mean = res.groupby(['study', *extra_indices]).aggregate(['mean', 'std'])
     print(res_mean)
     res.to_pickle(join(output_dir, 'gathered.pkl'))
     res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
 
-    studies = confusions[0].keys()
-    confusions = {study: np.mean(np.concatenate([confusion[study][:, :, None]
-                                        for confusion in confusions], axis=2))
-                  for study in studies}
+    confusions = {study: np.concatenate(confusion, axis=2).mean(axis=2) if confusion else None
+                  for study, confusion in confusions.items()}
     dump(confusions, 'confusion.pkl')
 
 
@@ -93,7 +91,7 @@ def gather_dropout(output_dir):
     res = pd.concat(res, keys=studies, names=['study'], axis=0)
     res.sort_index(inplace=True)
     res_mean = res.groupby(['study', 'adaptive_dropout',
-                       'dropout']).aggregate(['mean', 'std'])
+                            'dropout']).aggregate(['mean', 'std'])
     print(res_mean)
     res.to_pickle(join(output_dir, 'gathered.pkl'))
     res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
@@ -123,7 +121,8 @@ def gather_weight_power(output_dir):
     res = pd.DataFrame(res)
     res = res.set_index(['study', 'weight_power', 'seed'])
     res.sort_index(inplace=True)
-    res_mean = res.groupby(['study', 'weight_power']).aggregate(['mean', 'std'])
+    res_mean = res.groupby(['study', 'weight_power']).aggregate(
+        ['mean', 'std'])
     print(res_mean)
     res.to_pickle(join(output_dir, 'gathered.pkl'))
     res_mean.to_pickle(join(output_dir, 'gathered_mean.pkl'))
@@ -143,10 +142,19 @@ def get_chance_subjects():
     return chance_level, n_subjects
 
 
+def get_studies():
+    source_dir = join(get_data_dir(), 'reduced_512')
+    _, target = load_data_from_dir(data_dir=source_dir)
+    studies = list(target.keys())
+    return studies
+
+
 if __name__ == '__main__':
     # gather_factored(join(get_output_dir(), 'factored_gm'))
     # gather_factored(join(get_output_dir(), 'factored_refit_gm'), flavor='refit')
     # gather_factored(join(get_output_dir(), 'factored_refit_gm_tune_last'), flavor='refit')
     # gather_factored(join(get_output_dir(), 'old/factored_refit_gm_notune'), flavor='refit')
-    gather_factored(join(get_output_dir(), 'factored_refit_gm'), flavor='refit')
-    gather_factored(join(get_output_dir(), 'factored_refit_gm_notune'), flavor='refit')
+    # gather_factored(join(get_output_dir(), 'factored_refit_gm'), flavor='refit')
+    # gather_factored(join(get_output_dir(), 'factored_refit_gm_notune'), flavor='refit')
+    gather_factored(join(get_output_dir(), 'logistic_gm'), flavor='single_study')
+    gather_factored(join(get_output_dir(), 'logistic_gm_ds009'), flavor='single_study')

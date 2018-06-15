@@ -35,10 +35,10 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_gm'),
-        studies=['archi']
+        studies=['ds009']
     )
     model = dict(
-        estimator='factored',
+        estimator='logistic',
         normalize=False,
         seed=100,
         refinement=None,
@@ -157,7 +157,7 @@ def ss():
         normalize=False,
         seed=100,
         refinement='study_selector',
-        target_study='ds008',
+        target_study='ds009',
     )
     factored = dict(
         optimizer='adam',
