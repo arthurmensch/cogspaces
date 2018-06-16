@@ -17,7 +17,7 @@ save_dir = '/home/arthur/work/papers/papers/2018_05_nature/figures/'
 def plot_joined():
     output_dir = get_output_dir()
 
-    factored_output_dir = join(output_dir, 'factored_refit_gm_notune')
+    factored_output_dir = join(output_dir, 'factored_refit_gm_low_lr')
     baseline_output_dir = join(output_dir, 'logistic_gm')
 
     factored = pd.read_pickle(join(factored_output_dir, 'accuracies.pkl'))
@@ -57,7 +57,6 @@ def plot_joined():
     diff_color = sns.color_palette("husl", 35)
     diff_color_err = [(max(0, r - .1), max(0, g - .1), max(0, b - .1))
                       for r, g, b in diff_color]
-
 
     baseline_color = '0.75'
     baseline_color_err = '0.65'
@@ -117,7 +116,8 @@ def plot_joined():
     ax2.set_xlabel('Decoding accuracy on test set')
 
     handles = [rects1, rects2, lines]
-    labels = ['Baseline decoder', 'Factored decoder with\nmulti-study prior', 'Chance level']
+    labels = ['Baseline decoder', 'Factored decoder with\nmulti-study prior',
+              'Chance level']
     ax2.legend(handles, labels, loc='lower right', frameon=False,
                bbox_to_anchor=(1.15, .15))
 
@@ -137,43 +137,41 @@ def plot_joined():
     return sort
 
 
-def plot_compare_methods(sort):
+def plot_compare_methods(sort, many=False):
     output_dir = get_output_dir()
 
-    factored_refit = pd.read_pickle(
-        join(output_dir, 'factored_refit_gm_notune/accuracies.pkl'))
+    baseline = 'logistic_gm'
 
-    logistic = pd.read_pickle(
-        join(output_dir, 'logistic_gm/accuracies.pkl'))
+    if many:
+        exps = [baseline,
+                'factored_refit_gm_low_lr',
+                'factored_refit_gm_normal_init_notune',
+                'factored_refit_gm_notune',
+                'factored_gm',
+                'factored_gm_normal_init',
+                ]
+    else:
+        exps = [baseline, 'factored_gm_single', 'factored_refit_gm_low_lr']
 
-    single_factored = \
-        pd.read_pickle(join(output_dir, 'single_factored/gathered.pkl'))['score']
-    factored_refit = factored_refit.loc[0.0001]
+    dfs = []
+    for exp in exps:
+        df = pd.read_pickle(join(output_dir, exp, 'accuracies.pkl'))
+        if 'refit' in exp:
+            df = df.loc[0.0001]
+        if exp in ['factored_gm', 'factored_gm_normal_init']:
+            df = df.groupby(['study', 'seed']).mean()
+        dfs.append(df)
 
-    single_factored.name = 'accuracy'
-
-    df = pd.concat(
-        [logistic,
-         single_factored,
-         factored_refit,
-         ],
-        axis=0, keys=['logistic',
-                      'single_factored',
-                      'factored_refit',
-                      ], names=['method'])
+    df = pd.concat(dfs, axis=0, keys=exps, names=['method'])
 
     df_std = []
     methods = []
     for method, sub_df in df.groupby('method'):
         methods.append(method)
         df_std.append(
-            sub_df.loc[method] - df.loc['logistic'].groupby('study').transform(
+            sub_df.loc[method] - df.loc[baseline].groupby('study').transform(
                 'median'))
     df_std = pd.concat(df_std, keys=methods, names=['method'])
-
-    median = df_std.reset_index().groupby(
-        by=['method', 'study']).median().reset_index().sort_values(
-        ['method', 'accuracy'], ascending=False).set_index(['method', 'study'])
 
     sort = pd.MultiIndex.from_product([methods, sort],
                                       names=['method', 'study'])
@@ -185,9 +183,7 @@ def plot_compare_methods(sort):
 
     diff_color = sns.color_palette("husl", n_studies)
 
-    print(df.groupby(['method', 'study']).aggregate(['mean', 'std']))
-
-    fig, ax = plt.subplots(1, 1, figsize=(6, 3))
+    fig, ax = plt.subplots(1, 1, figsize=(6, len(exps)))
     params = dict(x="accuracy", y="method", hue="study",
                   data=df_sort, dodge=True, ax=ax,
                   palette=diff_color
@@ -211,29 +207,37 @@ def plot_compare_methods(sort):
 
     methods = df_sort['method'].unique()
 
-    y_labels = {'factored_refit': 'Factored decoder\nwith multi-\nstudy prior',
-                'single_factored': 'Factored decoder\nwith single-\nstudy prior',
-                'factored_selector': 'Multi-study \n decoder \n (non-universal)',
-                'logistic': 'Baseline \ndecoder'}
+    y_labels = {}
+    y_labels['factored_gm_single'] = 'Factored decoder\nwith single-\nstudy prior'
+    y_labels[baseline] = 'Baseline \ndecoder'
+    y_labels['factored_refit_gm_low_lr'] = 'Factored decoder\nwith multi-\nstudy prior\n(+ rest init + DL + refit)'
+
+    if many:
+        y_labels['factored_refit_gm_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(+ rest init + DL - refit)'
+        y_labels['factored_gm'] = 'Factored decoder\nwith multi-\nstudy prior\n(+ rest init - DL)'
+        y_labels['factored_gm_normal_init'] = 'Factored decoder\nwith multi-\nstudy prior\n(- rest init - DL)'
+        y_labels['factored_refit_gm_normal_init_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(- rest init + DL + refit)'
+        ax.hlines(1.5, *ax.get_xlim(), linestyle='--', color='.5')
+        ax.annotate('Ablation', xy=(-.1, 1.5), xytext=(-7, 0),
+                    textcoords="offset points",
+                    fontsize=8,
+                    xycoords='data',
+                    va='center', rotation=90,
+                    ha='right')
+
     for i, method in enumerate(methods):
         ax.annotate(y_labels[method], xy=(.17, i), xytext=(7, 0),
                     textcoords="offset points",
-                    fontsize=11,
+                    fontsize=11 if not many else 8,
                     xycoords='data',
                     va='center',
                     ha='left')
     sns.despine(fig)
 
-    with open(expanduser('~/work/repos/cogspaces/cogspaces/'
-                         'datasets/brainpedia.json')) as f:
-        names = json.load(f)
-
-    l = ax.legend(handles, [names[label]['title'] for label in labels], ncol=1,
-                  bbox_to_anchor=(1.05, 1),
-                  fontsize=4.5, loc='upper left')
-    plt.setp(l, visible=False)
+    plt.setp(ax.legend(), visible=False)
     fig.subplots_adjust(left=0.05, right=0.77, top=1, bottom=0.18)
-    plt.savefig(join(save_dir, 'comparison_method.pdf'))
+    plt.savefig(join(save_dir, 'comparison_method%s.pdf' %
+                     ('_many' if many else '')))
     plt.close(fig)
 
 
@@ -252,9 +256,8 @@ def plot_gain_vs_size(sort):
     baseline = pd.read_pickle(join(baseline_output_dir, 'accuracies.pkl'))
 
     chance_level, n_subjects = get_chance_subjects()
-    print(n_subjects)
     joined = pd.concat([factored, baseline],
-                       keys=['factored', 'baseline',], axis=1)
+                       keys=['factored', 'baseline', ], axis=1)
     joined['diff'] = joined['factored'] - joined['baseline']
     joined = joined.reset_index('study')
     joined = joined.assign(chance=lambda x:
@@ -296,7 +299,16 @@ def plot_gain_vs_size(sort):
 
 
 def plot_gain_vs_accuracy(sort):
-    joined = pd.read_pickle(join(get_output_dir(), 'joined_contrast.pkl'))
+    metrics = pd.read_pickle(join(get_output_dir(), 'factored_refit_gm_low_lr',
+                                  'metrics.pkl'))
+    metrics = metrics.loc[0.0001]
+    ref_metrics = pd.read_pickle(join(get_output_dir(), 'logistic_gm',
+                                      'metrics.pkl'))
+    joined = pd.concat([metrics, ref_metrics], axis=1,
+                       keys=['factored', 'baseline'], join='inner')
+    diff = joined['factored'] - joined['baseline']
+    for v in diff.columns:
+        joined['diff', v] = diff[v]
 
     mean = joined.groupby(by=['study', 'contrast']).aggregate(['mean', 'std'])
     mean = mean.reset_index()
@@ -311,7 +323,8 @@ def plot_gain_vs_accuracy(sort):
 
         fig, ax = plt.subplots(1, 1, figsize=(3, 2.3), constrained_layout=True)
 
-        sns.regplot(mean['baseline', score, 'mean'], mean['diff', score, 'mean'],
+        sns.regplot(mean['baseline', score, 'mean'],
+                    mean['diff', score, 'mean'],
                     n_boot=10, ax=ax, lowess=True, color='black',
                     scatter=False)
 
@@ -349,6 +362,7 @@ def plot_gain_vs_accuracy(sort):
 
 if __name__ == '__main__':
     sort = plot_joined()
-    # plot_compare_methods(sort)
-    # plot_gain_vs_accuracy(sort)
-    # plot_gain_vs_size(sort)
+    plot_compare_methods(sort)
+    plot_compare_methods(sort, many=True)
+    plot_gain_vs_accuracy(sort)
+    plot_gain_vs_size(sort)

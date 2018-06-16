@@ -1,9 +1,12 @@
 #! /usr/bin/env python3
 from collections import defaultdict
+from itertools import repeat
 
 import numpy as np
 import os
+import re
 from joblib import Parallel, delayed
+from matplotlib.colors import LinearSegmentedColormap, rgb_to_hsv, hsv_to_rgb
 from nilearn import surface
 from nilearn._utils import check_niimg
 from nilearn.datasets import fetch_surf_fsaverage5
@@ -12,13 +15,55 @@ from os.path import join
 from wordcloud import WordCloud
 
 
-def plot_single(img, name, output_dir, view_types=['stat_map']):
+def make_cmap(color, rotation=.5, white=False):
+    h, s, v = rgb_to_hsv(color)
+    h = h + rotation
+    if h > 1:
+        h -= 1
+    r, g, b = color
+    ri, gi, bi = hsv_to_rgb((h, s, v))
+    colors = {'direct': (ri, gi, bi), 'inverted': (r, g, b)}
+    cdict = {}
+    for direction, (r, g, b) in colors.items():
+        if white:
+            cdict[direction] = {color: [(0.0, 0.0416, 0.0416),
+                  (0.18, c, c),
+                  (0.5, 1, 1),
+                  (0.62, 0.0, 0.0),
+                  (1.0, 0.0416, 0.0416)] for color, c in [('blue', b), ('red', r), ('green', g)]}
+            cdict[direction]['alpha']: [(0, 1, 1), (0.5, 0, 0), (1, 1, 1)]
+        else:
+            cdict[direction] = {color: [(0.0, 1, 1),
+                  (0.32, c, c),
+                  (0.5, 0.0416, 0.0416),
+                  (0.5, 0.0, 0.0),
+                  (0.87, 0.0, 0.0),
+                  (1.0, 1, 1)]  for color, c in [('blue', b), ('red', r), ('green', g)]}
+    cmap = LinearSegmentedColormap('cmap', cdict['direct'])
+    cmapi = LinearSegmentedColormap('cmap', cdict['inverted'])
+    cmap._init()
+    cmapi._init()
+    cmap._lut = np.maximum(cmap._lut, cmapi._lut[::-1])
+    cmap._lut[-1, -1] = 0
+    return cmap
+
+
+def plot_single(img, name, output_dir, view_types=['stat_map'], color=None):
     import matplotlib
     matplotlib.use('agg')
-    from nilearn.plotting import plot_stat_map, find_xyz_cut_coords,\
+    from nilearn.plotting import plot_stat_map, find_xyz_cut_coords, \
         plot_glass_brain, plot_surf_stat_map
 
+    if color is not None:
+        cmap = make_cmap(color, rotation=.5)
+        cmap_white = make_cmap(color, rotation=.5, white=True)
+    else:
+        cmap = 'cold_hot'
+        cmap_white = 'cold_white_hot'
+
     srcs = []
+    vmax = np.abs(img.get_data()).max()
+
     for view_type in view_types:
         src = join(output_dir, '%s_%s.png' % (name, view_type))
         if view_type in ['surf_stat_map_lateral_right',
@@ -26,7 +71,6 @@ def plot_single(img, name, output_dir, view_types=['stat_map']):
                          'surf_stat_map_medial_right',
                          'surf_stat_map_medial_left']:
             fsaverage = fetch_surf_fsaverage5()
-            vmax = np.abs(img.get_data()).max()
             view = 'lateral' if 'lateral' in view_type else 'medial'
 
             if 'right' in view_type:
@@ -44,22 +88,28 @@ def plot_single(img, name, output_dir, view_types=['stat_map']):
             plot_surf_stat_map(surf_mesh, texture, hemi=hemi,
                                bg_map=bg_map,
                                vmax=vmax,
-                               threshold=vmax/6,
+                               threshold=vmax / 12,
                                view=view,
                                output_file=src,
-                               cmap='cold_hot')
+                               cmap=cmap)
 
         elif view_type in ['stat_map', 'glass_brain']:
-            vmax = np.abs(img.get_data()).max()
-            cut_coords = find_xyz_cut_coords(img, activation_threshold=vmax / 3)
+            cut_coords = find_xyz_cut_coords(img,
+                                             activation_threshold=vmax / 3)
             if view_type == 'stat_map':
-                plot_stat_map(img, threshold=0, cut_coords=cut_coords,
-                              colorbar=False, output_file=src)
+                plot_stat_map(img, threshold=vmax / 6, cut_coords=cut_coords,
+                              vmax=vmax,
+                              colorbar=True, output_file=src, cmap=cmap)
             else:
-                plot_glass_brain(img, threshold=0, cut_coords=cut_coords,
-                                 plot_abs=False, output_file=src)
+                plot_glass_brain(img, threshold=vmax / 6,
+                                 cut_coords=cut_coords,
+                                 vmax=vmax,
+                                 plot_abs=False, output_file=src,
+                                 colorbar=True,
+                                 cmap='cold_white_hot')
         else:
-            raise ValueError('Wrong view type in `view_types`: got %s' % view_type)
+            raise ValueError('Wrong view type in `view_types`: got %s' %
+                             view_type)
         srcs.append(src)
     return srcs, name
 
@@ -72,10 +122,14 @@ def numbered_names(name):
 
 
 def plot_all(img, names=None, output_dir=None,
+             colors=None,
              view_types=['stat_map'],
              n_jobs=1, verbose=10):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
+
+    if colors is None:
+        colors = repeat(None)
 
     if 'surf_stat_map_right' in view_types or 'surf_stat_map_left' in view_types:
         fetch_surf_fsaverage5()
@@ -90,8 +144,8 @@ def plot_all(img, names=None, output_dir=None,
     else:
         assert len(names) == img.get_shape()[3]
     imgs = Parallel(n_jobs=n_jobs, verbose=verbose)(
-        delayed(plot_single)(img, name, output_dir, view_types)
-        for name, img in zip(names, iter_img(img)))
+        delayed(plot_single)(img, name, output_dir, view_types, color)
+        for name, img, color in zip(names, iter_img(img), colors))
     return imgs
 
 
@@ -145,12 +199,10 @@ def filter_contrast(contrast):
     contrast = contrast.replace('bk', 'back')
     contrast = contrast.replace('realrt', 'real risk-taking')
     contrast = contrast.replace('rt', 'risk-taking')
-    contrast = contrast.replace('C08/C16', 'long sentences')
-    contrast = contrast.replace('C01/C02', 'short sentences')
     contrast = contrast.replace('reapp', 'reappraise')
-    contrast = contrast.replace('neu ', 'neutral ')
-    contrast = contrast.replace('neg ', 'negative ')
-    contrast = contrast.replace('ant', 'anticipated')
+    contrast = re.sub(r'\b(neu)\b', 'neutral', contrast)
+    contrast = re.sub(r'\b(neg)\b', 'negative', contrast)
+    contrast = re.sub(r'\b(ant)\b', 'anticipated', contrast)
     return contrast
 
 
@@ -207,7 +259,7 @@ def plot_word_clouds(output_dir, grades, f1s=None, n_jobs=1):
         os.makedirs(output_dir)
 
     Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_word_cloud_single)
-                                            (output_dir, grades, i,f1s)
+                                        (output_dir, grades, i, f1s)
                                         for i, grades in
                                         enumerate(grades['full']))
 

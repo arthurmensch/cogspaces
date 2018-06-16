@@ -1,16 +1,22 @@
 import json
 import numpy as np
+import os
+import re
 import torch
 import torch.nn.functional as F
 from jinja2 import Template
 from joblib import load, Memory
+from matplotlib import cm
 from matplotlib.testing.compare import get_cache_dir
+from nilearn.datasets import fetch_surf_fsaverage5
 from nilearn.input_data import NiftiMasker
 from os.path import join
+from sklearn.utils import check_random_state
 
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
 from cogspaces.plotting import plot_word_clouds, plot_all
+# from exps.analyse.plot_mayavi import plot_3d
 from exps.train import load_data
 
 mem = Memory(cachedir=get_cache_dir())
@@ -50,6 +56,7 @@ def get_names(output_dir):
 
 def get_classifs(output_dir, return_type='img'):
     module = get_module(output_dir)
+
     module.eval()
 
     studies = module.classifiers.keys()
@@ -85,6 +92,13 @@ def get_module(output_dir):
         module = estimator.classifier_.module_
     else:
         module = estimator.module_
+    revert = torch.sum(module.embedder.linear.weight.detach(), dim=1) < 0
+    module.embedder.linear.weight.data[revert] *= - 1
+    module.embedder.linear.bias.data[revert] *= - 1
+    for study, classifier in module.classifiers.items():
+        classifier.batch_norm.running_mean[revert] *= -1
+        classifier.linear.weight.data[:, revert] *= -1
+
     return module
 
 
@@ -234,56 +248,72 @@ def classifs_html(output_dir, classifs_dir):
         f.write(html)
 
 
-def make_report(output_dir, dl=False):
+def compute_nifti(output_dir):
+    fetch_surf_fsaverage5()
+
+    components_imgs = get_components(output_dir)
+    components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
+    classifs_imgs = get_classifs(output_dir)
+    classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
+
+    grades = get_grades(output_dir, grade_type='cosine_similarities')
+    with open(join(output_dir, 'grades.json'), 'w+') as f:
+        json.dump(grades, f)
+
+
+def make_report(output_dir, n_jobs=40):
     view_types = ['stat_map', 'glass_brain',
                   'surf_stat_map_lateral_left',
                   'surf_stat_map_medial_left',
                   'surf_stat_map_lateral_right',
                   'surf_stat_map_medial_right']
 
-    # components_imgs = get_components(output_dir)
-    # components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
-    # classifs_imgs = get_classifs(output_dir)
-    # classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
-    #
-    # grades = get_grades(output_dir, grade_type='cosine_similarities')
-    # with open(join(output_dir, 'grades.json'), 'w+') as f:
-    #     json.dump(grades, f)
-    #
     # names, full_names = get_names(output_dir)
-    #
-    # fetch_surf_fsaverage5()
+
     # plot_all(join(output_dir, 'classifs.nii.gz'),
     #          output_dir=join(output_dir, 'classifs'),
     #          names=full_names,
     #          view_types=view_types,
-    #          n_jobs=40)
+    #          n_jobs=n_jobs)
+
+    colors = np.load(join(output_dir, 'colors.npy'))
     plot_all(join(output_dir, 'components.nii.gz'),
              output_dir=join(output_dir, 'components'),
              names='components',
+             colors=colors,
              view_types=view_types,
-             n_jobs=40)
-    #
-    #
-    # if dl:
-    #     components_imgs_dl = get_components(output_dir, dl=True)
-    #     components_imgs_dl.to_filename(join(output_dir, 'components_dl.nii.gz'))
-    #     plot_all(join(output_dir, 'components_dl.nii.gz'),
-    #              output_dir=join(output_dir, 'components_dl'),
-    #              names='component_dl',
-    #              view_types=view_types,
-    #              n_jobs=40)
-
+             n_jobs=n_jobs)
     with open(join(output_dir, 'grades.json'), 'r') as f:
         grades = json.load(f)
-    plot_word_clouds(join(output_dir, 'wc'), grades, n_jobs=40)
+    plot_word_clouds(join(output_dir, 'wc'), grades, n_jobs=n_jobs)
 
     components_html(output_dir, 'components', 'wc')
     # classifs_html(output_dir, 'classifs')
 
 
 if __name__ == '__main__':
-    output_dir = join(get_output_dir(), 'factored_refit_gm_full_notune', '1',)
-    make_report(output_dir)
-    output_dir = join(get_output_dir(), 'factored_refit_gm_low_lr', '1')
-    make_report(output_dir)
+    n_jobs = 40
+
+    regex = re.compile(r'[0-9]+$')
+    full_names = []
+    for dirpath, dirnames, filenames in os.walk(join(get_output_dir(),
+                                                     'components')):
+        for dirname in filter(lambda f: re.match(regex, f), dirnames):
+            full_name = join(dirpath, dirname)
+            full_names.append(full_name)
+
+    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
+    #                                     for full_name in full_names)
+    rng = check_random_state(0)
+    # colors = rng.random_sample(size=(128, 3))
+    colors = cm.hsv(np.linspace(0, 1, 128))
+    colors = colors[:, :3]
+    rng.shuffle(colors)
+
+    for full_name in full_names:
+        np.save(join(full_name, 'colors.npy'), colors)
+    #
+    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_3d)(full_name)
+    #                                     for full_name in full_names)
+    for full_name in full_names:
+        make_report(full_name, n_jobs=n_jobs)

@@ -38,7 +38,7 @@ def default():
         studies=['ds009']
     )
     model = dict(
-        estimator='logistic',
+        estimator='factored',
         normalize=False,
         seed=100,
         refinement=None,
@@ -54,17 +54,17 @@ def default():
         weight_power=0.6,
         batch_size=128,
         epoch_counting='all',
-        init='rest_gm',
+        init='normal',
         batch_norm=True,
-        refit_from=join(get_output_dir(), 'factored_gm',
-                        'dl_rest_860_1e-04.pkl'),
+        # refit_from=join(get_output_dir(), 'factored_gm',
+        #                 'dl_rest_860_1e-04.pkl'),
         dropout=0.,
         input_dropout=0.25,
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-6, 'sparsify': 1e-4,
             'finetune': 1e-2},
-        max_iter={'pretrain': 100, 'train': 0, 'sparsify': 0,
-                  'finetune': 0},
+        max_iter={'pretrain': 0, 'train': 1, 'sparsify': 0,
+                  'finetune': 1},
         refit_data=['dropout']
     )
 
@@ -324,7 +324,6 @@ def train(system, model, logistic, refinement,
                                             these_targets)
         precs, recalls, f1s, support = precision_recall_fscore_support(
             these_preds, these_targets, warn_for=())
-        balanced_accuracy_score()
         contrasts = target_encoder.le_[study]['contrast'].classes_
         all_prec[study] = {contrast: prec for contrast, prec in
                            zip(contrasts, precs)}

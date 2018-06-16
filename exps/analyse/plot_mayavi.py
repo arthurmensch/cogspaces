@@ -3,37 +3,39 @@ import numpy as np
 from matplotlib import cm
 from mayavi import mlab
 from nilearn import datasets, image, surface
-from os.path import expanduser
+from os.path import join
 
 fsaverage = datasets.fetch_surf_fsaverage5()
 
+
 ##############################################################################
 # Helper functions
-def save_views(name, distance=400, zoom=1,
-               right_actors=None, left_actors=None):
+def save_views(fig, name, actors, distance=400, zoom=1,
+               right_actors=None, left_actors=None,
+               output_dir='.'):
     fig.scene.z_minus_view()
     mlab.view(distance=1.1 * distance)
-    mlab.savefig('%s_bottom.png' % name, size=(zoom * 896, zoom * 1024))
+    mlab.savefig(join(output_dir, '%s_bottom.png') % name, size=(zoom * 896, zoom * 1024))
 
     fig.scene.z_plus_view()
     mlab.view(distance=1.06 * distance)
-    mlab.savefig('%s_top.png' % name, size=(zoom * 896, zoom * 1024))
+    mlab.savefig(join(output_dir, '%s_top.png') % name, size=(zoom * 896, zoom * 1024))
 
     fig.scene.x_plus_view()
     mlab.view(distance=distance)
-    mlab.savefig('%s_right.png' % name, size=(zoom * 1024, zoom * 896))
+    mlab.savefig(join(output_dir, '%s_right.png') % name, size=(zoom * 1024, zoom * 896))
 
     fig.scene.x_minus_view()
     mlab.view(distance=distance)
-    mlab.savefig('%s_left.png' % name, size=(zoom * 1024, zoom * 896))
+    mlab.savefig(join(output_dir, '%s_left.png') % name, size=(zoom * 1024, zoom * 896))
 
     fig.scene.y_minus_view()
     mlab.view(roll=0, distance=.85 * distance)
-    mlab.savefig('%s_back.png' % name, size=(zoom * 1024, zoom * 896))
+    mlab.savefig(join(output_dir, '%s_back.png') % name, size=(zoom * 1024, zoom * 896))
 
     # Side & front
     mlab.view(55, 73, .92 * distance)
-    mlab.savefig('%s_oblique.png' % name, size=(zoom * 1024, zoom * 896))
+    mlab.savefig(join(output_dir, '%s_oblique.png') % name, size=(zoom * 1024, zoom * 896))
 
     if right_actors is not None and left_actors is not None:
         # Plot the medial views
@@ -121,58 +123,57 @@ def add_surf_map(niimg, sides=['left', 'right'],
     return actors
 
 
-
 ###############################################################################
 
-mlab.options.offscreen = True
+def plot_3d(output_dir):
+    mlab.options.offscreen = True
 
-fig = mlab.figure(bgcolor=(1, 1, 1))
+    fig = mlab.figure(bgcolor=(1, 1, 1))
 
-# Disable rendering to speed things up
-fig.scene.disable_render = True
+    # Disable rendering to speed things up
+    fig.scene.disable_render = True
 
-rng = np.random.RandomState(42)
+    rng = np.random.RandomState(42)
 
-components = image.load_img(expanduser('~/output/cogspaces/factored_refit_gm_full_notune/1/components.nii.gz'))
+    components = image.load_img(join(output_dir, 'components.nii.gz'))
 
-mask = datasets.load_mni152_brain_mask().get_data() > 0
+    mask = datasets.load_mni152_brain_mask().get_data() > 0
 
-n_components = components.shape[-1]
-threshold = np.percentile(np.abs(components.get_data()[mask]),
-                          100. * (1 - 1. / n_components))
+    n_components = components.shape[-1]
+    threshold = np.percentile(np.abs(components.get_data()[mask]),
+                              100. * (1 - 1. / n_components))
 
-# To speed up when prototyping
-#components = image.index_img(components, slice(0, 5))
+    # To speed up when prototyping
+    # components = image.index_img(components, slice(0, 5))
 
-colors = cm.nipy_spectral(np.linspace(0, 1, n_components))
-# Random colors tend to give more contrast
-colors= rng.random_sample(size=(n_components, 3))
+    colors = cm.nipy_spectral(np.linspace(0, 1, n_components))
+    colors = np.load(join(output_dir, 'colors.npy'))
+    actors = dict(left=[], right=[])
 
-actors = dict(left=[], right=[])
+    for i, (component, color) in enumerate(zip(
+                                    image.iter_img(components),
+                                    colors)):
+        print('Component %i' % i)
+        component = image.math_img('np.abs(img)', img=component)
+        this_actors = add_surf_map(component, threshold=threshold,
+                                    color=tuple(color[:3]),
+                                    sides=['left', 'right'],
+                                    inflate=1.001)
+        actors['left'].extend(this_actors['left'])
+        actors['right'].extend(this_actors['right'])
 
-for i, (component, color) in enumerate(zip(
-                                image.iter_img(components),
-                                colors)):
-    print('Component %i' % i)
-    component = image.math_img('np.abs(img)', img=component)
-    this_actors = add_surf_map(component, threshold=threshold,
-                                color=tuple(color[:3]),
-                                sides=['left', 'right'],
-                                inflate=1.001)
-    actors['left'].extend(this_actors['left'])
-    actors['right'].extend(this_actors['right'])
-
-# Plot the background
-for side in ['left', 'right']:
-    depth = surface.load_surf_data(fsaverage['sulc_%s' % side])
-    this_actors = plot_on_surf(-depth, sides=[side, ],
-                               colormap='gray', inflate=.995)
-    actors[side].extend(this_actors[side])
+    # Plot the background
+    for side in ['left', 'right']:
+        depth = surface.load_surf_data(fsaverage['sulc_%s' % side])
+        this_actors = plot_on_surf(-depth, sides=[side, ],
+                                   colormap='gray', inflate=.995)
+        actors[side].extend(this_actors[side])
 
 
-# Enable rendering
-fig.scene.disable_render = False
+    # Enable rendering
+    fig.scene.disable_render = False
 
-save_views('all_components', left_actors=actors['left'],
-           right_actors=actors['right'])
+    save_views(fig, 'components_3d', actors,
+               left_actors=actors['left'],
+               right_actors=actors['right'], output_dir=output_dir)
 

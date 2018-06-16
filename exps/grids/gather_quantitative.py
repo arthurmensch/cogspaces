@@ -6,7 +6,7 @@ import numpy as np
 import os
 import pandas as pd
 import re
-from joblib import load
+from joblib import load, Parallel, delayed
 from os.path import join
 
 from cogspaces.data import load_data_from_dir
@@ -102,7 +102,6 @@ def gather_factored(output_dir, flavor='simple'):
         'accuracy']
     accuracies_mean = accuracies.groupby([*extra_indices, 'study']).aggregate(
         ['mean', 'std'])
-    print(metrics_mean)
     accuracies.to_pickle(join(output_dir, 'accuracies.pkl'))
     accuracies_mean.to_pickle(join(output_dir, 'accuracies_mean.pkl'))
 
@@ -194,27 +193,14 @@ def get_studies():
     return studies
 
 
-def compare_accuracies():
-    metrics = pd.read_pickle(join(get_output_dir(),
-                                  'factored_refit_gm_notune',
-                                  'metrics.pkl'))
-    ref_metrics = pd.read_pickle(join(get_output_dir(),
-                                      'logistic_gm', 'metrics.pkl'))
-    metrics = metrics.loc[0.0001]
-    joined = pd.concat([metrics, ref_metrics], axis=1,
-                       keys=['factored', 'baseline'], join='inner')
-    diff = joined['factored'] - joined['baseline']
-    for v in diff.columns:
-        joined['diff', v] = diff[v]
-    joined = joined.reset_index()
-    joined.to_pickle(join(get_output_dir(), 'joined_contrast.pkl'))
-
-
 if __name__ == '__main__':
-    # gather_factored(join(get_output_dir(), 'factored_gm'))
-    gather_factored(join(get_output_dir(), 'logistic_gm'), flavor='single_study')
-    gather_factored(join(get_output_dir(), 'factored_refit_gm_notune'),
-                    flavor='refit')
-    compare_accuracies()
-    # gather_factored(join(get_output_dir(), 'factored_refit_gm'), flavor='refit')
-    # gather_factored(join(get_output_dir(), 'factored_refit_gm_low_lr'), flavor='refit')
+    launch = [
+        # delayed(gather_factored)(join(get_output_dir(), 'factored_gm')),
+        # delayed(gather_factored)(join(get_output_dir(), 'factored_gm_normal_init')),
+        # delayed(gather_factored)(join(get_output_dir(), 'logistic_gm'), flavor='single_study'),
+        # delayed(gather_factored)(join(get_output_dir(), 'factored_gm_single'), flavor='single_study'),
+        # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_notune'), flavor='refit'),
+        delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_notune'), flavor='refit'),
+        # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_low_lr'), flavor='refit')
+        ]
+    Parallel(n_jobs=7)(launch)
