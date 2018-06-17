@@ -19,8 +19,7 @@ from sklearn.utils import check_random_state
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir
 from cogspaces.models.factored_dl import explained_variance
-from exps.analyse.plot_maps import get_dictionary, \
-    get_masker
+from cogspaces.utils import get_dictionary, get_masker
 
 
 class DictionaryScorer:
@@ -148,6 +147,7 @@ def compute_pca(output_dir, seed):
 
 def compute_sparse_components(output_dir, seed, init='rest',
                               symmetric_init=True,
+                              positive=True,
                               proj_principal=False,
                               alpha=1e-2):
     coefs, _, _, _ = load(
@@ -184,7 +184,7 @@ def compute_sparse_components(output_dir, seed, init='rest',
         coefs_ = pca.inverse_transform(pca.transform(coefs_))
 
     if init == 'rest':
-        dict_fact = DictFact(comp_l1_ratio=0, comp_pos=False,
+        dict_fact = DictFact(comp_l1_ratio=0, comp_pos=positive,
                              n_components=128,
                              code_l1_ratio=0, batch_size=32,
                              learning_rate=1,
@@ -193,7 +193,7 @@ def compute_sparse_components(output_dir, seed, init='rest',
                              )
         dict_fact.fit(coefs_)
         dict_init = dict_fact.components_
-    dict_fact = DictFact(comp_l1_ratio=1, comp_pos=False, n_components=128,
+    dict_fact = DictFact(comp_l1_ratio=1, comp_pos=positive, n_components=128,
                          code_l1_ratio=0, batch_size=32, learning_rate=1,
                          dict_init=dict_init,
                          code_alpha=alpha, verbose=10, n_epochs=20)
@@ -220,7 +220,7 @@ def compute_all_decomposition(output_dir, n_jobs=1):
     seeds = pd.read_pickle(join(output_dir, 'seeds.pkl'))
     seeds = seeds['seed'].unique()
 
-    decompositions = ['dl_random']
+    decompositions = ['dl_positive']
     alphas = [1e-2, 5e-3, 1e-3, 5e-4, 1e-4]
     # alphas = [1e-5]
 
@@ -242,6 +242,16 @@ def compute_all_decomposition(output_dir, n_jobs=1):
             components_list = Parallel(n_jobs=n_jobs, verbose=10)(
                 delayed(compute_sparse_components)
                 (output_dir, seed,
+                 symmetric_init=False,
+                 alpha=alpha,
+                 init='random')
+                for seed in seeds
+                for alpha in alphas)
+        elif decomposition == 'dl_positive':
+            components_list = Parallel(n_jobs=n_jobs, verbose=10)(
+                delayed(compute_sparse_components)
+                (output_dir, seed,
+                 positive=True,
                  symmetric_init=False,
                  alpha=alpha,
                  init='random')

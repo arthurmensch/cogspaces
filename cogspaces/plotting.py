@@ -213,18 +213,29 @@ def filter_contrast(contrast):
     return contrast
 
 
-def plot_word_clouds(output_dir, grades, f1s=None, n_jobs=1):
+def plot_word_clouds(output_dir, grades, f1s=None, n_jobs=1, colors=None):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
+    if colors is None:
+        colors = repeat(None
+                        )
+
     Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_word_cloud_single)
-                                        (output_dir, grades, i, f1s)
-                                        for i, grades in
-                                        enumerate(grades['full']))
+                                        (output_dir, grades, i, f1s, color)
+                                        for i, (grades, color) in
+                                        enumerate(grades['full'], colors))
 
 
-def plot_word_cloud_single(output_dir, grades, index, f1s=None):
+def plot_word_cloud_single(output_dir, grades, index, f1s=None,
+                           color=None):
     import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    if color is not None:
+        colormap = sns.dark_palette(color, as_cmap=True)
+    else:
+        colormap = None
 
     contrasts = list(filter(
         lambda x: 'effects_of_interest' not in x and 'gauthier' not in x,
@@ -246,16 +257,16 @@ def plot_word_cloud_single(output_dir, grades, index, f1s=None):
             term = filter_contrast(term)
             cat_terms.append(term)
         for term in cat_terms:
-            frequencies_single[term] += grade * f1 / len(cat_terms)
+            frequencies_single[term] += grade * f1 # / len(cat_terms)
         cat_terms = ' '.join(cat_terms)
         frequencies_cat[cat_terms] += grade * f1
 
     dpi = 40
     width, height = (400, 200)
     fig, ax = plt.subplots(1, 1, figsize=(width / dpi, height / dpi))
-    fig, ax = plt.subplots(1, 1)
     wc = WordCloud(prefer_horizontal=1,
                    background_color='white',
+                   colormap=colormap,
                    relative_scaling=0.5)
     wc.generate_from_frequencies(frequencies=frequencies_single, )
     ax.imshow(wc, interpolation="bilinear")
@@ -265,8 +276,10 @@ def plot_word_cloud_single(output_dir, grades, index, f1s=None):
     width, height = (600, 200)
     fig, ax = plt.subplots(1, 1, figsize=(width / dpi, height / dpi))
     wc = WordCloud(prefer_horizontal=1,
-                   background_color='white', width=800, height=200,
-                   relative_scaling=0.7)
+                   background_color=None, width=800, height=200,
+                   mode='RGBA',
+                   colormap=colormap,
+                   relative_scaling=0.5)
     wc.generate_from_frequencies(frequencies=frequencies_cat, )
     ax.imshow(wc, interpolation="bilinear")
     ax.axis("off")

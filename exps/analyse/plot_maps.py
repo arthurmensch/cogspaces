@@ -9,13 +9,12 @@ from joblib import load, Memory, delayed, Parallel
 from matplotlib.colors import hsv_to_rgb
 from matplotlib.testing.compare import get_cache_dir
 from nilearn.datasets import fetch_surf_fsaverage5
-from nilearn.input_data import NiftiMasker
 from os.path import join
 from sklearn.utils import check_random_state
 
-from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
+from cogspaces.datasets.utils import get_output_dir, get_data_dir
 from cogspaces.plotting import plot_word_clouds, plot_all
+from cogspaces.utils import get_dictionary, get_masker
 from exps.analyse.plot_mayavi import plot_3d
 from exps.train import load_data
 
@@ -186,20 +185,6 @@ def get_grades(output_dir, grade_type='data_z_score'):
     return grades
 
 
-def get_masker():
-    mask = fetch_mask()['hcp']
-    masker = NiftiMasker(mask_img=mask).fit()
-    return masker
-
-
-def get_dictionary():
-    modl_atlas = fetch_atlas_modl()
-    dictionary = modl_atlas['components512_gm']
-    masker = get_masker()
-    dictionary = masker.transform(dictionary)
-    return dictionary
-
-
 def components_html(output_dir, components_dir, wc_dir):
     with open('plot_maps.html', 'r') as f:
         template = f.read()
@@ -285,7 +270,8 @@ def make_report(output_dir, n_jobs=40):
              n_jobs=n_jobs)
     with open(join(output_dir, 'grades.json'), 'r') as f:
         grades = json.load(f)
-    plot_word_clouds(join(output_dir, 'wc'), grades, n_jobs=n_jobs)
+    plot_word_clouds(join(output_dir, 'wc'), grades, n_jobs=n_jobs,
+                     colors=colors)
 
     components_html(output_dir, 'components', 'wc')
     # classifs_html(output_dir, 'classifs')

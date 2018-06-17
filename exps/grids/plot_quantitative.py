@@ -34,8 +34,7 @@ def plot_joined():
     joined_mean['chance'] = chance_level
     joined_mean['n_subjects'] = n_subjects
 
-    joined_mean.to_pickle(join(output_dir, 'joined_mean.pkl'))
-    data = pd.read_pickle(join(output_dir, 'joined_mean.pkl'))
+    data = joined_mean
 
     with open(expanduser('~/work/repos/cogspaces/cogspaces/'
                          'datasets/brainpedia.json')) as f:
@@ -145,9 +144,10 @@ def plot_compare_methods(sort, many=False):
     if many:
         exps = [baseline,
                 'factored_refit_gm_low_lr',
-                'factored_refit_gm_normal_init_notune',
                 'factored_refit_gm_notune',
                 'factored_gm',
+                'factored_refit_gm_normal_init_low_lr',
+                'factored_refit_gm_normal_init_notune',
                 'factored_gm_normal_init',
                 ]
     else:
@@ -215,15 +215,24 @@ def plot_compare_methods(sort, many=False):
     if many:
         y_labels['factored_refit_gm_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(+ rest init + DL - refit)'
         y_labels['factored_gm'] = 'Factored decoder\nwith multi-\nstudy prior\n(+ rest init - DL)'
+        y_labels['factored_refit_gm_normal_init_low_lr'] = 'Factored decoder\nwith multi-\nstudy prior\n(- rest init + DL + refit)'
+        y_labels['factored_refit_gm_normal_init_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(- rest init + DL - refit)'
         y_labels['factored_gm_normal_init'] = 'Factored decoder\nwith multi-\nstudy prior\n(- rest init - DL)'
-        y_labels['factored_refit_gm_normal_init_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(- rest init + DL + refit)'
         ax.hlines(1.5, *ax.get_xlim(), linestyle='--', color='.5')
-        ax.annotate('Ablation', xy=(-.1, 1.5), xytext=(-7, 0),
+        ax.annotate('Phase ablation', xy=(-.1, 2.5), xytext=(-7, 0),
                     textcoords="offset points",
                     fontsize=8,
                     xycoords='data',
                     va='center', rotation=90,
                     ha='right')
+        ax.annotate('Normal initialisation',
+                    xy=(-.1, 5), xytext=(-7, 0),
+                    textcoords="offset points",
+                    fontsize=8,
+                    xycoords='data',
+                    va='center', rotation=90,
+                    ha='right')
+
 
     for i, method in enumerate(methods):
         ax.annotate(y_labels[method], xy=(.17, i), xytext=(7, 0),

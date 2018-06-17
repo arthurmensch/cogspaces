@@ -196,11 +196,13 @@ def get_studies():
 if __name__ == '__main__':
     launch = [
         # delayed(gather_factored)(join(get_output_dir(), 'factored_gm')),
-        # delayed(gather_factored)(join(get_output_dir(), 'factored_gm_normal_init')),
+        # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_low_lr'), flavor='refit'),
+        delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_positive_notune'), flavor='refit'),
         # delayed(gather_factored)(join(get_output_dir(), 'logistic_gm'), flavor='single_study'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_gm_single'), flavor='single_study'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_notune'), flavor='refit'),
-        delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_notune'), flavor='refit'),
+        # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_notune'), flavor='refit'),
+        # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_notune'), flavor='refit'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_low_lr'), flavor='refit')
         ]
     Parallel(n_jobs=7)(launch)
