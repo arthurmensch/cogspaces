@@ -15,7 +15,7 @@ from os.path import join
 from wordcloud import WordCloud
 
 
-def make_cmap(color, rotation=.5, white=False):
+def make_cmap(color, rotation=.5, white=False, transparent_zero=False):
     h, s, v = rgb_to_hsv(color)
     h = h + rotation
     if h > 1:
@@ -27,23 +27,27 @@ def make_cmap(color, rotation=.5, white=False):
     for direction, (r, g, b) in colors.items():
         if white:
             cdict[direction] = {color: [(0.0, 0.0416, 0.0416),
-                  (0.18, c, c),
-                  (0.5, 1, 1),
-                  (0.62, 0.0, 0.0),
-                  (1.0, 0.0416, 0.0416)] for color, c in [('blue', b), ('red', r), ('green', g)]}
-            cdict[direction]['alpha']: [(0, 1, 1), (0.5, 0, 0), (1, 1, 1)]
+                                        (0.18, c, c),
+                                        (0.5, 1, 1),
+                                        (0.62, 0.0, 0.0),
+                                        (1.0, 0.0416, 0.0416)] for color, c in
+                                [('blue', b), ('red', r), ('green', g)]}
         else:
             cdict[direction] = {color: [(0.0, 1, 1),
-                  (0.32, c, c),
-                  (0.5, 0.0416, 0.0416),
-                  (0.5, 0.0, 0.0),
-                  (0.87, 0.0, 0.0),
-                  (1.0, 1, 1)]  for color, c in [('blue', b), ('red', r), ('green', g)]}
+                                        (0.32, c, c),
+                                        (0.5, 0.0416, 0.0416),
+                                        (0.5, 0.0, 0.0),
+                                        (0.87, 0.0, 0.0),
+                                        (1.0, 1, 1)] for color, c in
+                                [('blue', b), ('red', r), ('green', g)]}
+        if transparent_zero:
+            cdict[direction]['alpha']: [(0, 1, 1), (0.5, 0, 0), (1, 1, 1)]
     cmap = LinearSegmentedColormap('cmap', cdict['direct'])
     cmapi = LinearSegmentedColormap('cmap', cdict['inverted'])
     cmap._init()
     cmapi._init()
     cmap._lut = np.maximum(cmap._lut, cmapi._lut[::-1])
+    # Big hack from nilearn (WTF !?)
     cmap._lut[-1, -1] = 0
     return cmap
 
@@ -57,9 +61,12 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None):
     if color is not None:
         cmap = make_cmap(color, rotation=.5)
         cmap_white = make_cmap(color, rotation=.5, white=True)
+        cmap_white_transparent = make_cmap(color, rotation=.5, white=True,
+                                           transparent_zero=True)
     else:
         cmap = 'cold_hot'
         cmap_white = 'cold_white_hot'
+        cmap_white_transparent = 'cold_white_hot'
 
     srcs = []
     vmax = np.abs(img.get_data()).max()
@@ -88,7 +95,7 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None):
             plot_surf_stat_map(surf_mesh, texture, hemi=hemi,
                                bg_map=bg_map,
                                vmax=vmax,
-                               threshold=vmax / 12,
+                               threshold=vmax / 6,
                                view=view,
                                output_file=src,
                                cmap=cmap)
@@ -106,7 +113,7 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None):
                                  vmax=vmax,
                                  plot_abs=False, output_file=src,
                                  colorbar=True,
-                                 cmap='cold_white_hot')
+                                 cmap=cmap_white)
         else:
             raise ValueError('Wrong view type in `view_types`: got %s' %
                              view_type)
@@ -183,7 +190,7 @@ def rgb2hex(r, g, b):
 def filter_contrast(contrast):
     contrast = contrast.lower()
     contrast = contrast.replace('lf', 'left foot')
-    contrast = contrast.replace('rh', 'right foot')
+    contrast = contrast.replace('rf', 'right foot')
     contrast = contrast.replace('lh', 'left hand')
     contrast = contrast.replace('rh', 'right hand')
     contrast = contrast.replace('clicgaudio', 'left audio click')
@@ -204,54 +211,6 @@ def filter_contrast(contrast):
     contrast = re.sub(r'\b(neg)\b', 'negative', contrast)
     contrast = re.sub(r'\b(ant)\b', 'anticipated', contrast)
     return contrast
-
-
-def plot_word_clouds_all(output_dir, grades):
-    import seaborn as sns
-    import matplotlib.pyplot as plt
-
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    studies = list(grades['study'][0].keys())
-    colors = sns.color_palette('husl', len(studies))
-
-    for i, these_grades in enumerate(grades['full']):
-        contrasts = list(filter(
-            lambda x: 'effects_of_interest' not in x and 'gauthier' not in x,
-            these_grades))[:15]
-        frequencies = []
-        studies = []
-        for contrast in contrasts:
-            grade = these_grades[contrast]
-            study, contrast = contrast.split('::')
-            contrast = filter_contrast()
-            terms = contrast.split('_')
-            contrast = []
-            for term in terms:
-                if term == 'baseline':
-                    break
-                if term == 'vs':
-                    break
-                else:
-                    contrast.append(term)
-            if contrast:
-                contrast = ' '.join(contrast)
-                frequencies.append((contrast, grade))
-                studies.append(study)
-        color_to_words = {rgb2hex(*color): [study]
-                          for color, study in zip(colors, studies)}
-        color_func = SimpleGroupedColorFunc(color_to_words,
-                                            default_color='#ffffff')
-        wc = WordCloud(color_func=color_func)
-        wc.generate_from_frequencies(frequencies=frequencies,
-                                     as_tuples=True,
-                                     group_colors=studies)
-        fig, ax = plt.subplots(1, 1)
-        ax.imshow(wc, interpolation="bilinear")
-        ax.axis("off")
-        fig.savefig(join(output_dir, 'wc_%i.png' % i))
-        plt.close(fig)
 
 
 def plot_word_clouds(output_dir, grades, f1s=None, n_jobs=1):
@@ -276,7 +235,6 @@ def plot_word_cloud_single(output_dir, grades, index, f1s=None):
         grade = grades[contrast]
         study, contrast = contrast.split('::')
         f1 = 1 if f1s is None else f1s[study][contrast]
-        contrast = filter_contrast(contrast)
         terms = contrast.replace(' ', '_').replace('&', '_'). \
             replace('-', '_').split('_')
         cat_terms = []
@@ -285,6 +243,7 @@ def plot_word_cloud_single(output_dir, grades, index, f1s=None):
                 break
             if term == 'vs':
                 break
+            term = filter_contrast(term)
             cat_terms.append(term)
         for term in cat_terms:
             frequencies_single[term] += grade * f1 / len(cat_terms)
@@ -297,7 +256,7 @@ def plot_word_cloud_single(output_dir, grades, index, f1s=None):
     fig, ax = plt.subplots(1, 1)
     wc = WordCloud(prefer_horizontal=1,
                    background_color='white',
-                   relative_scaling=0.7)
+                   relative_scaling=0.5)
     wc.generate_from_frequencies(frequencies=frequencies_single, )
     ax.imshow(wc, interpolation="bilinear")
     ax.axis("off")

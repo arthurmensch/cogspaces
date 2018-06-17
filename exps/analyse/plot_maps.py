@@ -5,8 +5,8 @@ import re
 import torch
 import torch.nn.functional as F
 from jinja2 import Template
-from joblib import load, Memory
-from matplotlib import cm
+from joblib import load, Memory, delayed, Parallel
+from matplotlib.colors import hsv_to_rgb
 from matplotlib.testing.compare import get_cache_dir
 from nilearn.datasets import fetch_surf_fsaverage5
 from nilearn.input_data import NiftiMasker
@@ -16,7 +16,7 @@ from sklearn.utils import check_random_state
 from cogspaces.datasets.dictionaries import fetch_atlas_modl
 from cogspaces.datasets.utils import fetch_mask, get_output_dir, get_data_dir
 from cogspaces.plotting import plot_word_clouds, plot_all
-# from exps.analyse.plot_mayavi import plot_3d
+from exps.analyse.plot_mayavi import plot_3d
 from exps.train import load_data
 
 mem = Memory(cachedir=get_cache_dir())
@@ -305,15 +305,15 @@ if __name__ == '__main__':
     # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
     #                                     for full_name in full_names)
     rng = check_random_state(0)
-    # colors = rng.random_sample(size=(128, 3))
-    colors = cm.hsv(np.linspace(0, 1, 128))
-    colors = colors[:, :3]
+    hs = np.linspace(0, 1, 128, endpoint=False)
+    rgbs = [list(hsv_to_rgb((h, 1, 1))) for h in hs]
+    colors = np.array(rgbs)
     rng.shuffle(colors)
 
     for full_name in full_names:
         np.save(join(full_name, 'colors.npy'), colors)
     #
-    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_3d)(full_name)
-    #                                     for full_name in full_names)
+    Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_3d)(full_name)
+                                        for full_name in full_names)
     for full_name in full_names:
         make_report(full_name, n_jobs=n_jobs)
