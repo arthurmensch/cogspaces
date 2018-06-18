@@ -194,12 +194,14 @@ class FactoredClassifier(BaseEstimator):
                  batch_norm=True,
                  sampling='cycle',
                  epoch_counting='all',
+                 reset_classifiers=False,
                  init='normal',
                  refit_from=None,
                  refit_data=['dropout', 'classifier'],
                  adaptive_dropout=True,
                  n_jobs=1,
                  patience=200,
+                 black_list_target=False,
                  seed=None):
 
         self.latent_size = latent_size
@@ -226,11 +228,14 @@ class FactoredClassifier(BaseEstimator):
         self.patience = patience
         self.max_iter = max_iter
 
+        self.black_list_target = black_list_target
         self.target_study = target_study
 
         self.adaptive_dropout = adaptive_dropout
 
         self.epoch_counting = epoch_counting
+
+        self.reset_classifiers = reset_classifiers
 
         self.verbose = verbose
         self.device = device
@@ -252,6 +257,10 @@ class FactoredClassifier(BaseEstimator):
         y = {study: torch.from_numpy(this_y['contrast'].values).long()
              for study, this_y in y.items()}
         data = {study: TensorDataset(X[study], y[study]) for study in X}
+
+        if self.black_list_target:
+            data.pop(self.target_study)
+
         lengths = {study: len(this_data)
                    for study, this_data in data.items()}
         lengths_arr = np.array(list(lengths.values()))
@@ -261,6 +270,9 @@ class FactoredClassifier(BaseEstimator):
 
         study_weights = {study: study_weight for study, study_weight
                          in zip(lengths, study_weights)}
+
+        if self.black_list_target:
+            study_weights[self.target_study] = 1
 
         if self.sampling == 'random':
             eff_lengths = {study: total_length * study_weight for
@@ -281,7 +293,7 @@ class FactoredClassifier(BaseEstimator):
 
         # Loss
         if self.sampling == 'random':
-            loss_study_weights = {study: 1. for study in X}
+            loss_study_weights = {study: 1. for study in data}
         else:
             loss_study_weights = study_weights
         loss_function = MultiStudyLoss(loss_study_weights, )
@@ -448,6 +460,7 @@ class FactoredClassifier(BaseEstimator):
 
             if self.target_study is not None:
                 X = {self.target_study: X[self.target_study]}
+                # module.classifiers[study].batch_norm = Identity()
             for study, this_X in X.items():
                 print('Fine tuning %s' % study)
                 this_X = this_X.to(device=device)
@@ -461,7 +474,8 @@ class FactoredClassifier(BaseEstimator):
                                          drop_last=False,
                                          pin_memory=device.type == 'cuda')
                 this_module = module.classifiers[study]
-                this_module.reset_parameters()
+                if self.reset_classifiers:
+                    this_module.reset_parameters()
                 if this_module.linear.adaptive:
                     this_module.linear.make_non_adaptive()
                 optimizer = Adam(filter(lambda p: p.requires_grad,
@@ -507,7 +521,7 @@ class FactoredClassifier(BaseEstimator):
                             ' penalty: %.4f, p: %.2f'
                             % (epoch, epoch_loss, epoch_penalty,
                                this_module.linear.get_p().item()))
-                        callback(self, epoch)
+                        # callback(self, epoch)
 
                     if epoch_loss > best_loss:
                         no_improvement += 1

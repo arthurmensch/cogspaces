@@ -183,7 +183,7 @@ def compute_sparse_components(output_dir, seed, init='rest',
         dict_init = pca.inverse_transform(pca.transform(dict_init))
         coefs_ = pca.inverse_transform(pca.transform(coefs_))
 
-    if init == 'rest':
+    if 'rest' in init:
         dict_fact = DictFact(comp_l1_ratio=0, comp_pos=positive,
                              n_components=128,
                              code_l1_ratio=0, batch_size=32,
@@ -220,9 +220,8 @@ def compute_all_decomposition(output_dir, n_jobs=1):
     seeds = pd.read_pickle(join(output_dir, 'seeds.pkl'))
     seeds = seeds['seed'].unique()
 
-    decompositions = ['dl_positive']
-    # alphas = [1e-2, 5e-3, 1e-3, 5e-4, 1e-4]
-    alphas = [1e-5, 1e-6, 1e-7]
+    decompositions = ['dl_rest_positive']
+    alphas = [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]
 
     for decomposition in decompositions:
         if decomposition == 'pca':
@@ -302,8 +301,8 @@ def nifti_all(output_dir):
 
 
 if __name__ == '__main__':
-    output_dir = join(get_output_dir(), 'factored_gm_normal_init_full')
-    # output_dir = join(get_output_dir(), 'factored_gm_normal_init')
-    compute_coefs(output_dir)
+    # output_dir = join(get_output_dir(), 'factored_gm_normal_init_full')
+    output_dir = join(get_output_dir(), 'factored_gm_normal_init')
+    # compute_coefs(output_dir)
     compute_all_decomposition(output_dir, n_jobs=40)
     # nifti_all(output_dir)

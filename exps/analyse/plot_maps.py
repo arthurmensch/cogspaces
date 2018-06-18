@@ -3,16 +3,17 @@ import os
 import re
 import torch
 from jinja2 import Template
-from joblib import load, Memory, dump
-from matplotlib.colors import hsv_to_rgb
+from joblib import load, Memory, dump, delayed, Parallel
 from matplotlib.testing.compare import get_cache_dir
 from nilearn.datasets import fetch_surf_fsaverage5
 from os.path import join
+from seaborn import hls_palette
 from sklearn.utils import check_random_state
 
 from cogspaces.datasets.utils import get_output_dir, get_data_dir
 from cogspaces.plotting import plot_word_clouds, plot_all
 from cogspaces.utils import get_dictionary, get_masker
+from exps.analyse.plot_mayavi import plot_3d
 from exps.train import load_data
 
 mem = Memory(cachedir=get_cache_dir())
@@ -147,21 +148,15 @@ def get_grades(output_dir, grade_type='data_z_score'):
                                      return_type='arrays_full')
         components_full = get_components(output_dir,
                                          return_type='arrays_full')
-        # metrics = pd.read_pickle(
-        #     join(get_output_dir(), 'factored_gm', 'metrics.pkl'))
-        # f1s = metrics['f1'].groupby(['study', 'contrast']).mean()
-        #
-        # names, full_names = get_names(output_dir)
-        #
+        max = components_full.max(axis=1, keepdims=True)
+        components_full[components_full < max / 3] = 0
         for study, classif_full in classifs_full.items():
-            # this_f1 = f1s.loc[study]
-            # this_f1 = this_f1.loc[names[study]]
             classif_full -= classif_full.mean(axis=0, keepdims=True)
             grades[study] = (
                     classif_full.dot(components_full.T)
                     / np.sqrt(np.sum(classif_full ** 2, axis=1)[:, None])
                     / np.sqrt(np.sum(components_full ** 2, axis=1)[None, :])
-            )  # * this_f1[:, None]
+            )
     else:
         raise ValueError
     full_grades = np.concatenate(list(grades.values()), axis=0)
@@ -242,8 +237,8 @@ def compute_nifti(output_dir):
 
     components_imgs = get_components(output_dir)
     components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
-    classifs_imgs = get_classifs(output_dir)
-    classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
+    # classifs_imgs = get_classifs(output_dir)
+    # classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
 
 
 def compute_grades(output_dir):
@@ -252,7 +247,7 @@ def compute_grades(output_dir):
 
 
 def plot_grades(output_dir, n_jobs):
-    colors = np.load(join(output_dir, 'colors.npy'))
+    colors = np.load(join(output_dir, 'colors_2d.npy'))
     grades = load(join(output_dir, 'grades.pkl'))
 
 
@@ -276,7 +271,7 @@ def plot_2d(output_dir, n_jobs=40):
     #          view_types=view_types,
     #          n_jobs=n_jobs)
 
-    colors = np.load(join(output_dir, 'colors.npy'))
+    colors = np.load(join(output_dir, 'colors_2d.npy'))
 
     plot_all(join(output_dir, 'components.nii.gz'),
              output_dir=join(output_dir, 'components'),
@@ -297,33 +292,32 @@ if __name__ == '__main__':
     regex = re.compile(r'[0-9]+$')
     full_names = []
 
-    output_dir = join(get_output_dir(), 'components')
-    # output_dir = join(get_output_dir(), 'factored_refit_gm_normal_init_full_rest_positive_notune')
+    # output_dir = join(get_output_dir(), 'components')
+    output_dir = join(get_output_dir(), 'factored_refit_gm_normal_init_full_rest_positive_notune')
     #
     for dirpath, dirnames, filenames in os.walk(output_dir):
         for dirname in filter(lambda f: re.match(regex, f), dirnames):
             full_name = join(dirpath, dirname)
             full_names.append(full_name)
     #
-    rng = check_random_state(0)
-    hs = np.linspace(0, 1, 128, endpoint=False)
-    rgbs = [list(hsv_to_rgb((h, 1, 1))) for h in hs]
-    colors = np.array(rgbs)
-    rng.shuffle(colors)
+    rng = check_random_state(1000)
+    permutation = rng.permutation(128)
+    colors_2d = hls_palette(128, s=1, l=.4)[permutation]
+    colors_3d = hls_palette(128, s=1, l=.5)[permutation]
 
     for full_name in full_names:
-        np.save(join(full_name, 'colors.npy'), colors)
+        np.save(join(full_name, 'colors_2d.npy'), colors_2d)
+        np.save(join(full_name, 'colors_3d.npy'), colors_3d)
 
-    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
-    #                                     for full_name in full_names)
-    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_3d)(full_name)
-    #                                     for full_name in full_names)
-    # for full_name in full_names:
-    #     plot_2d(full_name, n_jobs=n_jobs)
-    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_grades)(full_name)
-    #                                     for full_name in full_names)
+    Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
+                                        for full_name in full_names)
+    Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_3d)(full_name)
+                                        for full_name in full_names)
+    for full_name in full_names:
+        plot_2d(full_name, n_jobs=n_jobs)
+    Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_grades)(full_name)
+                                        for full_name in full_names)
     for full_name in full_names:
         plot_grades(full_name, n_jobs=n_jobs)
-    #
-    # for full_name in full_names:
-    #     make_report(full_name)
+    for full_name in full_names:
+        make_report(full_name)

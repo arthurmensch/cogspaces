@@ -54,6 +54,49 @@ def factored():
     )
 
 
+def factored_transfer():
+    seed = 100
+    full = False
+    system = dict(
+        device=-1,
+        verbose=2,
+        n_jobs=1,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512_gm'),
+        studies='all',
+    )
+    model = dict(
+        estimator='factored',
+        normalize=False,
+        seed=100,
+        refinement=None,
+        target_study=None,
+    )
+    factored = dict(
+        optimizer='adam',
+        latent_size=128,
+        activation='linear',
+        regularization=1,
+        adaptive_dropout=True,
+        black_list_target=True,
+        sampling='random',
+        weight_power=0.6,
+        batch_size=128,
+        epoch_counting='all',
+        init='normal',
+        batch_norm=True,
+        reset_classifiers=False,
+        dropout=0.5,
+        input_dropout=0.25,
+        seed=100,
+        lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
+            'finetune': 1e-3},
+        max_iter={'pretrain': 0, 'train': 300, 'sparsify': 0,
+                  'finetune': 200},
+    )
+
+
 def factored_single():
     seed = 100
     full = False
@@ -95,7 +138,6 @@ def factored_single():
     )
 
 
-
 def factored_refit():
     seed = 10
     full = False
@@ -111,6 +153,9 @@ def factored_refit():
     model = dict(
         estimator='factored',
         normalize=False,
+        seed=100,
+        refinement=None,
+        target_study=None,
     )
     factored = dict(
         weight_power=0.6,
@@ -120,6 +165,8 @@ def factored_refit():
         sampling='random',
         init='rest_gm',
         adaptive_dropout=True,
+        black_list_target=False,
+        reset_classifiers=False,
         batch_norm=True,
         regularization=1,
         input_dropout=0.25,
@@ -270,6 +317,14 @@ if __name__ == '__main__':
                                         'factored.init': ['normal'],
                                         'factored.max_iter.pretrain': [0]
                                         })
+    elif grid == 'reset_classifiers':
+        exp.config(factored)
+        config_updates = ParameterGrid({'seed': seeds,
+                                        'factored.seed': [0],
+                                        'factored.init': ['normal'],
+                                        'factored.reset_classifiers': [True, False],
+                                        'factored.max_iter.pretrain': [0]
+                                        })
     elif grid == 'factored_gm_norm_init_full':
         exp.config(factored)
         config_updates = ParameterGrid({'seed': [0],
@@ -297,7 +352,7 @@ if __name__ == '__main__':
                           for seed in seeds
                           for alpha in [1e-2, 1e-3, 1e-4]
                           for decomposition in ['dl_rest']]
-    elif grid == 'factored_refit_gm_normal_init_positive_notune':
+    elif grid == 'factored_refit_gm_normal_init_rest_positive_notune':
         exp.config(factored_refit)
         init_dir = join(get_output_dir(), 'factored_gm_normal_init')
 
@@ -313,8 +368,8 @@ if __name__ == '__main__':
                                                  'finetune': 0}
                           }
                           for seed in seeds
-                          for alpha in [1e-5, 1e-6, 1e-7]
-                          for decomposition in ['dl_positive']]
+                          for alpha in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]
+                          for decomposition in ['dl_rest_positive']]
     elif grid == 'factored_refit_gm_normal_init_full_positive_notune':
         exp.config(factored_refit)
         init_dir = join(get_output_dir(), 'factored_gm_normal_init_full')
@@ -365,6 +420,12 @@ if __name__ == '__main__':
         exp.config(factored_single)
         config_updates = ParameterGrid({'data.studies': studies,
                                         'seed': seeds})
+
+    elif grid == 'factored_transfer':
+        exp.config(factored_transfer)
+        config_updates = ParameterGrid({'model.target_study': studies,
+                                        'seed': seeds})
+
     elif grid == 'weight_power':
         exp.config(factored)
         weight_power = np.linspace(0, 1, 10)

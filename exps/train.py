@@ -30,24 +30,25 @@ def default():
     full = False
     system = dict(
         device=-1,
-        verbose=20,
+        verbose=2,
         n_jobs=3,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_gm'),
-        studies='all'
+        studies=['brainomics', 'archi']
     )
     model = dict(
         estimator='factored',
         normalize=False,
         seed=100,
         refinement=None,
-        target_study=None,
+        target_study='archi',
     )
     factored = dict(
         optimizer='adam',
         latent_size=128,
         activation='linear',
+        black_list_target=True,
         regularization=1,
         adaptive_dropout=True,
         sampling='random',
@@ -56,15 +57,16 @@ def default():
         epoch_counting='all',
         init='normal',
         batch_norm=True,
+        reset_classifiers=False,
         # refit_from=join(get_output_dir(), 'factored_gm',
         #                 'dl_rest_860_1e-04.pkl'),
-        dropout=0.75,
+        dropout=0.5,
         input_dropout=0.25,
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
             'finetune': 1e-3},
-        max_iter={'pretrain': 0, 'train': 100, 'sparsify': 0,
-                  'finetune': 100},
+        max_iter={'pretrain': 0, 'train': 300, 'sparsify': 0,
+                  'finetune': 200},
         refit_data=['classifier', 'dropout']
     )
 

@@ -1,6 +1,5 @@
 # Run in "ipython --matplotlib=qt"
 import numpy as np
-from matplotlib import cm
 from mayavi import mlab
 from nilearn import datasets, image, surface
 from os.path import join
@@ -146,8 +145,7 @@ def plot_3d(output_dir):
     # To speed up when prototyping
     # components = image.index_img(components, slice(0, 5))
 
-    colors = cm.nipy_spectral(np.linspace(0, 1, n_components))
-    colors = np.load(join(output_dir, 'colors.npy'))
+    colors = np.load(join(output_dir, 'colors_3d.npy'))
     actors = dict(left=[], right=[])
 
     for i, (component, color) in enumerate(zip(

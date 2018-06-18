@@ -19,6 +19,9 @@ def gather_factored(output_dir, flavor='simple'):
     regex = re.compile(r'[0-9]+$')
     if flavor == 'refit':
         extra_indices = ['alpha']
+    elif flavor == 'reset':
+        extra_indices = ['reset']
+
     else:
         extra_indices = []
     accuracies = []
@@ -73,6 +76,9 @@ def gather_factored(output_dir, flavor='simple'):
             if flavor == 'refit':
                 refit_from = config['factored']['refit_from']
                 extra_dict = dict(alpha=float(refit_from[-9:-4]))
+            elif flavor == 'reset':
+                reset = config['factored']['reset_classifiers']
+                extra_dict = dict(reset=reset)
             else:
                 extra_dict = {}
             accuracies.extend([dict(seed=seed, study=study, accuracy=score,
@@ -198,7 +204,8 @@ if __name__ == '__main__':
     launch = [
         # delayed(gather_factored)(join(get_output_dir(), 'factored_gm')),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_low_lr'), flavor='refit'),
-        delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_positive_notune'), flavor='refit'),
+        delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_rest_positive_notune'), flavor='refit'),
+        # delayed(gather_factored)(join(get_output_dir(), 'reset_classifiers'), flavor='reset'),
         # delayed(gather_factored)(join(get_output_dir(), 'logistic_gm'), flavor='single_study'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_gm_single'), flavor='single_study'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_notune'), flavor='refit'),

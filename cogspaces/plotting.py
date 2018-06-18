@@ -200,15 +200,17 @@ def filter_contrast(contrast):
     contrast = contrast.replace('clicdaudio', 'right audio click')
     contrast = contrast.replace('calculvideo', 'video calculation')
     contrast = contrast.replace('calculaudio', 'audio calculation')
+    contrast = contrast.replace('damier h', 'horizontal checkerboard')
+    contrast = contrast.replace('damier v', 'vertical checkerboard')
 
     contrast = contrast.replace('audvid600', 'audio video 600ms')
     contrast = contrast.replace('audvid1200', 'audio video 1200ms')
     contrast = contrast.replace('audvid300', 'audio video 300ms')
     contrast = contrast.replace('bk', 'back')
     contrast = contrast.replace('realrt', 'real risk-taking')
-    contrast = contrast.replace('rt', 'risk-taking')
-    contrast = contrast.replace(' ons', '')
     contrast = contrast.replace('reapp', 'reappraise')
+    contrast = re.sub(r'\b(rt)\b', 'risk-taking', contrast)
+    contrast = re.sub(r'\b(ons)\b', '', contrast)
     contrast = re.sub(r'\b(neu)\b', 'neutral', contrast)
     contrast = re.sub(r'\b(neg)\b', 'negative', contrast)
     contrast = re.sub(r'\b(ant)\b', 'anticipated', contrast)
@@ -256,7 +258,7 @@ def plot_word_cloud_single(output_dir, grades, index,
         for term in terms:
             if term == 'baseline':
                 break
-            if term in ['vs', 'v']:
+            if term in ['vs']:
                 break
             cat_terms.append(term)
         for term in cat_terms:

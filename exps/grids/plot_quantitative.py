@@ -149,7 +149,7 @@ def plot_compare_methods(sort, many=False):
                 'factored_refit_gm_normal_init_low_lr',
                 'factored_refit_gm_normal_init_notune',
                 'factored_gm_normal_init',
-                'factored_refit_gm_normal_init_positive_notune',
+                'factored_refit_gm_normal_init_rest_positive_notune',
                 ]
     else:
         exps = [baseline, 'factored_gm_single', 'factored_refit_gm_low_lr']
@@ -158,7 +158,10 @@ def plot_compare_methods(sort, many=False):
     for exp in exps:
         df = pd.read_pickle(join(output_dir, exp, 'accuracies.pkl'))
         if 'refit' in exp:
-            df = df.loc[0.0001]
+            if 'positive' in exp:
+                df = df.loc[0.001]
+            else:
+                df = df.loc[0.0001]
         if exp in ['factored_gm', 'factored_gm_normal_init']:
             df = df.groupby(['study', 'seed']).mean()
         dfs.append(df)
@@ -219,7 +222,7 @@ def plot_compare_methods(sort, many=False):
         y_labels['factored_refit_gm_normal_init_low_lr'] = 'Factored decoder\nwith multi-\nstudy prior\n(random init + DL + refit)'
         y_labels['factored_refit_gm_normal_init_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(random init + DL - refit)'
         y_labels['factored_gm_normal_init'] = 'Factored decoder\nwith multi-\nstudy prior\n(random init - DL)'
-        y_labels['factored_refit_gm_normal_init_positive_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(random init +\n positive DL\n- refit)'
+        y_labels['factored_refit_gm_normal_init_rest_positive_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(random init +\n positive DL\n- refit)'
         ax.hlines([1.5, 3.5, 6.5], *ax.get_xlim(), linestyle='--', color='.5')
         ax.annotate('Training phase ablation', xy=(-.1, 2.5), xytext=(-7, 0),
                     textcoords="offset points",
