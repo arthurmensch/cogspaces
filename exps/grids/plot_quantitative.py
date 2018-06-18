@@ -149,6 +149,7 @@ def plot_compare_methods(sort, many=False):
                 'factored_refit_gm_normal_init_low_lr',
                 'factored_refit_gm_normal_init_notune',
                 'factored_gm_normal_init',
+                'factored_refit_gm_normal_init_positive_notune',
                 ]
     else:
         exps = [baseline, 'factored_gm_single', 'factored_refit_gm_low_lr']
@@ -215,17 +216,18 @@ def plot_compare_methods(sort, many=False):
     if many:
         y_labels['factored_refit_gm_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(+ rest init + DL - refit)'
         y_labels['factored_gm'] = 'Factored decoder\nwith multi-\nstudy prior\n(+ rest init - DL)'
-        y_labels['factored_refit_gm_normal_init_low_lr'] = 'Factored decoder\nwith multi-\nstudy prior\n(- rest init + DL + refit)'
-        y_labels['factored_refit_gm_normal_init_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(- rest init + DL - refit)'
-        y_labels['factored_gm_normal_init'] = 'Factored decoder\nwith multi-\nstudy prior\n(- rest init - DL)'
-        ax.hlines(1.5, *ax.get_xlim(), linestyle='--', color='.5')
-        ax.annotate('Phase ablation', xy=(-.1, 2.5), xytext=(-7, 0),
+        y_labels['factored_refit_gm_normal_init_low_lr'] = 'Factored decoder\nwith multi-\nstudy prior\n(random init + DL + refit)'
+        y_labels['factored_refit_gm_normal_init_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(random init + DL - refit)'
+        y_labels['factored_gm_normal_init'] = 'Factored decoder\nwith multi-\nstudy prior\n(random init - DL)'
+        y_labels['factored_refit_gm_normal_init_positive_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(random init +\n positive DL\n- refit)'
+        ax.hlines([1.5, 3.5, 6.5], *ax.get_xlim(), linestyle='--', color='.5')
+        ax.annotate('Training phase ablation', xy=(-.1, 2.5), xytext=(-7, 0),
                     textcoords="offset points",
                     fontsize=8,
                     xycoords='data',
                     va='center', rotation=90,
                     ha='right')
-        ax.annotate('Normal initialisation',
+        ax.annotate('Initialisation / DL parameters',
                     xy=(-.1, 5), xytext=(-7, 0),
                     textcoords="offset points",
                     fontsize=8,

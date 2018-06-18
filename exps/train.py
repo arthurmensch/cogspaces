@@ -30,12 +30,12 @@ def default():
     full = False
     system = dict(
         device=-1,
-        verbose=2,
+        verbose=20,
         n_jobs=3,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_gm'),
-        studies=['ds009']
+        studies='all'
     )
     model = dict(
         estimator='factored',
@@ -58,22 +58,22 @@ def default():
         batch_norm=True,
         # refit_from=join(get_output_dir(), 'factored_gm',
         #                 'dl_rest_860_1e-04.pkl'),
-        dropout=0.,
+        dropout=0.75,
         input_dropout=0.25,
         seed=100,
-        lr={'pretrain': 1e-3, 'train': 1e-6, 'sparsify': 1e-4,
-            'finetune': 1e-2},
-        max_iter={'pretrain': 0, 'train': 1, 'sparsify': 0,
-                  'finetune': 1},
-        refit_data=['dropout']
+        lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
+            'finetune': 1e-3},
+        max_iter={'pretrain': 0, 'train': 100, 'sparsify': 0,
+                  'finetune': 100},
+        refit_data=['classifier', 'dropout']
     )
 
     logistic = dict(
         estimator='logistic',
-        l2_penalty=np.logspace(-5, 1, 7).tolist(),
+        l2_penalty=[7e-5],
         max_iter=3000,
-        # refit_from=expanduser('~/dl_rest_860_1e-04.pkl'),
-        refit_from=None
+        refit_from=join(get_output_dir(), 'factored_gm',
+                        'dl_rest_860_1e-04.pkl'),
     )
 
     refinement = dict(

@@ -125,10 +125,10 @@ def factored_refit():
         input_dropout=0.25,
         dropout=0.75,
         optimizer='adam',
-        lr={'pretrain': 1e-3, 'train': 1e-4, 'sparsify': 1e-3,
+        lr={'pretrain': 1e-3, 'train': 1e-5, 'sparsify': 1e-3,
             'finetune': 1e-3},
         batch_size=128,
-        max_iter={'pretrain': 200, 'train': 300,
+        max_iter={'pretrain': 0, 'train': 300,
                   'sparsify': 0, 'finetune': 200},
         seed=100)
 
@@ -283,20 +283,20 @@ if __name__ == '__main__':
         config_updates = ParameterGrid({'model.target_study': studies,
                                         'seed': seeds,
                                         })
-    elif grid == 'factored_refit_gm_normal_init_low_lr':
+    elif grid == 'factored_refit_gm_lower_lr':
         exp.config(factored_refit)
-        init_dir = join(get_output_dir(), 'factored_gm_normal_init')
+        init_dir = join(get_output_dir(), 'factored_gm')
 
         config_updates = [{'seed': seed,
                            'factored.refit_from': join(init_dir,
                                                        '%s_%i_%.0e.pkl' %
                                                        (decomposition, seed,
                                                         alpha)),
-                          'factored.refit_data': [],
+                          'factored.refit_data': ['dropout', 'classifier'],
                           }
                           for seed in seeds
                           for alpha in [1e-2, 1e-3, 1e-4]
-                          for decomposition in ['dl_random']]
+                          for decomposition in ['dl_rest']]
     elif grid == 'factored_refit_gm_normal_init_positive_notune':
         exp.config(factored_refit)
         init_dir = join(get_output_dir(), 'factored_gm_normal_init')
@@ -313,8 +313,26 @@ if __name__ == '__main__':
                                                  'finetune': 0}
                           }
                           for seed in seeds
-                          for alpha in [1e-2, 1e-3, 1e-4]
+                          for alpha in [1e-5, 1e-6, 1e-7]
                           for decomposition in ['dl_positive']]
+    elif grid == 'factored_refit_gm_normal_init_full_positive_notune':
+        exp.config(factored_refit)
+        init_dir = join(get_output_dir(), 'factored_gm_normal_init_full')
+
+        config_updates = [{'seed': 0,
+                           'factored.refit_from': join(init_dir,
+                                                       '%s_%i_%.0e.pkl' %
+                                                       (decomposition, 0,
+                                                        alpha)),
+                          'factored.refit_data': ['classifier', 'dropout'],
+                           'factored.max_iter': {'pretrain': 0,
+                                                 'train': 0,
+                                                 'sparsify': 0,
+                                                 'finetune': 0}
+                          }
+                          for alpha in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]
+                          for decomposition in ['dl_positive']]
+
 
     elif grid == 'factored_refit_gm_notune':
         exp.config(factored_refit)

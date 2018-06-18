@@ -103,6 +103,7 @@ def gather_factored(output_dir, flavor='simple'):
     accuracies_mean = accuracies.groupby([*extra_indices, 'study']).aggregate(
         ['mean', 'std'])
     accuracies.to_pickle(join(output_dir, 'accuracies.pkl'))
+    print(accuracies_mean)
     accuracies_mean.to_pickle(join(output_dir, 'accuracies_mean.pkl'))
 
 

@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+import math
 from collections import defaultdict
 from itertools import repeat
 
@@ -206,6 +207,7 @@ def filter_contrast(contrast):
     contrast = contrast.replace('bk', 'back')
     contrast = contrast.replace('realrt', 'real risk-taking')
     contrast = contrast.replace('rt', 'risk-taking')
+    contrast = contrast.replace(' ons', '')
     contrast = contrast.replace('reapp', 'reappraise')
     contrast = re.sub(r'\b(neu)\b', 'neutral', contrast)
     contrast = re.sub(r'\b(neg)\b', 'negative', contrast)
@@ -213,7 +215,7 @@ def filter_contrast(contrast):
     return contrast
 
 
-def plot_word_clouds(output_dir, grades, f1s=None, n_jobs=1, colors=None):
+def plot_word_clouds(output_dir, grades, n_jobs=1, colors=None):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -222,12 +224,12 @@ def plot_word_clouds(output_dir, grades, f1s=None, n_jobs=1, colors=None):
                         )
 
     Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_word_cloud_single)
-                                        (output_dir, grades, i, f1s, color)
+                                        (output_dir, grades, i, color)
                                         for i, (grades, color) in
-                                        enumerate(grades['full'], colors))
+                                        enumerate(zip(grades['full'], colors)))
 
 
-def plot_word_cloud_single(output_dir, grades, index, f1s=None,
+def plot_word_cloud_single(output_dir, grades, index,
                            color=None):
     import matplotlib.pyplot as plt
     import seaborn as sns
@@ -239,35 +241,39 @@ def plot_word_cloud_single(output_dir, grades, index, f1s=None,
 
     contrasts = list(filter(
         lambda x: 'effects_of_interest' not in x and 'gauthier' not in x,
-        grades))[:15]
+        grades))[:20]
     frequencies_cat = defaultdict(lambda: 0.)
     frequencies_single = defaultdict(lambda: 0.)
+    occurences = defaultdict(lambda: 0.)
     for contrast in contrasts:
         grade = grades[contrast]
         study, contrast = contrast.split('::')
-        f1 = 1 if f1s is None else f1s[study][contrast]
-        terms = contrast.replace(' ', '_').replace('&', '_'). \
-            replace('-', '_').split('_')
+        contrast = contrast.replace('_', ' ').replace('&', ' ').replace('-',
+                                                                        ' ')
+        contrast = filter_contrast(contrast)
+        terms = contrast.split(' ')
         cat_terms = []
         for term in terms:
             if term == 'baseline':
                 break
-            if term == 'vs':
+            if term in ['vs', 'v']:
                 break
-            term = filter_contrast(term)
             cat_terms.append(term)
         for term in cat_terms:
-            frequencies_single[term] += grade * f1 # / len(cat_terms)
+            frequencies_single[term] += grade
+            occurences[term] += 1
         cat_terms = ' '.join(cat_terms)
-        frequencies_cat[cat_terms] += grade * f1
+        frequencies_cat[cat_terms] += grade
 
+    frequencies_single = {term: freq / math.sqrt(occurences[term]) for term, freq
+                          in frequencies_single.items()}
     dpi = 40
     width, height = (400, 200)
     fig, ax = plt.subplots(1, 1, figsize=(width / dpi, height / dpi))
     wc = WordCloud(prefer_horizontal=1,
                    background_color='white',
                    colormap=colormap,
-                   relative_scaling=0.5)
+                   relative_scaling=0.7)
     wc.generate_from_frequencies(frequencies=frequencies_single, )
     ax.imshow(wc, interpolation="bilinear")
     ax.axis("off")
@@ -279,7 +285,7 @@ def plot_word_cloud_single(output_dir, grades, index, f1s=None,
                    background_color=None, width=800, height=200,
                    mode='RGBA',
                    colormap=colormap,
-                   relative_scaling=0.5)
+                   relative_scaling=0.7)
     wc.generate_from_frequencies(frequencies=frequencies_cat, )
     ax.imshow(wc, interpolation="bilinear")
     ax.axis("off")

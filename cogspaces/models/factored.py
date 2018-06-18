@@ -57,7 +57,8 @@ class Embedder(nn.Module):
                 self.linear.weight.data /= 2
             elif self.init == 'orthogonal':
                 nn.init.orthogonal_(self.linear.weight.data,
-                                    gain=1 / math.sqrt(self.linear.weight.shape[1]))
+                                    gain=1 / math.sqrt(
+                                        self.linear.weight.shape[1]))
             elif self.init == 'rest':
                 assert self.linear.out_features == 128
                 assert self.linear.in_features == 512
@@ -88,7 +89,7 @@ class LatentClassifier(nn.Module):
         super().__init__()
 
         if batch_norm:
-            self.batch_norm = nn.BatchNorm1d(latent_size, affine=False,)
+            self.batch_norm = nn.BatchNorm1d(latent_size, affine=False, )
         self.linear = DropoutLinear(latent_size,
                                     target_size, bias=True, p=dropout,
                                     var_penalty=var_penalty,
@@ -332,7 +333,8 @@ class FactoredClassifier(BaseEstimator):
                 raise ValueError('`target_study` should be specified'
                                  ' if `epoch_counting` is "target_study".')
             else:
-                n_samples = ceil(len(X[self.target_study]) / study_weights[self.target_study])
+                n_samples = ceil(len(X[self.target_study]) / study_weights[
+                    self.target_study])
         elif self.epoch_counting == 'all':
             n_samples = sum(len(this_X) for this_X in X.values())
         else:
@@ -436,7 +438,6 @@ class FactoredClassifier(BaseEstimator):
 
                 epoch = floor(seen_samples / n_samples)
         print('Final density %s' % module.embedder.linear.density)
-
         phase = 'finetune'
         if self.max_iter[phase] > 0:
             if self.verbose != 0:
@@ -460,11 +461,13 @@ class FactoredClassifier(BaseEstimator):
                                          drop_last=False,
                                          pin_memory=device.type == 'cuda')
                 this_module = module.classifiers[study]
+                this_module.reset_parameters()
                 if this_module.linear.adaptive:
                     this_module.linear.make_non_adaptive()
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         this_module.parameters()),
                                  lr=self.lr[phase], amsgrad=True)
+                # scheduler = CosineAnnealingLR(optimizer, 50)
                 loss_function = F.nll_loss
 
                 seen_samples = 0
@@ -473,6 +476,7 @@ class FactoredClassifier(BaseEstimator):
                 epoch = 0
                 best_state = module.state_dict()
                 for epoch in range(self.max_iter[phase]):
+                    # scheduler.step(epoch)
                     epoch_batch = 0
                     epoch_penalty = 0
                     epoch_loss = 0
@@ -503,7 +507,7 @@ class FactoredClassifier(BaseEstimator):
                             ' penalty: %.4f, p: %.2f'
                             % (epoch, epoch_loss, epoch_penalty,
                                this_module.linear.get_p().item()))
-                        # callback(self, epoch)
+                        callback(self, epoch)
 
                     if epoch_loss > best_loss:
                         no_improvement += 1

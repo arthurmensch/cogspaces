@@ -1,11 +1,9 @@
-import json
 import numpy as np
 import os
 import re
 import torch
-import torch.nn.functional as F
 from jinja2 import Template
-from joblib import load, Memory, delayed, Parallel
+from joblib import load, Memory, dump
 from matplotlib.colors import hsv_to_rgb
 from matplotlib.testing.compare import get_cache_dir
 from nilearn.datasets import fetch_surf_fsaverage5
@@ -15,7 +13,6 @@ from sklearn.utils import check_random_state
 from cogspaces.datasets.utils import get_output_dir, get_data_dir
 from cogspaces.plotting import plot_word_clouds, plot_all
 from cogspaces.utils import get_dictionary, get_masker
-from exps.analyse.plot_mayavi import plot_3d
 from exps.train import load_data
 
 mem = Memory(cachedir=get_cache_dir())
@@ -106,7 +103,7 @@ def get_grades(output_dir, grade_type='data_z_score'):
     if grade_type == 'data_z_score':
         module = get_module(output_dir)
         target_encoder = load(join(output_dir, 'target_encoder.pkl'))
-        data, target = load_data(join(get_data_dir(), 'reduced_512'), 'all')
+        data, target = load_data(join(get_data_dir(), 'reduced_512_gm'), 'all')
         data = {study: torch.from_numpy(this_data).float() for study, this_data
                 in
                 data.items()}
@@ -133,35 +130,40 @@ def get_grades(output_dir, grade_type='data_z_score'):
                              (preds.shape[0] - 1))
             z_scores /= std[None, :]
             grades[study] = z_scores.numpy()
-    else:
+    elif grade_type == 'loadings':
+        module = get_module(output_dir)
+        for study, classifier in module.classifiers.items():
+            in_features = classifier.linear.in_features
+            classifier.eval()
+            with torch.no_grad():
+                grades[study] = (classifier(torch.eye(in_features),
+                                            logits=True)
+                                 - classifier(torch.zeros(1, in_features),
+                                              logits=True)).transpose(0,
+                                                                      1).numpy()
+
+    elif grade_type == 'cosine_similarities':
         classifs_full = get_classifs(output_dir,
                                      return_type='arrays_full')
         components_full = get_components(output_dir,
                                          return_type='arrays_full')
-        if grade_type == 'cosine_similarities':
-            for study, classif_full in classifs_full.items():
-                classif_full -= classif_full.mean(axis=0, keepdims=True)
-                grades[study] = (
-                        classif_full.dot(components_full.T)
-                        / np.sqrt(np.sum(classif_full ** 2, axis=1)[:, None])
-                        / np.sqrt(
-                    np.sum(components_full ** 2, axis=1)[None, :])
-                )
-        elif grade_type == 'log_odd':
-            classifs = get_classifs(output_dir, return_type='arrays')
-            for study, classif in classifs.items():
-                classif -= classif.mean(axis=0, keepdims=True)
-                grades[study] = np.exp(classif)
-        elif grade_type == 'model':
-            module = get_module(output_dir)
-            components = get_components(output_dir,
-                                        return_type='components')
-            with torch.no_grad():
-                logits = module({study: torch.from_numpy(components)
-                                 for study in module.classifiers})
-            grades = {study: F.softmax(logit, dim=1).transpose(0, 1).numpy()
-                      for study, logit in logits.items()}
-
+        # metrics = pd.read_pickle(
+        #     join(get_output_dir(), 'factored_gm', 'metrics.pkl'))
+        # f1s = metrics['f1'].groupby(['study', 'contrast']).mean()
+        #
+        # names, full_names = get_names(output_dir)
+        #
+        for study, classif_full in classifs_full.items():
+            # this_f1 = f1s.loc[study]
+            # this_f1 = this_f1.loc[names[study]]
+            classif_full -= classif_full.mean(axis=0, keepdims=True)
+            grades[study] = (
+                    classif_full.dot(components_full.T)
+                    / np.sqrt(np.sum(classif_full ** 2, axis=1)[:, None])
+                    / np.sqrt(np.sum(components_full ** 2, axis=1)[None, :])
+            )  # * this_f1[:, None]
+    else:
+        raise ValueError
     full_grades = np.concatenate(list(grades.values()), axis=0)
 
     names, full_names = get_names(output_dir)
@@ -193,10 +195,11 @@ def components_html(output_dir, components_dir, wc_dir):
     for i in range(128):
         title = 'components_%i' % i
         view_types = ['stat_map', 'glass_brain',
-                      'surf_stat_map_lateral_left',
-                      'surf_stat_map_medial_left',
-                      'surf_stat_map_lateral_right',
-                      'surf_stat_map_medial_right']
+                      # 'surf_stat_map_lateral_left',
+                      # 'surf_stat_map_medial_left',
+                      # 'surf_stat_map_lateral_right',
+                      # 'surf_stat_map_medial_right'
+                      ]
         srcs = []
         for view_type in view_types:
             src = join(components_dir, '%s_%s.png' % (title, view_type))
@@ -218,10 +221,11 @@ def classifs_html(output_dir, classifs_dir):
     imgs = []
     for name in full_names:
         view_types = ['stat_map', 'glass_brain',
-                      'surf_stat_map_lateral_left',
-                      'surf_stat_map_medial_left',
-                      'surf_stat_map_lateral_right',
-                      'surf_stat_map_medial_right']
+                      # 'surf_stat_map_lateral_left',
+                      # 'surf_stat_map_medial_left',
+                      # 'surf_stat_map_lateral_right',
+                      # 'surf_stat_map_medial_right'
+                      ]
         srcs = []
         for view_type in view_types:
             src = join(classifs_dir, '%s_%s.png' % (name, view_type))
@@ -241,19 +245,30 @@ def compute_nifti(output_dir):
     classifs_imgs = get_classifs(output_dir)
     classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
 
+
+def compute_grades(output_dir):
     grades = get_grades(output_dir, grade_type='cosine_similarities')
-    with open(join(output_dir, 'grades.json'), 'w+') as f:
-        json.dump(grades, f)
+    dump(grades, join(output_dir, 'grades.pkl'))
 
 
-def make_report(output_dir, n_jobs=40):
+def plot_grades(output_dir, n_jobs):
+    colors = np.load(join(output_dir, 'colors.npy'))
+    grades = load(join(output_dir, 'grades.pkl'))
+
+
+    plot_word_clouds(join(output_dir, 'wc'), grades, n_jobs=n_jobs,
+                     colors=colors)
+
+
+def plot_2d(output_dir, n_jobs=40):
     view_types = ['stat_map', 'glass_brain',
-                  'surf_stat_map_lateral_left',
-                  'surf_stat_map_medial_left',
-                  'surf_stat_map_lateral_right',
-                  'surf_stat_map_medial_right']
+                  # 'surf_stat_map_lateral_left',
+                  # 'surf_stat_map_medial_left',
+                  # 'surf_stat_map_lateral_right',
+                  # 'surf_stat_map_medial_right'
+                  ]
 
-    # names, full_names = get_names(output_dir)
+    names, full_names = get_names(output_dir)
 
     # plot_all(join(output_dir, 'classifs.nii.gz'),
     #          output_dir=join(output_dir, 'classifs'),
@@ -262,19 +277,18 @@ def make_report(output_dir, n_jobs=40):
     #          n_jobs=n_jobs)
 
     colors = np.load(join(output_dir, 'colors.npy'))
+
     plot_all(join(output_dir, 'components.nii.gz'),
              output_dir=join(output_dir, 'components'),
              names='components',
              colors=colors,
              view_types=view_types,
              n_jobs=n_jobs)
-    with open(join(output_dir, 'grades.json'), 'r') as f:
-        grades = json.load(f)
-    plot_word_clouds(join(output_dir, 'wc'), grades, n_jobs=n_jobs,
-                     colors=colors)
 
+
+def make_report(output_dir):
     components_html(output_dir, 'components', 'wc')
-    # classifs_html(output_dir, 'classifs')
+    classifs_html(output_dir, 'classifs')
 
 
 if __name__ == '__main__':
@@ -282,14 +296,15 @@ if __name__ == '__main__':
 
     regex = re.compile(r'[0-9]+$')
     full_names = []
-    for dirpath, dirnames, filenames in os.walk(join(get_output_dir(),
-                                                     'components')):
+
+    output_dir = join(get_output_dir(), 'components')
+    # output_dir = join(get_output_dir(), 'factored_refit_gm_normal_init_full_rest_positive_notune')
+    #
+    for dirpath, dirnames, filenames in os.walk(output_dir):
         for dirname in filter(lambda f: re.match(regex, f), dirnames):
             full_name = join(dirpath, dirname)
             full_names.append(full_name)
-
-    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
-    #                                     for full_name in full_names)
+    #
     rng = check_random_state(0)
     hs = np.linspace(0, 1, 128, endpoint=False)
     rgbs = [list(hsv_to_rgb((h, 1, 1))) for h in hs]
@@ -298,8 +313,17 @@ if __name__ == '__main__':
 
     for full_name in full_names:
         np.save(join(full_name, 'colors.npy'), colors)
-    #
-    Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_3d)(full_name)
-                                        for full_name in full_names)
+
+    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
+    #                                     for full_name in full_names)
+    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_3d)(full_name)
+    #                                     for full_name in full_names)
+    # for full_name in full_names:
+    #     plot_2d(full_name, n_jobs=n_jobs)
+    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_grades)(full_name)
+    #                                     for full_name in full_names)
     for full_name in full_names:
-        make_report(full_name, n_jobs=n_jobs)
+        plot_grades(full_name, n_jobs=n_jobs)
+    #
+    # for full_name in full_names:
+    #     make_report(full_name)

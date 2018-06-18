@@ -221,8 +221,8 @@ def compute_all_decomposition(output_dir, n_jobs=1):
     seeds = seeds['seed'].unique()
 
     decompositions = ['dl_positive']
-    alphas = [1e-2, 5e-3, 1e-3, 5e-4, 1e-4]
-    # alphas = [1e-5]
+    # alphas = [1e-2, 5e-3, 1e-3, 5e-4, 1e-4]
+    alphas = [1e-5, 1e-6, 1e-7]
 
     for decomposition in decompositions:
         if decomposition == 'pca':
@@ -234,6 +234,16 @@ def compute_all_decomposition(output_dir, n_jobs=1):
                 delayed(compute_sparse_components)
                 (output_dir, seed,
                  symmetric_init=False,
+                 alpha=alpha,
+                 init='rest')
+                for seed in seeds
+                for alpha in alphas)
+        elif decomposition == 'dl_rest_positive':
+            components_list = Parallel(n_jobs=n_jobs, verbose=10)(
+                delayed(compute_sparse_components)
+                (output_dir, seed,
+                 symmetric_init=False,
+                 positive=True,
                  alpha=alpha,
                  init='rest')
                 for seed in seeds
@@ -292,8 +302,8 @@ def nifti_all(output_dir):
 
 
 if __name__ == '__main__':
-    # output_dir = join(get_output_dir(), 'factored_gm_normal_init_full')
-    output_dir = join(get_output_dir(), 'factored_gm_normal_init')
+    output_dir = join(get_output_dir(), 'factored_gm_normal_init_full')
+    # output_dir = join(get_output_dir(), 'factored_gm_normal_init')
     compute_coefs(output_dir)
     compute_all_decomposition(output_dir, n_jobs=40)
     # nifti_all(output_dir)
