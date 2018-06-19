@@ -1,5 +1,9 @@
 import json
-import matplotlib.pyplot as plt
+import matplotlib as mpl
+mpl.rcParams['font.family'] = 'sans-serif'
+mpl.rcParams['font.family'] = 'cmss10'
+mpl.rcParams['font.size'] = 13
+
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -9,15 +13,25 @@ from os.path import expanduser, join
 from cogspaces.datasets.utils import get_output_dir
 from exps.grids.gather_quantitative import get_chance_subjects
 
+
+import matplotlib.pyplot as plt
+
 idx = pd.IndexSlice
 
 save_dir = '/home/arthur/work/papers/papers/2018_05_nature/figures/'
 
+pad_bottom = .47
+pad_top = .02
+pad_right = .02
+pad_left = 2.49
 
 def plot_joined():
+    width, height = 9, 5.6
+
     output_dir = get_output_dir()
 
-    factored_output_dir = join(output_dir, 'factored_refit_gm_low_lr')
+    factored_output_dir = join(output_dir,
+                               'factored_refit_gm_normal_init_rest_positive_notune')
     baseline_output_dir = join(output_dir, 'logistic_gm')
 
     factored = pd.read_pickle(join(factored_output_dir, 'accuracies.pkl'))
@@ -43,10 +57,13 @@ def plot_joined():
     data = data.sort_values(('diff', 'mean'), ascending=True)
 
     gs = gridspec.GridSpec(1, 2,
-                           width_ratios=[2.3, 1]
+                           width_ratios=[2.7, 1]
                            )
-    gs.update(top=0.98, bottom=0.09, left=0.27, right=0.98)
-    fig = plt.figure(figsize=(9, 5.3))
+    fig = plt.figure(figsize=(width, height))
+    gs.update(left=pad_left / width, right=1 - .3 / width,
+              bottom=pad_bottom / height, top=1 - pad_top / height,
+              wspace=1.2 / width
+              )
     ax2 = fig.add_subplot(gs[0, 0])
     ax1 = fig.add_subplot(gs[0, 1], sharey=ax2)
     n_study = data.shape[0]
@@ -61,8 +78,8 @@ def plot_joined():
     baseline_color_err = '0.65'
     transfer_color = '0.1'
     transfer_color_err = '0.'
-    rects = ax1.barh(ind, data[('diff', 'mean')], width,
-                     color=diff_color)
+    ax1.barh(ind, data[('diff', 'mean')], width,
+             color=diff_color)
     for this_x, this_y, this_xerr, this_color in zip(data[('diff', 'mean')],
                                                      ind,
                                                      data[('diff', 'std')],
@@ -70,16 +87,11 @@ def plot_joined():
         ax1.errorbar(this_x, this_y, xerr=this_xerr, elinewidth=1.5,
                      capsize=2, linewidth=0, ecolor=this_color,
                      alpha=.5)
-    # errorbar = ax1.errorbar(data[('diff', 'mean')], ind,
-    #
-    #                         xerr=data[('diff', 'std')], elinewidth=1.5,
-    #                         capsize=2, linewidth=0, ecolor=diff_color,
-    #                         alpha=.5)
     ax1.set_xlabel('Accuracy gain')
     ax1.spines['left'].set_position('zero')
     plt.setp(ax1.get_yticklabels(), visible=False)
 
-    ax1.set_xlim([-0.025, 0.17])
+    ax1.set_xlim([-0.04, 0.18])
     ax1.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
     ax1.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
     ax1.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1, decimals=0))
@@ -89,25 +101,25 @@ def plot_joined():
     width = .8
     rects1 = ax2.barh(ind, data[('baseline', 'mean')], width,
                       color=baseline_color)
-    errorbar = ax2.errorbar(data[('baseline', 'mean')], ind,
-                            xerr=data[('baseline', 'std')],
-                            elinewidth=1.5,
-                            capsize=2, linewidth=0, ecolor=baseline_color_err,
-                            alpha=.5)
+    ax2.errorbar(data[('baseline', 'mean')], ind,
+                 xerr=data[('baseline', 'std')],
+                 elinewidth=1.5,
+                 capsize=2, linewidth=0, ecolor=baseline_color_err,
+                 alpha=.5)
     rects2 = ax2.barh(ind + width, data[('factored', 'mean')], width,
                       color=transfer_color)
-    errorbar = ax2.errorbar(data[('factored', 'mean')], ind + width,
-                            xerr=data[('factored', 'std')],
-                            elinewidth=1.5,
-                            capsize=2, linewidth=0, ecolor=transfer_color_err,
-                            alpha=.5)
+    ax2.errorbar(data[('factored', 'mean')], ind + width,
+                 xerr=data[('factored', 'std')],
+                 elinewidth=1.5,
+                 capsize=2, linewidth=0, ecolor=transfer_color_err,
+                 alpha=.5)
 
     lines = ax2.vlines([data['chance']],
                        ind - width / 2, ind + 3 * width / 2, colors='r',
                        linewidth=1, linestyles='--')
 
     ax2.set_ylim([-1, 2 * data.shape[0]])
-    plt.setp(ax2.yaxis.get_ticklabels(), fontsize=8)
+    plt.setp(ax2.yaxis.get_ticklabels(), fontsize=10)
     ax2.set_xlim([0., 0.95])
     ax2.xaxis.set_major_locator(ticker.MultipleLocator(0.2))
     ax2.xaxis.set_minor_locator(ticker.MultipleLocator(0.05))
@@ -115,10 +127,11 @@ def plot_joined():
     ax2.set_xlabel('Decoding accuracy on test set')
 
     handles = [rects1, rects2, lines]
-    labels = ['Baseline decoder', 'Factored decoder with\nmulti-study prior',
+    labels = ['Baseline decoder', 'Factored decoder\nwith multi-study\nprior',
               'Chance level']
     ax2.legend(handles, labels, loc='lower right', frameon=False,
-               bbox_to_anchor=(1.15, .15))
+               fontsize=11,
+               bbox_to_anchor=(1.14, .64))
 
     ax2.set_yticks(ind + width / 2)
     ax2.annotate('Task fMRI study', xy=(-.4, -.08), xycoords='axes fraction')
@@ -129,7 +142,8 @@ def plot_joined():
                         va='center')
     sns.despine(fig)
 
-    plt.savefig(join(save_dir, 'joined_mean.pdf'))
+    plt.savefig(join(save_dir, 'joined_mean.pdf'), facecolor=None, edgecolor=None,
+                transparent=True)
     plt.close(fig)
 
     sort = data.index.values.tolist()[::-1]
@@ -137,31 +151,30 @@ def plot_joined():
 
 
 def plot_compare_methods(sort, many=False):
+    width, height = 6.2, 3
+
     output_dir = get_output_dir()
 
     baseline = 'logistic_gm'
 
     if many:
         exps = [baseline,
-                'factored_refit_gm_low_lr',
-                'factored_refit_gm_notune',
-                'factored_gm',
-                'factored_refit_gm_normal_init_low_lr',
+                'factored_refit_gm_normal_init_rest_positive_notune',
+                'factored_refit_gm_normal_init_positive_notune',
                 'factored_refit_gm_normal_init_notune',
                 'factored_gm_normal_init',
-                'factored_refit_gm_normal_init_rest_positive_notune',
+                'factored_refit_gm_notune',
+                'factored_gm'
                 ]
     else:
-        exps = [baseline, 'factored_gm_single', 'factored_refit_gm_low_lr']
+        exps = [baseline, 'factored_gm_single',
+                'factored_refit_gm_normal_init_rest_positive_notune']
 
     dfs = []
     for exp in exps:
         df = pd.read_pickle(join(output_dir, exp, 'accuracies.pkl'))
         if 'refit' in exp:
-            if 'positive' in exp:
-                df = df.loc[0.001]
-            else:
-                df = df.loc[0.0001]
+            df = df.loc[0.0001]
         if exp in ['factored_gm', 'factored_gm_normal_init']:
             df = df.groupby(['study', 'seed']).mean()
         dfs.append(df)
@@ -186,19 +199,23 @@ def plot_compare_methods(sort, many=False):
     n_studies = len(df_sort['study'].unique())
 
     diff_color = sns.color_palette("husl", n_studies)
+    if many:
+        height = height * len(exps) / 3
 
-    fig, ax = plt.subplots(1, 1, figsize=(6, len(exps)))
+    fig, ax = plt.subplots(1, 1, figsize=(width, height))
+    fig.subplots_adjust(left=.07 / width, right=1 - 1.6 /width,
+                        bottom=0.55 / height, top=1 - pad_top / height, )
+
     params = dict(x="accuracy", y="method", hue="study",
                   data=df_sort, dodge=True, ax=ax,
                   palette=diff_color
                   )
-    g = sns.stripplot(alpha=1, zorder=200, size=3.5, linewidth=0, jitter=True,
-                      **params)
-    handles, labels = g.get_legend_handles_labels()
-    g = sns.boxplot(x="accuracy", y="method", color='0.75', showfliers=False,
-                    whis=1.5,
-                    data=df_sort, ax=ax, zorder=100)
-    ax.set_xlim([-0.1, 0.175])
+    sns.stripplot(alpha=1, zorder=200, size=3.5, linewidth=0, jitter=True,
+                  **params)
+    sns.boxplot(x="accuracy", y="method", color='0.75', showfliers=False,
+                whis=1.5,
+                data=df_sort, ax=ax, zorder=100)
+    ax.set_xlim([-0.14, 0.175])
     ax.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
     ax.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1))
@@ -212,50 +229,65 @@ def plot_compare_methods(sort, many=False):
     methods = df_sort['method'].unique()
 
     y_labels = {}
-    y_labels['factored_gm_single'] = 'Factored decoder\nwith single-\nstudy prior'
+    y_labels['factored_gm_single'] = \
+        'Factored decoder\nwith single-\nstudy prior'
     y_labels[baseline] = 'Baseline \ndecoder'
-    y_labels['factored_refit_gm_low_lr'] = 'Factored decoder\nwith multi-\nstudy prior\n(+ rest init + DL + refit)'
+    y_labels['factored_refit_gm_normal_init_rest_positive_notune'] = \
+        'Factored decoder\nwith multi-\nstudy prior\n'
 
     if many:
-        y_labels['factored_refit_gm_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(+ rest init + DL - refit)'
-        y_labels['factored_gm'] = 'Factored decoder\nwith multi-\nstudy prior\n(+ rest init - DL)'
-        y_labels['factored_refit_gm_normal_init_low_lr'] = 'Factored decoder\nwith multi-\nstudy prior\n(random init + DL + refit)'
-        y_labels['factored_refit_gm_normal_init_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(random init + DL - refit)'
-        y_labels['factored_gm_normal_init'] = 'Factored decoder\nwith multi-\nstudy prior\n(random init - DL)'
-        y_labels['factored_refit_gm_normal_init_rest_positive_notune'] = 'Factored decoder\nwith multi-\nstudy prior\n(random init +\n positive DL\n- refit)'
-        ax.hlines([1.5, 3.5, 6.5], *ax.get_xlim(), linestyle='--', color='.5')
-        ax.annotate('Training phase ablation', xy=(-.1, 2.5), xytext=(-7, 0),
+        y_labels['factored_refit_gm_normal_init_rest_positive_notune'] = (
+            'Random init +\n'
+            'sparse NMF\nwith rest init')
+        y_labels['factored_refit_gm_normal_init_positive_notune'] = (
+            'Random init +\n'
+            'sparse NMF\nwith random init')
+        y_labels['factored_refit_gm_normal_init_notune'] = (
+            'Random init +\n'
+            'DL with\nrandom init')
+        y_labels['factored_gm_normal_init'] = (
+            'Random init')
+        y_labels['factored_refit_gm_notune'] = (
+            'Rest init +\n'
+            'DL with rest init')
+        y_labels['factored_gm'] = (
+            'Rest init')
+
+
+        ax.hlines([1.5, 4.5], *ax.get_xlim(), linestyle='--', color='.5')
+        ax.annotate('Ablation with random init',
+                    xy=(-.12, 3), xytext=(-7, 0),
                     textcoords="offset points",
-                    fontsize=8,
+                    fontsize=15,
                     xycoords='data',
                     va='center', rotation=90,
                     ha='right')
-        ax.annotate('Initialisation / DL parameters',
-                    xy=(-.1, 5), xytext=(-7, 0),
+        ax.annotate('Rest init',
+                    xy=(-.12, 5.5), xytext=(-7, 0),
                     textcoords="offset points",
-                    fontsize=8,
+                    fontsize=15,
                     xycoords='data',
                     va='center', rotation=90,
                     ha='right')
-
-
     for i, method in enumerate(methods):
         ax.annotate(y_labels[method], xy=(.17, i), xytext=(7, 0),
                     textcoords="offset points",
-                    fontsize=11 if not many else 8,
+                    fontsize=15,
                     xycoords='data',
                     va='center',
                     ha='left')
+
     sns.despine(fig)
 
     plt.setp(ax.legend(), visible=False)
-    fig.subplots_adjust(left=0.05, right=0.77, top=1, bottom=0.18)
     plt.savefig(join(save_dir, 'comparison_method%s.pdf' %
                      ('_many' if many else '')))
     plt.close(fig)
 
 
 def plot_gain_vs_size(sort):
+    width, height = 3, 2.3
+
     output_dir = get_output_dir()
 
     colors = sns.color_palette('husl', len(sort))
@@ -281,7 +313,7 @@ def plot_gain_vs_size(sort):
     joined = joined.set_index(['study'])
     joined_mean = joined.groupby('study').aggregate(['mean', 'std'])
 
-    fig, ax = plt.subplots(1, 1, figsize=(3, 2.3), constrained_layout=True)
+    fig, ax = plt.subplots(1, 1, figsize=(width, height),)
 
     sns.regplot(joined_mean['n_subjects', 'mean'], joined_mean['diff', 'mean'],
                 n_boot=1000, ax=ax, color='black', logx=True,
@@ -292,7 +324,7 @@ def plot_gain_vs_size(sort):
     # vertices = ax.collections[0].get_paths()[0].vertices
     # vertices[:, 0] = np.exp(vertices[:, 0])
     # print(joined_mean['n_subjects', 'mean'])
-    ax.scatter(joined_mean['n_subjects', 'mean'], joined_mean['diff', 'mean'],
+    clouds = ax.scatter(joined_mean['n_subjects', 'mean'], joined_mean['diff', 'mean'],
                c=list(map(lambda x: colors[x],
                           joined_mean.index.get_level_values('study'))),
                s=8, )
@@ -303,16 +335,23 @@ def plot_gain_vs_size(sort):
     ax.set_xticks([4, 16, 32, 100, 300, 400])
     ax.set_xticklabels([4, 16, 32, 100, 400])
 
+    ax.legend([clouds], ['Study'], frameon=True, scatterpoints=3, fontsize=11)
+
     ax.yaxis.set_major_locator(ticker.MultipleLocator(0.05))
     ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.025))
     ax.yaxis.set_major_formatter(ticker.PercentFormatter(xmax=1, decimals=0))
     ax.spines['bottom'].set_position('zero')
+
+    fig.subplots_adjust(left=.7 / width, right=1 - pad_right / width,
+                        bottom=0.3 / height, top=1 - .08 / height, )
 
     sns.despine(fig)
     fig.savefig(join(save_dir, 'gain_vs_size.pdf'))
 
 
 def plot_gain_vs_accuracy(sort):
+    width, height = 3, 2.3
+
     metrics = pd.read_pickle(join(get_output_dir(), 'factored_refit_gm_low_lr',
                                   'metrics.pkl'))
     metrics = metrics.loc[0.0001]
@@ -327,22 +366,21 @@ def plot_gain_vs_accuracy(sort):
     mean = joined.groupby(by=['study', 'contrast']).aggregate(['mean', 'std'])
     mean = mean.reset_index()
 
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-
     colors = sns.color_palette('husl', len(sort))
     colors = {study: color for study, color in zip(sort, colors)}
 
-    for score in ['bacc', 'f1']:
+    for score in ['bacc']:
 
-        fig, ax = plt.subplots(1, 1, figsize=(3, 2.3), constrained_layout=True)
+        fig, ax = plt.subplots(1, 1, figsize=(width, height),)
+        fig.subplots_adjust(left=.7 / width, right=1 - .2 / width,
+                            bottom=pad_bottom / height, top=1 - .08 / height, )
 
         sns.regplot(mean['baseline', score, 'mean'],
                     mean['diff', score, 'mean'],
                     n_boot=10, ax=ax, lowess=True, color='black',
                     scatter=False)
 
-        ax.scatter(mean['baseline', score, 'mean'],
+        clouds = ax.scatter(mean['baseline', score, 'mean'],
                    mean['diff', score, 'mean'],
                    s=4,
                    c=list(map(lambda x: colors[x], mean['study'])),
@@ -368,8 +406,13 @@ def plot_gain_vs_accuracy(sort):
             ax.set_xlabel('Baseline balanced accuracy score \n(per contrast)')
         else:
             ax.set_xlabel('Baseline F1 score (per contrast)')
-        ax.set_ylabel('Gain from multi-study model   ')
+        ax.set_ylabel('Gain from multi-study model     ')
         ax.hlines(0, 0, 1, linestyle=(0, [2, 4]))
+
+        ax.legend([clouds], ['Contrast'], frameon=True, scatterpoints=3,
+                  fontsize=11,
+                  loc='lower right')
+
         sns.despine(fig)
         fig.savefig(join(save_dir, 'gain_vs_accuracy_%s.pdf' % score))
 
