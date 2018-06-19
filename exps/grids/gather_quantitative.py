@@ -21,7 +21,6 @@ def gather_factored(output_dir, flavor='simple'):
         extra_indices = ['alpha']
     elif flavor == 'reset':
         extra_indices = ['reset']
-
     else:
         extra_indices = []
     accuracies = []
@@ -35,12 +34,12 @@ def gather_factored(output_dir, flavor='simple'):
             run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
             seed = config['seed']
             test_scores = run['result']
+            Cs, precs, f1s, recalls = load(
+                join(this_exp_dir, 'scores.pkl'))
         except (FileNotFoundError, json.decoder.JSONDecodeError):
             print('Skipping exp %i' % this_dir)
             continue
 
-        Cs, precs, f1s, recalls = load(
-            join(this_exp_dir, 'scores.pkl'))
         baccs = {}
         for study in precs:
             C = Cs[study]
@@ -56,8 +55,11 @@ def gather_factored(output_dir, flavor='simple'):
                 tn = total - fp - fn - tp
                 baccs[study][contrast] = .5 * (tp / p + tn / n)
 
-        if flavor == 'single_study':
-            study = config['data']['studies']
+        if flavor in ['single_study', 'transfer']:
+            if flavor == 'single_study':
+                study = config['data']['studies']
+            else:
+                study = config['model']['target_study']
             accuracies.append(dict(study=study, accuracy=test_scores[study],
                                    seed=seed))
             f1s = f1s[study]
@@ -204,8 +206,8 @@ if __name__ == '__main__':
     launch = [
         # delayed(gather_factored)(join(get_output_dir(), 'factored_gm')),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_low_lr'), flavor='refit'),
-        delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_rest_positive_notune'), flavor='refit'),
-        # delayed(gather_factored)(join(get_output_dir(), 'reset_classifiers'), flavor='reset'),
+        # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_rest_positive_notune'), flavor='refit'),
+        delayed(gather_factored)(join(get_output_dir(), 'factored_transfer'), flavor='transfer'),
         # delayed(gather_factored)(join(get_output_dir(), 'logistic_gm'), flavor='single_study'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_gm_single'), flavor='single_study'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_notune'), flavor='refit'),

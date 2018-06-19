@@ -6,6 +6,10 @@ from os.path import join
 
 fsaverage = datasets.fetch_surf_fsaverage5()
 
+from exps.analyse.interesting_maps import select
+
+indices = list(select.keys())
+
 
 ##############################################################################
 # Helper functions
@@ -14,27 +18,33 @@ def save_views(fig, name, actors, distance=400, zoom=1,
                output_dir='.'):
     fig.scene.z_minus_view()
     mlab.view(distance=1.1 * distance)
-    mlab.savefig(join(output_dir, '%s_bottom.png') % name, size=(zoom * 896, zoom * 1024))
+    mlab.savefig(join(output_dir, '%s_bottom.png') % name,
+                 size=(zoom * 896, zoom * 1024))
 
     fig.scene.z_plus_view()
     mlab.view(distance=1.06 * distance)
-    mlab.savefig(join(output_dir, '%s_top.png') % name, size=(zoom * 896, zoom * 1024))
+    mlab.savefig(join(output_dir, '%s_top.png') % name,
+                 size=(zoom * 896, zoom * 1024))
 
     fig.scene.x_plus_view()
     mlab.view(distance=distance)
-    mlab.savefig(join(output_dir, '%s_right.png') % name, size=(zoom * 1024, zoom * 896))
+    mlab.savefig(join(output_dir, '%s_right.png') % name,
+                 size=(zoom * 1024, zoom * 896))
 
     fig.scene.x_minus_view()
     mlab.view(distance=distance)
-    mlab.savefig(join(output_dir, '%s_left.png') % name, size=(zoom * 1024, zoom * 896))
+    mlab.savefig(join(output_dir, '%s_left.png') % name,
+                 size=(zoom * 1024, zoom * 896))
 
     fig.scene.y_minus_view()
     mlab.view(roll=0, distance=.85 * distance)
-    mlab.savefig(join(output_dir, '%s_back.png') % name, size=(zoom * 1024, zoom * 896))
+    mlab.savefig(join(output_dir, '%s_back.png') % name,
+                 size=(zoom * 1024, zoom * 896))
 
     # Side & front
     mlab.view(55, 73, .92 * distance)
-    mlab.savefig(join(output_dir, '%s_oblique.png') % name, size=(zoom * 1024, zoom * 896))
+    mlab.savefig(join(output_dir, '%s_oblique.png') % name,
+                 size=(zoom * 1024, zoom * 896))
 
     if right_actors is not None and left_actors is not None:
         # Plot the medial views
@@ -63,7 +73,7 @@ def save_views(fig, name, actors, distance=400, zoom=1,
         fig.scene.disable_render = False
 
 
-def plot_on_surf(data, sides=['left', 'right'],
+def plot_on_surf(data, sides=['left', 'right'], selected=False,
                  threshold=None, inflate=1.001, **kwargs):
     """ Plot a numpy array of data on the corresponding fsaverage
         surface.
@@ -96,17 +106,21 @@ def plot_on_surf(data, sides=['left', 'right'],
             # contour
             surf.actor.property.opacity = .5
             # Add a second surface to fill the contours
-            dark_color = tuple(.5 * c for c in kwargs['color'])
+            if selected:
+                dark_color = tuple(.3 * c for c in kwargs['color'])
+            else:
+                dark_color = tuple(.5 * c for c in kwargs['color'])
             surf2 = mlab.pipeline.contour_surface(surf, color=dark_color,
-                                          )#opacity=.5)
-            #surf2.enable_contours = True
+                                                  line_width=8 if selected else 2,
+                                                  )  # opacity=.5)
+            # surf2.enable_contours = True
             surf2.contour.auto_contours = False
             surf2.contour.contours = [threshold, data.max()]
             actors[side].append(surf2)
     return actors
 
 
-def add_surf_map(niimg, sides=['left', 'right'],
+def add_surf_map(niimg, sides=['left', 'right'], selected=False,
                  threshold=None, **kwargs):
     """ Project a volumetric data and plot it on the corresponding
         fsaverage surface.
@@ -116,8 +130,9 @@ def add_surf_map(niimg, sides=['left', 'right'],
     actors = dict()
     for side in sides:
         data = surface.vol_to_surf(niimg, fsaverage['pial_%s' % side])
-        this_actor = plot_on_surf(data,
-                            sides=[side, ], threshold=threshold, **kwargs)
+        this_actor = plot_on_surf(data, selected=selected,
+                                  sides=[side, ], threshold=threshold,
+                                  **kwargs)
         actors[side] = this_actor[side]
     return actors
 
@@ -147,16 +162,30 @@ def plot_3d(output_dir):
 
     colors = np.load(join(output_dir, 'colors_3d.npy'))
     actors = dict(left=[], right=[])
-
+    delayed = []
     for i, (component, color) in enumerate(zip(
-                                    image.iter_img(components),
-                                    colors)):
+            image.iter_img(components),
+            colors)):
+        if i in indices:
+            delayed.append((i, (component, color)))
+        else:
+            print('Component %i' % i)
+            component = image.math_img('np.abs(img)', img=component)
+            this_actors = add_surf_map(component, threshold=threshold,
+                                       color=tuple(color[:3]),
+                                       sides=['left', 'right'],
+                                       selected=i in indices,
+                                       inflate=1.001)
+            actors['left'].extend(this_actors['left'])
+            actors['right'].extend(this_actors['right'])
+    for i, (component, color) in delayed:
         print('Component %i' % i)
         component = image.math_img('np.abs(img)', img=component)
         this_actors = add_surf_map(component, threshold=threshold,
-                                    color=tuple(color[:3]),
-                                    sides=['left', 'right'],
-                                    inflate=1.001)
+                                   color=tuple(color[:3]),
+                                   sides=['left', 'right'],
+                                   selected=i in indices,
+                                   inflate=1.001)
         actors['left'].extend(this_actors['left'])
         actors['right'].extend(this_actors['right'])
 
@@ -167,11 +196,9 @@ def plot_3d(output_dir):
                                    colormap='gray', inflate=.995)
         actors[side].extend(this_actors[side])
 
-
     # Enable rendering
     fig.scene.disable_render = False
 
     save_views(fig, 'components_3d', actors,
                left_actors=actors['left'],
                right_actors=actors['right'], output_dir=output_dir)
-

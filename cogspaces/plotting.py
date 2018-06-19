@@ -15,6 +15,8 @@ from nilearn.image import iter_img
 from os.path import join
 from wordcloud import WordCloud
 
+from cogspaces.utils import get_masker
+
 
 def make_cmap(color, rotation=.5, white=False, transparent_zero=False):
     h, s, v = rgb_to_hsv(color)
@@ -53,7 +55,8 @@ def make_cmap(color, rotation=.5, white=False, transparent_zero=False):
     return cmap
 
 
-def plot_single(img, name, output_dir, view_types=['stat_map'], color=None):
+def plot_single(img, name, output_dir, view_types=['stat_map'], color=None,
+                threshold=0):
     import matplotlib
     matplotlib.use('agg')
     from nilearn.plotting import plot_stat_map, find_xyz_cut_coords, \
@@ -71,6 +74,7 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None):
 
     srcs = []
     vmax = np.abs(img.get_data()).max()
+    threshold = vmax / 5
 
     for view_type in view_types:
         src = join(output_dir, '%s_%s.png' % (name, view_type))
@@ -96,7 +100,7 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None):
             plot_surf_stat_map(surf_mesh, texture, hemi=hemi,
                                bg_map=bg_map,
                                vmax=vmax,
-                               threshold=vmax / 6,
+                               threshold=threshold,
                                view=view,
                                output_file=src,
                                cmap=cmap)
@@ -105,15 +109,20 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None):
             cut_coords = find_xyz_cut_coords(img,
                                              activation_threshold=vmax / 3)
             if view_type == 'stat_map':
-                plot_stat_map(img, threshold=vmax / 6, cut_coords=cut_coords,
+                plot_stat_map(img, threshold=threshold,
+                              cut_coords=(cut_coords[2],),
                               vmax=vmax,
-                              colorbar=True, output_file=src, cmap=cmap)
+                              display_mode='z',
+                              colorbar=False,
+                              output_file=src.replace('.png', '.svg'),
+                              cmap=cmap)
             else:
-                plot_glass_brain(img, threshold=vmax / 6,
-                                 cut_coords=cut_coords,
+                plot_glass_brain(img, threshold=threshold,
                                  vmax=vmax,
-                                 plot_abs=False, output_file=src,
-                                 colorbar=True,
+                                 display_mode='xz',
+                                 plot_abs=False,
+                                 output_file=src.replace('.png', '.svg'),
+                                 colorbar=False,
                                  cmap=cmap_white)
         else:
             raise ValueError('Wrong view type in `view_types`: got %s' %
@@ -151,8 +160,16 @@ def plot_all(img, names=None, output_dir=None,
         names = numbered_names(names)
     else:
         assert len(names) == img.get_shape()[3]
+
+    masker = get_masker()
+    components = masker.transform(img)
+    n_components = len(components)
+    threshold = np.percentile(np.abs(components),
+                              100. * (1 - 1. / n_components))
+
     imgs = Parallel(n_jobs=n_jobs, verbose=verbose)(
-        delayed(plot_single)(img, name, output_dir, view_types, color)
+        delayed(plot_single)(img, name, output_dir, view_types, color,
+                             threshold=threshold)
         for name, img, color in zip(names, iter_img(img), colors))
     return imgs
 
@@ -233,7 +250,6 @@ def plot_word_clouds(output_dir, grades, n_jobs=1, colors=None):
 
 def plot_word_cloud_single(output_dir, grades, index,
                            color=None):
-    import matplotlib.pyplot as plt
     import seaborn as sns
 
     if color is not None:
@@ -243,7 +259,7 @@ def plot_word_cloud_single(output_dir, grades, index,
 
     contrasts = list(filter(
         lambda x: 'effects_of_interest' not in x and 'gauthier' not in x,
-        grades))[:20]
+        grades))[:15]
     frequencies_cat = defaultdict(lambda: 0.)
     frequencies_single = defaultdict(lambda: 0.)
     occurences = defaultdict(lambda: 0.)
@@ -269,27 +285,33 @@ def plot_word_cloud_single(output_dir, grades, index,
 
     frequencies_single = {term: freq / math.sqrt(occurences[term]) for term, freq
                           in frequencies_single.items()}
-    dpi = 40
-    width, height = (400, 200)
-    fig, ax = plt.subplots(1, 1, figsize=(width / dpi, height / dpi))
+    width, height = (900, 450)
     wc = WordCloud(prefer_horizontal=1,
-                   background_color='white',
+                   background_color="rgba(255, 255, 255, 0)",
+                   width=width, height=height,
                    colormap=colormap,
                    relative_scaling=0.7)
     wc.generate_from_frequencies(frequencies=frequencies_single, )
-    ax.imshow(wc, interpolation="bilinear")
-    ax.axis("off")
-    fig.savefig(join(output_dir, 'wc_single_%i.png' % index))
-    plt.close(fig)
-    width, height = (600, 200)
-    fig, ax = plt.subplots(1, 1, figsize=(width / dpi, height / dpi))
+    wc.to_file(join(output_dir, 'wc_single_%i.png' % index))
+
+    width, height = (900, 300)
+
     wc = WordCloud(prefer_horizontal=1,
-                   background_color=None, width=800, height=200,
+                   background_color="rgba(255, 255, 255, 0)",
+                   width=width, height=height,
                    mode='RGBA',
                    colormap=colormap,
-                   relative_scaling=0.7)
+                   relative_scaling=0.8)
     wc.generate_from_frequencies(frequencies=frequencies_cat, )
-    ax.imshow(wc, interpolation="bilinear")
-    ax.axis("off")
-    fig.savefig(join(output_dir, 'wc_cat_%i.png' % index))
-    plt.close(fig)
+    wc.to_file(join(output_dir, 'wc_cat_%i.png' % index))
+
+    width, height = (1200, 300)
+
+    wc = WordCloud(prefer_horizontal=1,
+                   background_color="rgba(255, 255, 255, 0)",
+                   width=width, height=height,
+                   mode='RGBA',
+                   colormap=colormap,
+                   relative_scaling=0.8)
+    wc.generate_from_frequencies(frequencies=frequencies_cat, )
+    wc.to_file(join(output_dir, 'wc_cat_%i_wider.png' % index))

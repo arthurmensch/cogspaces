@@ -1,5 +1,4 @@
 import numpy as np
-import os
 import re
 import torch
 from jinja2 import Template
@@ -13,6 +12,7 @@ from sklearn.utils import check_random_state
 from cogspaces.datasets.utils import get_output_dir, get_data_dir
 from cogspaces.plotting import plot_word_clouds, plot_all
 from cogspaces.utils import get_dictionary, get_masker
+from exps.analyse.interesting_maps import select
 from exps.analyse.plot_mayavi import plot_3d
 from exps.train import load_data
 
@@ -137,19 +137,21 @@ def get_grades(output_dir, grade_type='data_z_score'):
             in_features = classifier.linear.in_features
             classifier.eval()
             with torch.no_grad():
-                grades[study] = (classifier(torch.eye(in_features),
-                                            logits=True)
-                                 - classifier(torch.zeros(1, in_features),
-                                              logits=True)).transpose(0,
-                                                                      1).numpy()
+                loadings = (classifier(torch.eye(in_features),
+                                       logits=True) - classifier(
+                    torch.zeros(1, in_features),
+                    logits=True)).transpose(0, 1).numpy()
+                loadings -= loadings.mean(axis=0, keepdims=True)
+                grades[study] = loadings
 
     elif grade_type == 'cosine_similarities':
         classifs_full = get_classifs(output_dir,
                                      return_type='arrays_full')
         components_full = get_components(output_dir,
                                          return_type='arrays_full')
-        max = components_full.max(axis=1, keepdims=True)
-        components_full[components_full < max / 3] = 0
+        # threshold = np.percentile(np.abs(components_full),
+        #                           100. * (1 - 1. / len(components_full)))
+        # components_full[components_full < threshold] = 0
         for study, classif_full in classifs_full.items():
             classif_full -= classif_full.mean(axis=0, keepdims=True)
             grades[study] = (
@@ -182,7 +184,7 @@ def get_grades(output_dir, grade_type='data_z_score'):
     return grades
 
 
-def components_html(output_dir, components_dir, wc_dir):
+def components_html(output_dir, components_dir):
     with open('plot_maps.html', 'r') as f:
         template = f.read()
     template = Template(template)
@@ -199,8 +201,10 @@ def components_html(output_dir, components_dir, wc_dir):
         for view_type in view_types:
             src = join(components_dir, '%s_%s.png' % (title, view_type))
             srcs.append(src)
-        srcs.append(join(wc_dir, 'wc_single_%i.png' % i))
-        srcs.append(join(wc_dir, 'wc_cat_%i.png' % i))
+        for grade_type in ['cosine_similarities', 'loadings']:
+            wc_dir = 'wc_%s' % grade_type
+            srcs.append(join(wc_dir, 'wc_single_%i.png' % i))
+            srcs.append(join(wc_dir, 'wc_cat_%i.png' % i))
         imgs.append((srcs, title))
     html = template.render(imgs=imgs)
     output_file = join(output_dir, 'components.html')
@@ -242,17 +246,18 @@ def compute_nifti(output_dir):
 
 
 def compute_grades(output_dir):
-    grades = get_grades(output_dir, grade_type='cosine_similarities')
-    dump(grades, join(output_dir, 'grades.pkl'))
+    for grade_type in ['cosine_similarities', 'loadings']:
+        grades = get_grades(output_dir, grade_type=grade_type)
+        dump(grades, join(output_dir, 'grades_%s.pkl' % grade_type))
 
 
 def plot_grades(output_dir, n_jobs):
     colors = np.load(join(output_dir, 'colors_2d.npy'))
-    grades = load(join(output_dir, 'grades.pkl'))
-
-
-    plot_word_clouds(join(output_dir, 'wc'), grades, n_jobs=n_jobs,
-                     colors=colors)
+    for grade_type in ['cosine_similarities', 'loadings']:
+        grades = load(join(output_dir, 'grades_%s.pkl' % grade_type))
+        plot_word_clouds(join(output_dir, 'wc_%s' % grade_type),
+                         grades, n_jobs=n_jobs,
+                         colors=colors)
 
 
 def plot_2d(output_dir, n_jobs=40):
@@ -282,7 +287,7 @@ def plot_2d(output_dir, n_jobs=40):
 
 
 def make_report(output_dir):
-    components_html(output_dir, 'components', 'wc')
+    components_html(output_dir, 'components')
     classifs_html(output_dir, 'classifs')
 
 
@@ -293,31 +298,51 @@ if __name__ == '__main__':
     full_names = []
 
     # output_dir = join(get_output_dir(), 'components')
-    output_dir = join(get_output_dir(), 'factored_refit_gm_normal_init_full_rest_positive_notune')
+    output_dir = join(get_output_dir(),
+                      'factored_refit_gm_normal_init_full_rest_positive_notune')
+    # #
+    # for dirpath, dirnames, filenames in os.walk(output_dir):
+    #     for dirname in filter(lambda f: re.match(regex, f), dirnames):
+    #         full_name = join(dirpath, dirname)
+    #         full_names.append(full_name)
     #
-    for dirpath, dirnames, filenames in os.walk(output_dir):
-        for dirname in filter(lambda f: re.match(regex, f), dirnames):
-            full_name = join(dirpath, dirname)
-            full_names.append(full_name)
-    #
+    full_names = [join(get_output_dir(),
+                      'factored_refit_gm_normal_init_full_rest_positive_notune',
+                      '3')]
+
     rng = check_random_state(1000)
-    permutation = rng.permutation(128)
-    colors_2d = hls_palette(128, s=1, l=.4)[permutation]
-    colors_3d = hls_palette(128, s=1, l=.5)[permutation]
+
+    colors = np.arange(128)
+    colors_2d = np.array(hls_palette(128, s=1, l=.4))
+    colors_word_cl = np.array(hls_palette(128, s=.7, l=.4))
+    colors_3d = np.array(hls_palette(128, s=1, l=.5))
+
+    indices = list(select.keys())
+    positions = np.linspace(0, 127, len(indices)).astype('int')
+
+    for arr in [colors, colors_2d, colors_3d]:
+        old = arr[indices]
+        arr[indices] = arr[positions]
+        arr[positions] = old
+        mask = np.ones(128, dtype='bool')
+        mask[indices] = 0
+        others = arr[mask].copy()
+        rng.shuffle(others)
+        arr[mask] = others
 
     for full_name in full_names:
         np.save(join(full_name, 'colors_2d.npy'), colors_2d)
         np.save(join(full_name, 'colors_3d.npy'), colors_3d)
 
-    Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
-                                        for full_name in full_names)
+    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
+    #                                     for full_name in full_names)
     Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_3d)(full_name)
                                         for full_name in full_names)
-    for full_name in full_names:
-        plot_2d(full_name, n_jobs=n_jobs)
-    Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_grades)(full_name)
-                                        for full_name in full_names)
-    for full_name in full_names:
-        plot_grades(full_name, n_jobs=n_jobs)
-    for full_name in full_names:
-        make_report(full_name)
+    # for full_name in full_names:
+    #     plot_2d(full_name, n_jobs=n_jobs)
+    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_grades)(full_name)
+    #                                     for full_name in full_names)
+    # for full_name in full_names:
+    #     plot_grades(full_name, n_jobs=n_jobs)
+    # for full_name in full_names:
+    #     make_report(full_name)
