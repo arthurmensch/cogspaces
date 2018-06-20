@@ -180,7 +180,10 @@ def plot_compare_methods(sort, many=False):
         df = pd.read_pickle(join(output_dir, exp, 'accuracies.pkl'))
         if 'refit' in exp:
             print(exp)
-            df = df.loc[0.0001]
+            if exp == 'factored_refit_gm_rest_positive_notune':
+                df = df.loc[0.0001]
+            else:
+                df = df.loc[0.0001]
         if exp in ['factored_gm', 'factored_gm_normal_init']:
             df = df.groupby(['study', 'seed']).mean()
         dfs.append(df)
@@ -428,8 +431,8 @@ def plot_gain_vs_accuracy(sort):
 
 if __name__ == '__main__':
     data, sort = make_data()
-    plot_joined(data)
-    plot_compare_methods(sort)
+    # plot_joined(data)
+    # plot_compare_methods(sort)
     plot_compare_methods(sort, many=True)
-    plot_gain_vs_accuracy(sort)
-    plot_gain_vs_size(sort)
+    # plot_gain_vs_accuracy(sort)
+    # plot_gain_vs_size(sort)

@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import re
 import torch
 from jinja2 import Template
@@ -300,16 +301,15 @@ if __name__ == '__main__':
 
     # output_dir = join(get_output_dir(), 'components')
     output_dir = join(get_output_dir(),
-                      'factored_refit_gm_normal_init_full_rest_positive_notune')
-    # #
-    # for dirpath, dirnames, filenames in os.walk(output_dir):
-    #     for dirname in filter(lambda f: re.match(regex, f), dirnames):
-    #         full_name = join(dirpath, dirname)
-    #         full_names.append(full_name)
-    #
-    full_names = [join(get_output_dir(),
-                       'factored_refit_gm_full_rest_positive_notune',
-                       '3')]
+                      'factored_refit_gm_full_rest_positive_notune')
+
+    for dirpath, dirnames, filenames in os.walk(output_dir):
+        for dirname in filter(lambda f: re.match(regex, f), dirnames):
+            full_name = join(dirpath, dirname)
+            full_names.append(full_name)
+    # full_names = [join(get_output_dir(),
+    #                    'factored_refit_gm_full_rest_positive_notune',
+    #                    '3')]
 
     rng = check_random_state(1000)
 

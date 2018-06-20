@@ -3,6 +3,9 @@ import numpy as np
 from mayavi import mlab
 from nilearn import datasets, image, surface
 from os.path import join
+from seaborn import hls_palette
+
+from cogspaces.datasets.utils import get_output_dir
 
 fsaverage = datasets.fetch_surf_fsaverage5()
 
@@ -159,8 +162,11 @@ def plot_3d(output_dir):
 
     # To speed up when prototyping
     # components = image.index_img(components, slice(0, 5))
-
-    colors = np.load(join(output_dir, 'colors_3d.npy'))
+    try:
+        colors = np.load(join(output_dir, 'colors_3d.npy'))
+    except FileNotFoundError:
+        colors = np.array(hls_palette(n_components, s=1, l=.5))
+        rng.shuffle(colors)
     actors = dict(left=[], right=[])
     delayed = []
     for i, (component, color) in enumerate(zip(
@@ -202,3 +208,7 @@ def plot_3d(output_dir):
     save_views(fig, 'components_3d', actors,
                left_actors=actors['left'],
                right_actors=actors['right'], output_dir=output_dir)
+
+
+if __name__ == '__main__':
+    plot_3d(join(get_output_dir(), 'best_components'))

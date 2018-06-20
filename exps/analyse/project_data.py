@@ -153,5 +153,5 @@ if __name__ == '__main__':
     # compute_projections('first', n_jobs=20)
     # compute_projections('second', join(get_output_dir(), 'full_model'), n_jobs=20)
     # pick_random_contrast()
-    # plot_contrast(60)
+    plot_contrast(50)
     proj_html()
