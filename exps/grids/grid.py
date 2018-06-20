@@ -210,7 +210,7 @@ def full_logistic():
         verbose=100,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'masked'),
+        source_dir=join(get_data_dir(), 'masked_gm'),
         studies='all'
     )
     model = dict(
@@ -218,9 +218,9 @@ def full_logistic():
         estimator='logistic',
     )
     logistic = dict(
-        l2_penalty=1e-6,
-        solver='saga',
-        max_iter=1000
+        l2_penalty=[1e-3],
+        solver='lbfgs',
+        max_iter=2000
     )
 
 
@@ -352,9 +352,9 @@ if __name__ == '__main__':
                           for seed in seeds
                           for alpha in [1e-2, 1e-3, 1e-4]
                           for decomposition in ['dl_rest']]
-    elif grid == 'factored_refit_gm_normal_init_rest_positive_notune':
+    elif grid == 'factored_refit_gm_rest_positive_notune':
         exp.config(factored_refit)
-        init_dir = join(get_output_dir(), 'factored_gm_normal_init')
+        init_dir = join(get_output_dir(), 'factored_gm')
 
         config_updates = [{'seed': seed,
                            'factored.refit_from': join(init_dir,
@@ -370,9 +370,9 @@ if __name__ == '__main__':
                           for seed in seeds
                           for alpha in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]
                           for decomposition in ['dl_rest_positive']]
-    elif grid == 'factored_refit_gm_normal_init_full_positive_notune':
+    elif grid == 'factored_refit_gm_full_rest_positive_notune':
         exp.config(factored_refit)
-        init_dir = join(get_output_dir(), 'factored_gm_normal_init_full')
+        init_dir = join(get_output_dir(), 'factored_gm_full')
 
         config_updates = [{'seed': 0,
                            'factored.refit_from': join(init_dir,
@@ -386,7 +386,7 @@ if __name__ == '__main__':
                                                  'finetune': 0}
                           }
                           for alpha in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]
-                          for decomposition in ['dl_positive']]
+                          for decomposition in ['dl_rest_positive']]
 
 
     elif grid == 'factored_refit_gm_notune':
@@ -445,8 +445,18 @@ if __name__ == '__main__':
             exp.config(logistic)
         elif grid == 'full_logistic':
             exp.config(full_logistic)
-        config_updates = ParameterGrid({'data.studies': studies,
-                                        'seed': seeds})
+        config_updates = ParameterGrid({'seed': seeds,
+                                        'data.studies': studies,
+                                        })
+    elif grid in ['logistic_gm_full', 'full_logistic_full']:
+        if grid == 'logistic_gm_full':
+            exp.config(logistic)
+        elif grid == 'full_logistic_full':
+            exp.config(full_logistic)
+        config_updates = ParameterGrid({'seed': [0],
+                                        'data.studies': studies,
+                                        'full': [True]
+                                        })
     else:
         raise ValueError('Wrong argument')
 

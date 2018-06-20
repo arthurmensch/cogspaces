@@ -35,7 +35,7 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_gm'),
-        studies=['brainomics', 'archi']
+        studies=['brainomics', 'archi'],
     )
     model = dict(
         estimator='factored',
@@ -74,8 +74,7 @@ def default():
         estimator='logistic',
         l2_penalty=[7e-5],
         max_iter=3000,
-        refit_from=join(get_output_dir(), 'factored_gm',
-                        'dl_rest_860_1e-04.pkl'),
+        refit_from=None,
     )
 
     refinement = dict(

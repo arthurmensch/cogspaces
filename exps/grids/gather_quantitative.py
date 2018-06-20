@@ -207,11 +207,11 @@ if __name__ == '__main__':
         # delayed(gather_factored)(join(get_output_dir(), 'factored_gm')),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_low_lr'), flavor='refit'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_rest_positive_notune'), flavor='refit'),
-        delayed(gather_factored)(join(get_output_dir(), 'factored_transfer'), flavor='transfer'),
+        delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_positive_notune'), flavor='refit'),
+        # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_rest_positive_notune'), flavor='refit'),
         # delayed(gather_factored)(join(get_output_dir(), 'logistic_gm'), flavor='single_study'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_gm_single'), flavor='single_study'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_notune'), flavor='refit'),
-        # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_notune'), flavor='refit'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_notune'), flavor='refit'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_low_lr'), flavor='refit')
         ]

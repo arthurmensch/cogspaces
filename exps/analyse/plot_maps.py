@@ -13,7 +13,6 @@ from cogspaces.datasets.utils import get_output_dir, get_data_dir
 from cogspaces.plotting import plot_word_clouds, plot_all
 from cogspaces.utils import get_dictionary, get_masker
 from exps.analyse.interesting_maps import select
-from exps.analyse.plot_mayavi import plot_3d
 from exps.train import load_data
 
 mem = Memory(cachedir=get_cache_dir())
@@ -292,6 +291,8 @@ def make_report(output_dir):
 
 
 if __name__ == '__main__':
+    from exps.analyse.plot_mayavi import plot_3d
+
     n_jobs = 40
 
     regex = re.compile(r'[0-9]+$')
@@ -307,8 +308,8 @@ if __name__ == '__main__':
     #         full_names.append(full_name)
     #
     full_names = [join(get_output_dir(),
-                      'factored_refit_gm_normal_init_full_rest_positive_notune',
-                      '3')]
+                       'factored_refit_gm_full_rest_positive_notune',
+                       '3')]
 
     rng = check_random_state(1000)
 
@@ -334,15 +335,15 @@ if __name__ == '__main__':
         np.save(join(full_name, 'colors_2d.npy'), colors_2d)
         np.save(join(full_name, 'colors_3d.npy'), colors_3d)
 
-    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
-    #                                     for full_name in full_names)
+    Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
+                                        for full_name in full_names)
     Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_3d)(full_name)
                                         for full_name in full_names)
-    # for full_name in full_names:
-    #     plot_2d(full_name, n_jobs=n_jobs)
-    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_grades)(full_name)
-    #                                     for full_name in full_names)
-    # for full_name in full_names:
-    #     plot_grades(full_name, n_jobs=n_jobs)
-    # for full_name in full_names:
-    #     make_report(full_name)
+    for full_name in full_names:
+        plot_2d(full_name, n_jobs=n_jobs)
+    Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_grades)(full_name)
+                                        for full_name in full_names)
+    for full_name in full_names:
+        plot_grades(full_name, n_jobs=n_jobs)
+    for full_name in full_names:
+        make_report(full_name)

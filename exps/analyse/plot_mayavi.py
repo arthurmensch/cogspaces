@@ -9,7 +9,7 @@ fsaverage = datasets.fetch_surf_fsaverage5()
 from exps.analyse.interesting_maps import select
 
 indices = list(select.keys())
-
+indices = []
 
 ##############################################################################
 # Helper functions

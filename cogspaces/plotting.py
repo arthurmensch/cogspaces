@@ -65,16 +65,13 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None,
     if color is not None:
         cmap = make_cmap(color, rotation=.5)
         cmap_white = make_cmap(color, rotation=.5, white=True)
-        cmap_white_transparent = make_cmap(color, rotation=.5, white=True,
-                                           transparent_zero=True)
     else:
         cmap = 'cold_hot'
         cmap_white = 'cold_white_hot'
-        cmap_white_transparent = 'cold_white_hot'
 
     srcs = []
     vmax = np.abs(img.get_data()).max()
-    threshold = vmax / 5
+    # threshold = vmax / 5
 
     for view_type in view_types:
         src = join(output_dir, '%s_%s.png' % (name, view_type))
@@ -110,18 +107,21 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None,
                                              activation_threshold=vmax / 3)
             if view_type == 'stat_map':
                 plot_stat_map(img, threshold=threshold,
-                              cut_coords=(cut_coords[2],),
+                              # cut_coords=(cut_coords[2],),
+                              cut_coords=cut_coords,
                               vmax=vmax,
-                              display_mode='z',
+                              # display_mode='z',
                               colorbar=False,
-                              output_file=src.replace('.png', '.svg'),
+                              # output_file=src.replace('.png', '.svg'),
+                              output_file=src,
                               cmap=cmap)
             else:
                 plot_glass_brain(img, threshold=threshold,
                                  vmax=vmax,
-                                 display_mode='xz',
+                                 # display_mode='xz',
                                  plot_abs=False,
-                                 output_file=src.replace('.png', '.svg'),
+                                 # output_file=src.replace('.png', '.svg'),
+                                 output_file=src,
                                  colorbar=False,
                                  cmap=cmap_white)
         else:
@@ -141,6 +141,7 @@ def numbered_names(name):
 def plot_all(img, names=None, output_dir=None,
              colors=None,
              view_types=['stat_map'],
+             threshold=True,
              n_jobs=1, verbose=10):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -165,7 +166,7 @@ def plot_all(img, names=None, output_dir=None,
     components = masker.transform(img)
     n_components = len(components)
     threshold = np.percentile(np.abs(components),
-                              100. * (1 - 1. / n_components))
+                              100. * (1 - 1. / n_components)) if threshold else 0
 
     imgs = Parallel(n_jobs=n_jobs, verbose=verbose)(
         delayed(plot_single)(img, name, output_dir, view_types, color,

@@ -25,8 +25,8 @@ pad_top = .02
 pad_right = .02
 pad_left = 2.49
 
-def plot_joined():
-    width, height = 9, 5.6
+
+def make_data():
 
     output_dir = get_output_dir()
 
@@ -49,12 +49,17 @@ def plot_joined():
     joined_mean['n_subjects'] = n_subjects
 
     data = joined_mean
+    data = data.sort_values(('diff', 'mean'), ascending=True)
+    sort = data.index.values.tolist()[::-1]
+    return data, sort
+
+
+def plot_joined(data):
+    width, height = 9, 5.6
 
     with open(expanduser('~/work/repos/cogspaces/cogspaces/'
                          'datasets/brainpedia.json')) as f:
         names = json.load(f)
-
-    data = data.sort_values(('diff', 'mean'), ascending=True)
 
     gs = gridspec.GridSpec(1, 2,
                            width_ratios=[2.7, 1]
@@ -146,7 +151,6 @@ def plot_joined():
                 transparent=True)
     plt.close(fig)
 
-    sort = data.index.values.tolist()[::-1]
     return sort
 
 
@@ -159,21 +163,23 @@ def plot_compare_methods(sort, many=False):
 
     if many:
         exps = [baseline,
+                'factored_refit_gm_rest_positive_notune',
+                'factored_refit_gm_notune',
+                'factored_gm',
                 'factored_refit_gm_normal_init_rest_positive_notune',
-                'factored_refit_gm_normal_init_positive_notune',
+                # 'factored_refit_gm_normal_init_positive_notune',
                 'factored_refit_gm_normal_init_notune',
                 'factored_gm_normal_init',
-                'factored_refit_gm_notune',
-                'factored_gm'
                 ]
     else:
         exps = [baseline, 'factored_gm_single',
-                'factored_refit_gm_normal_init_rest_positive_notune']
+                'factored_refit_gm_rest_positive_notune']
 
     dfs = []
     for exp in exps:
         df = pd.read_pickle(join(output_dir, exp, 'accuracies.pkl'))
         if 'refit' in exp:
+            print(exp)
             df = df.loc[0.0001]
         if exp in ['factored_gm', 'factored_gm_normal_init']:
             df = df.groupby(['study', 'seed']).mean()
@@ -232,7 +238,7 @@ def plot_compare_methods(sort, many=False):
     y_labels['factored_gm_single'] = \
         'Factored decoder\nwith single-\nstudy prior'
     y_labels[baseline] = 'Baseline \ndecoder'
-    y_labels['factored_refit_gm_normal_init_rest_positive_notune'] = \
+    y_labels['factored_refit_gm_rest_positive_notune'] = \
         'Factored decoder\nwith multi-\nstudy prior\n'
 
     if many:
@@ -247,30 +253,33 @@ def plot_compare_methods(sort, many=False):
             'DL with\nrandom init')
         y_labels['factored_gm_normal_init'] = (
             'Random init')
+        y_labels['factored_refit_gm_rest_positive_notune'] = (
+            'Rest init +\n'
+            'sparse NMF\n'
+            'with rest init')
         y_labels['factored_refit_gm_notune'] = (
             'Rest init +\n'
             'DL with rest init')
         y_labels['factored_gm'] = (
             'Rest init')
 
-
-        ax.hlines([1.5, 4.5], *ax.get_xlim(), linestyle='--', color='.5')
-        ax.annotate('Ablation with random init',
-                    xy=(-.12, 3), xytext=(-7, 0),
+        ax.hlines([1.5, 3.5], *ax.get_xlim(), linestyle='--', color='.5')
+        ax.annotate('Ablation',
+                    xy=(-.12, 2.5), xytext=(-7, 0),
                     textcoords="offset points",
                     fontsize=15,
                     xycoords='data',
                     va='center', rotation=90,
                     ha='right')
-        ax.annotate('Rest init',
-                    xy=(-.12, 5.5), xytext=(-7, 0),
+        ax.annotate('Random init',
+                    xy=(-.12, 5), xytext=(-7, 0),
                     textcoords="offset points",
                     fontsize=15,
                     xycoords='data',
                     va='center', rotation=90,
                     ha='right')
     for i, method in enumerate(methods):
-        ax.annotate(y_labels[method], xy=(.17, i), xytext=(7, 0),
+        ax.annotate(y_labels[method], xy=(.17, i), xytext=(10, 0),
                     textcoords="offset points",
                     fontsize=15,
                     xycoords='data',
@@ -418,7 +427,8 @@ def plot_gain_vs_accuracy(sort):
 
 
 if __name__ == '__main__':
-    sort = plot_joined()
+    data, sort = make_data()
+    plot_joined(data)
     plot_compare_methods(sort)
     plot_compare_methods(sort, many=True)
     plot_gain_vs_accuracy(sort)

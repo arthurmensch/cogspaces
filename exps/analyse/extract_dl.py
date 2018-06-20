@@ -302,7 +302,8 @@ def nifti_all(output_dir):
 
 if __name__ == '__main__':
     # output_dir = join(get_output_dir(), 'factored_gm_normal_init_full')
-    output_dir = join(get_output_dir(), 'factored_gm_normal_init')
+    # output_dir = join(get_output_dir(), 'factored_gm')
+    output_dir = join(get_output_dir(), 'factored_gm_full')
     # compute_coefs(output_dir)
     compute_all_decomposition(output_dir, n_jobs=40)
     # nifti_all(output_dir)
