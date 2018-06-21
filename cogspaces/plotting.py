@@ -106,12 +106,12 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None,
             cut_coords = find_xyz_cut_coords(img,
                                              activation_threshold=vmax / 3)
             if view_type == 'stat_map':
-                # plot_stat_map(img, threshold=threshold,
-                #               cut_coords=cut_coords,
-                #               vmax=vmax,
-                #               colorbar=False,
-                #               output_file=src,
-                #               cmap=cmap)
+                plot_stat_map(img, threshold=threshold,
+                              cut_coords=cut_coords,
+                              vmax=vmax,
+                              colorbar=False,
+                              output_file=src,
+                              cmap=cmap)
                 plot_stat_map(img, threshold=threshold,
                               cut_coords=(cut_coords[2],),
                               vmax=vmax,
@@ -120,12 +120,12 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None,
                               output_file=src.replace('.png', '_z.svg'),
                               cmap=cmap)
             else:
-                # plot_glass_brain(img, threshold=threshold,
-                #                  vmax=vmax,
-                #                  plot_abs=False,
-                #                  output_file=src,
-                #                  colorbar=False,
-                #                  cmap=cmap_white)
+                plot_glass_brain(img, threshold=threshold,
+                                 vmax=vmax,
+                                 plot_abs=False,
+                                 output_file=src,
+                                 colorbar=False,
+                                 cmap=cmap_white)
                 plot_glass_brain(img, threshold=threshold,
                                  vmax=vmax,
                                  display_mode='xz',

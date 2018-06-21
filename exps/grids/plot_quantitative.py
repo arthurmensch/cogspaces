@@ -32,7 +32,7 @@ def make_data():
 
     factored_output_dir = join(output_dir,
                                'factored_refit_gm_normal_init_rest_positive_notune')
-    baseline_output_dir = join(output_dir, 'logistic_gm')
+    baseline_output_dir = join(output_dir, 'full_logistic')
 
     factored = pd.read_pickle(join(factored_output_dir, 'accuracies.pkl'))
     factored = factored.loc[0.0001]
@@ -65,7 +65,7 @@ def plot_joined(data):
                            width_ratios=[2.7, 1]
                            )
     fig = plt.figure(figsize=(width, height))
-    gs.update(left=pad_left / width, right=1 - .3 / width,
+    gs.update(left=2.2 / width, right=1 - .2 / width,
               bottom=pad_bottom / height, top=1 - pad_top / height,
               wspace=1.2 / width
               )
@@ -75,7 +75,7 @@ def plot_joined(data):
 
     ind = np.arange(n_study) * 2 + .5
     width = 1.2
-    diff_color = sns.color_palette("husl", 35)
+    diff_color = sns.color_palette("husl", n_study)[::-1]
     diff_color_err = [(max(0, r - .1), max(0, g - .1), max(0, b - .1))
                       for r, g, b in diff_color]
 
@@ -96,7 +96,7 @@ def plot_joined(data):
     ax1.spines['left'].set_position('zero')
     plt.setp(ax1.get_yticklabels(), visible=False)
 
-    ax1.set_xlim([-0.04, 0.18])
+    ax1.set_xlim([-0.06, 0.19])
     ax1.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
     ax1.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
     ax1.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1, decimals=0))
@@ -159,27 +159,27 @@ def plot_compare_methods(sort, many=False):
 
     output_dir = get_output_dir()
 
-    baseline = 'logistic_gm'
+    baseline = 'full_logistic'
 
     if many:
         exps = [baseline,
-                'factored_refit_gm_rest_positive_notune',
-                'factored_refit_gm_notune',
-                'factored_gm',
-                'factored_refit_gm_normal_init_rest_positive_notune',
-                # 'factored_refit_gm_normal_init_positive_notune',
-                'factored_refit_gm_normal_init_notune',
-                'factored_gm_normal_init',
+                'logistic_gm',
+                # 'factored_refit_gm_rest_positive_notune',
+                # 'factored_refit_gm_notune',
+                # 'factored_gm',
+                # 'factored_refit_gm_normal_init_rest_positive_notune',
+                # # 'factored_refit_gm_normal_init_positive_notune',
+                # 'factored_refit_gm_normal_init_notune',
+                # 'factored_gm_normal_init',
                 ]
     else:
-        exps = [baseline, 'factored_gm_single',
+        exps = [baseline, 'logistic_gm',
                 'factored_refit_gm_rest_positive_notune']
 
     dfs = []
     for exp in exps:
         df = pd.read_pickle(join(output_dir, exp, 'accuracies.pkl'))
         if 'refit' in exp:
-            print(exp)
             if exp == 'factored_refit_gm_rest_positive_notune':
                 df = df.loc[0.0001]
             else:
@@ -238,11 +238,20 @@ def plot_compare_methods(sort, many=False):
     methods = df_sort['method'].unique()
 
     y_labels = {}
-    y_labels['factored_gm_single'] = \
+    y_labels['factored_gm_single'] = (
         'Factored decoder\nwith single-\nstudy prior'
-    y_labels[baseline] = 'Baseline \ndecoder'
-    y_labels['factored_refit_gm_rest_positive_notune'] = \
-        'Factored decoder\nwith multi-\nstudy prior\n'
+    )
+    y_labels[baseline] = ('Decoding from\nvoxels')
+    y_labels['logistic_gm'] = (
+        'Decoding from rest\n'
+        'functional networks'
+    )
+    y_labels['factored_refit_gm_rest_positive_notune'] = (
+        'Decoding from\n'
+        'multi-study\n'
+        'end-to-end trained\n'
+        'task networks'
+    )
 
     if many:
         y_labels['factored_refit_gm_normal_init_rest_positive_notune'] = (
@@ -265,26 +274,28 @@ def plot_compare_methods(sort, many=False):
             'DL with rest init')
         y_labels['factored_gm'] = (
             'Rest init')
+        y_labels['full_logistic'] = 'Full logistic'
+        y_labels['logistic_gm'] = 'Rest compressed logistic'
 
         ax.hlines([1.5, 3.5], *ax.get_xlim(), linestyle='--', color='.5')
         ax.annotate('Ablation',
                     xy=(-.12, 2.5), xytext=(-7, 0),
                     textcoords="offset points",
-                    fontsize=15,
+                    fontsize=13,
                     xycoords='data',
                     va='center', rotation=90,
                     ha='right')
         ax.annotate('Random init',
                     xy=(-.12, 5), xytext=(-7, 0),
                     textcoords="offset points",
-                    fontsize=15,
+                    fontsize=13,
                     xycoords='data',
                     va='center', rotation=90,
                     ha='right')
     for i, method in enumerate(methods):
         ax.annotate(y_labels[method], xy=(.17, i), xytext=(10, 0),
                     textcoords="offset points",
-                    fontsize=15,
+                    fontsize=13,
                     xycoords='data',
                     va='center',
                     ha='left')
@@ -431,8 +442,8 @@ def plot_gain_vs_accuracy(sort):
 
 if __name__ == '__main__':
     data, sort = make_data()
-    # plot_joined(data)
-    # plot_compare_methods(sort)
+    plot_joined(data)
+    plot_compare_methods(sort)
     plot_compare_methods(sort, many=True)
-    # plot_gain_vs_accuracy(sort)
-    # plot_gain_vs_size(sort)
+    plot_gain_vs_accuracy(sort)
+    plot_gain_vs_size(sort)

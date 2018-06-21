@@ -66,6 +66,8 @@ def get_classifs(output_dir, return_type='img'):
                          for study in studies}, logits=True)
         classifs = {study: classifs[study] - biases[study]
                     for study in studies}
+        classifs = {study: classif - classif.mean(dim=0, keepdim=True)
+                    for study, classif in classifs.items()}
     classifs = {study: classif.numpy().T
                 for study, classif in classifs.items()}
     if return_type in ['img', 'arrays_full']:
@@ -241,8 +243,8 @@ def compute_nifti(output_dir):
 
     components_imgs = get_components(output_dir)
     components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
-    # classifs_imgs = get_classifs(output_dir)
-    # classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
+    classifs_imgs = get_classifs(output_dir)
+    classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
 
 
 def compute_grades(output_dir):
@@ -270,20 +272,20 @@ def plot_2d(output_dir, n_jobs=40):
 
     names, full_names = get_names(output_dir)
 
-    # plot_all(join(output_dir, 'classifs.nii.gz'),
-    #          output_dir=join(output_dir, 'classifs'),
-    #          names=full_names,
+    plot_all(join(output_dir, 'classifs.nii.gz'),
+             output_dir=join(output_dir, 'classifs'),
+             names=full_names,
+             view_types=view_types, threshold=0,
+             n_jobs=n_jobs)
+    #
+    # colors = np.load(join(output_dir, 'colors_2d.npy'))
+    #
+    # plot_all(join(output_dir, 'components.nii.gz'),
+    #          output_dir=join(output_dir, 'components'),
+    #          names='components',
+    #          colors=colors,
     #          view_types=view_types,
     #          n_jobs=n_jobs)
-
-    colors = np.load(join(output_dir, 'colors_2d.npy'))
-
-    plot_all(join(output_dir, 'components.nii.gz'),
-             output_dir=join(output_dir, 'components'),
-             names='components',
-             colors=colors,
-             view_types=view_types,
-             n_jobs=n_jobs)
 
 
 def make_report(output_dir):
@@ -300,16 +302,14 @@ if __name__ == '__main__':
     full_names = []
 
     # output_dir = join(get_output_dir(), 'components')
-    output_dir = join(get_output_dir(),
-                      'factored_refit_gm_full_rest_positive_notune')
-
-    for dirpath, dirnames, filenames in os.walk(output_dir):
-        for dirname in filter(lambda f: re.match(regex, f), dirnames):
-            full_name = join(dirpath, dirname)
-            full_names.append(full_name)
-    # full_names = [join(get_output_dir(),
-    #                    'factored_refit_gm_full_rest_positive_notune',
-    #                    '3')]
+    # output_dir = join(get_output_dir(),
+    #                   'best_components')
+    #
+    # for dirpath, dirnames, filenames in os.walk(output_dir):
+    #     for dirname in filter(lambda f: re.match(regex, f), dirnames):
+    #         full_name = join(dirpath, dirname)
+    #         full_names.append(full_name)
+    full_names = [join(get_output_dir(), 'best_components')]
 
     rng = check_random_state(1000)
 
@@ -337,13 +337,13 @@ if __name__ == '__main__':
 
     Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
                                         for full_name in full_names)
-    Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_3d)(full_name)
-                                        for full_name in full_names)
+    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_3d)(full_name)
+    #                                     for full_name in full_names)
     for full_name in full_names:
         plot_2d(full_name, n_jobs=n_jobs)
-    Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_grades)(full_name)
-                                        for full_name in full_names)
-    for full_name in full_names:
-        plot_grades(full_name, n_jobs=n_jobs)
+    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_grades)(full_name)
+    #                                     for full_name in full_names)
+    # for full_name in full_names:
+    #     plot_grades(full_name, n_jobs=n_jobs)
     for full_name in full_names:
         make_report(full_name)

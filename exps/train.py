@@ -34,7 +34,7 @@ def default():
         n_jobs=3,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'reduced_512_gm'),
+        source_dir=join(get_data_dir(), 'masked_gm'),
         studies=['brainomics', 'archi'],
     )
     model = dict(
@@ -65,8 +65,8 @@ def default():
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
             'finetune': 1e-3},
-        max_iter={'pretrain': 0, 'train': 300, 'sparsify': 0,
-                  'finetune': 200},
+        max_iter={'pretrain': 0, 'train': 10, 'sparsify': 0,
+                  'finetune': 10},
         refit_data=['classifier', 'dropout']
     )
 

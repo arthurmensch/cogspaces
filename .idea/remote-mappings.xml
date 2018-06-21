@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="RemoteMappingsManager">
+    <list>
+      <list>
+        <remote-mappings server-id="python@ssh://amensch@drago2.saclay.inria.fr:22/home/parietal/amensch/opt/drago2/anaconda3/bin/python">
+          <settings>
+            <list>
+              <mapping local-root="$USER_HOME$" remote-root="/home/parietal/amensch" />
+            </list>
+          </settings>
+        </remote-mappings>
+        <remote-mappings server-id="python@ssh://amensch@drago2:22/home/parietal/amensch/opt/anaconda3/bin/python3.6">
+          <settings>
+            <list>
+              <mapping local-root="/opt/miniconda3" remote-root="/home/parietal/amensch/opt/anaconda3" />
+              <mapping local-root="$USER_HOME$" remote-root="/home/parietal/amensch" />
+            </list>
+          </settings>
+        </remote-mappings>
+      </list>
+    </list>
+  </component>
+</project>

@@ -322,7 +322,8 @@ if __name__ == '__main__':
         config_updates = ParameterGrid({'seed': seeds,
                                         'factored.seed': [0],
                                         'factored.init': ['normal'],
-                                        'factored.reset_classifiers': [True, False],
+                                        'factored.reset_classifiers': [True,
+                                                                       False],
                                         'factored.max_iter.pretrain': [0]
                                         })
     elif grid == 'factored_gm_norm_init_full':
@@ -347,8 +348,8 @@ if __name__ == '__main__':
                                                        '%s_%i_%.0e.pkl' %
                                                        (decomposition, seed,
                                                         alpha)),
-                          'factored.refit_data': ['dropout', 'classifier'],
-                          }
+                           'factored.refit_data': ['dropout', 'classifier'],
+                           }
                           for seed in seeds
                           for alpha in [1e-2, 1e-3, 1e-4]
                           for decomposition in ['dl_rest']]
@@ -361,12 +362,12 @@ if __name__ == '__main__':
                                                        '%s_%i_%.0e.pkl' %
                                                        (decomposition, seed,
                                                         alpha)),
-                          'factored.refit_data': ['classifier', 'dropout'],
+                           'factored.refit_data': ['classifier', 'dropout'],
                            'factored.max_iter': {'pretrain': 0,
                                                  'train': 0,
                                                  'sparsify': 0,
                                                  'finetune': 0}
-                          }
+                           }
                           for seed in seeds
                           for alpha in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]
                           for decomposition in ['dl_rest_positive']]
@@ -379,12 +380,12 @@ if __name__ == '__main__':
                                                        '%s_%i_%.0e.pkl' %
                                                        (decomposition, 0,
                                                         alpha)),
-                          'factored.refit_data': ['classifier', 'dropout'],
+                           'factored.refit_data': ['classifier', 'dropout'],
                            'factored.max_iter': {'pretrain': 0,
                                                  'train': 0,
                                                  'sparsify': 0,
                                                  'finetune': 0}
-                          }
+                           }
                           for alpha in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]
                           for decomposition in ['dl_rest_positive']]
 
@@ -445,9 +446,9 @@ if __name__ == '__main__':
             exp.config(logistic)
         elif grid == 'full_logistic':
             exp.config(full_logistic)
-        config_updates = ParameterGrid({'seed': seeds,
-                                        'data.studies': studies,
-                                        })
+        config_updates = [{'seed': seed,
+                           'data.studies': study} for seed in seeds
+                          for study in studies]
     elif grid in ['logistic_gm_full', 'full_logistic_full']:
         if grid == 'logistic_gm_full':
             exp.config(logistic)
@@ -466,7 +467,7 @@ if __name__ == '__main__':
         raise ValueError('Directory exists.')
 
     _id = get_id(output_dir)
-    Parallel(n_jobs=40, verbose=100)(delayed(run_exp)(output_dir,
+    Parallel(n_jobs=25, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       mock=False,
                                                       _id=_id + i)
