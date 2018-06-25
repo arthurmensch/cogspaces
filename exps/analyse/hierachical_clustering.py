@@ -11,7 +11,7 @@ from cogspaces.datasets.utils import get_output_dir, fetch_mask
 
 method = 'average'
 os.chdir(join(get_output_dir(), 'figure_4', 'classifs'))
-compute = False
+compute = True
 plot = True
 
 
@@ -42,7 +42,8 @@ def analyse_classif(model, classif, keyword=None):
     sort = d['leaves']
     names = np.array(names)[sort]
     corr = corr[sort][:, sort]
-    return model, keyword, names, corr, Z, c
+    mean_corr = np.mean(np.abs(corr))
+    return model, keyword, names, corr, Z, c, mean_corr
 
 
 if compute:
@@ -65,13 +66,13 @@ if compute:
 
 if plot:
     for model in ['full', 'logistic', 'factored']:
-        for keyword in None, ('archi', 'brainomics'), ('house', 'tool'):
+        for keyword in None, ('archi', 'brainomics'), ('house', 'tool', 'face'):
             if keyword is None:
                 keyword = 'none'
             else:
                 keyword = '_'.join(keyword)
 
-            names, corr, Z, c = load('dendrogram_data_%s_%s.pkl' % (model, keyword))
+            names, corr, Z, c, mean_corr = load('dendrogram_data_%s_%s.pkl' % (model, keyword))
             # Compute and plot first dendrogram.
             fig = plt.figure(figsize=(12, 8))
             fig.subplots_adjust(right=1 - 4 / 12)
@@ -98,6 +99,8 @@ if plot:
             else:
                 axmatrix.set_yticks([])
 
+            axmatrix.annotate('Mean corr: %.3f' % mean_corr, xy=(.5, -.07),
+                              xycoords='axes fraction')
             axmatrix.annotate('Cophenetic coeficient: %.3f' % c, xy=(.5, -.1),
                               xycoords='axes fraction')
             axmatrix.annotate('Model : %s' % model, xy=(.5, -.13),

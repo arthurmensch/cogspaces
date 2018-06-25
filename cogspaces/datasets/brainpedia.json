@@ -39,10 +39,6 @@
  "ds011": {
    "title": "Weather prediction",
    "href": "https://openfmri.org/dataset/ds000011"},
- "ds017B": {
-   "title": "Classification learning  & stop-signal",
-   "longtitle": "Classification learning & stop-signal (1 year test-retest)",
-   "href": "https://openfmri.org/dataset/ds000017"},
  "ds051": {
    "title": "Cross-language  repetition priming",
    "href": "https://openfmri.org/dataset/ds000051"},
@@ -95,6 +91,10 @@
   "ds116": {"title": "Auditory & Visual Oddball"},
   "henson2010faces": {"title": "Face recognition"},
   "ds017A": {"title": "Stop-signal & classification"},
+  "ds017B": {
+  "title": "Stop-signal & classification",
+  "longtitle": "Classification learning & stop-signal (1 year test-retest)",
+  "href": "https://openfmri.org/dataset/ds000017"},
   "ds009": {"title": "BART, stop-signal, emotion"}
 
 }
