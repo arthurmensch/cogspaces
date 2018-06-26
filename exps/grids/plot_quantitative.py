@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 
 idx = pd.IndexSlice
 
-save_dir = '/home/arthur/work/papers/papers/2018_05_nature/figures/'
+save_dir = '/home/arthur/work/papers/papers/2018_05_nature/figures/quantitative'
 
 pad_bottom = .47
 pad_top = .02
@@ -55,7 +55,7 @@ def make_data():
 
 
 def plot_joined(data):
-    width, height = 9, 5.6
+    width, height = 8.5, 5.6
 
     with open(expanduser('~/work/repos/cogspaces/cogspaces/'
                          'datasets/brainpedia.json')) as f:
@@ -65,7 +65,7 @@ def plot_joined(data):
                            width_ratios=[2.7, 1]
                            )
     fig = plt.figure(figsize=(width, height))
-    gs.update(left=2.2 / width, right=1 - .2 / width,
+    gs.update(left=2 / width, right=1 - .2 / width,
               bottom=pad_bottom / height, top=1 - pad_top / height,
               wspace=1.2 / width
               )
@@ -143,8 +143,7 @@ def plot_joined(data):
     labels = [
         '%s' % (names[label]['title']) if label in names else label
         for label in data.index.values]
-    ax2.set_yticklabels(labels, ha='right',
-                        va='center')
+    ax2.set_yticklabels(labels, ha='right', va='center', fontsize=8.5)
     sns.despine(fig)
 
     plt.savefig(join(save_dir, 'joined_mean.pdf'), facecolor=None, edgecolor=None,
@@ -212,7 +211,7 @@ def plot_compare_methods(sort, many=False):
         height = height * len(exps) / 3
 
     fig, ax = plt.subplots(1, 1, figsize=(width, height))
-    fig.subplots_adjust(left=.07 / width, right=1 - 1.6 /width,
+    fig.subplots_adjust(left=.07 / width, right=1 - 1.65 /width,
                         bottom=0.55 / height, top=1 - pad_top / height, )
 
     params = dict(x="accuracy", y="method", hue="study",

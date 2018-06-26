@@ -4,9 +4,8 @@ import os
 from joblib import load, Memory
 from matplotlib import patches, gridspec
 from matplotlib.patches import ConnectionPatch
-from matplotlib.testing.compare import get_cache_dir
 from nilearn.input_data import NiftiMasker
-from os.path import join
+from os.path import join, expanduser
 from scipy.cluster.hierarchy import linkage, cophenet, dendrogram
 
 from cogspaces.datasets.utils import get_output_dir, fetch_mask
@@ -119,12 +118,12 @@ def get_linkage(dist):
     return Z, sort, c
 
 
-mem = Memory(cachedir=get_cache_dir())
+mem = Memory(cachedir=expanduser('~/cache'))
 width = 11
-height = 7.5
-scale = 1.5
+height = 7.35
+scale = 15 / 11
 fig = plt.figure(figsize=(width * scale, height * scale))
-fig.subplots_adjust(left=0.0, top=1, bottom=.5 / 7.5, right=1 - 4 / 11)
+fig.subplots_adjust(left=0.0, top=1, bottom=.35 / 7.35, right=1 - 4 / 11)
 gs = gridspec.GridSpec(2, 2, width_ratios=[4, 3], height_ratios=[4, 3],
                        wspace=0.05, hspace=0.05)
 
@@ -164,20 +163,22 @@ ax_matrix.set_xlim([x1 - .5, x2 - .5])
 ax_matrix.set_ylim([x1 - .5, x2 - .5])
 ax_tdendro.set_xlim([x1 * 10, x2 * 10])
 ax_matrix.set_yticks(range(x1, x2))
-ax_matrix.set_yticklabels(sorted_names[x1:x2])
+labels = [label.replace('_', ' ').replace('&', ' ')
+          for label in sorted_names[x1:x2]]
+ax_matrix.set_yticklabels(labels)
 ax_matrix.yaxis.tick_right()
 ax_matrix.yaxis.set_label_position("right")
 
 con = ConnectionPatch(xyA=(x2, x2), xyB=(0, 1),
                       coordsA="data", coordsB="axes fraction",
                       axesA=ax_matrix_full, axesB=ax_matrix, arrowstyle="-",
-                      linewidth=1, antialiased=True,
+                      linewidth=1.5, antialiased=True,
                       linestyle=':')
 ax_matrix_full.add_artist(con)
 con = ConnectionPatch(xyA=(x2, x1), xyB=(0, 0),
                       coordsA="data", coordsB="axes fraction",
                       antialiased=True,
-                      linewidth=1,
+                      linewidth=1.5,
                       axesA=ax_matrix_full, axesB=ax_matrix, arrowstyle="-",
                       linestyle=':')
 ax_matrix_full.add_artist(con)
@@ -211,7 +212,7 @@ ax_matrix.annotate('Left motor',
 ###########################################################################
 # Baseline
 names = load('names.pkl')
-dist = mem.cache(get_dist)('classifs_full.nii.gz')
+dist = mem.cache(get_dist)('classifs_demean.nii.gz')
 factored_sorted_dist = dist[sort][:, sort]
 Z, sort, c = get_linkage(dist)
 
@@ -231,8 +232,8 @@ ax_matrix_baseline_full, ax_ldendro, _ = plot_correlation_dendro(
     truncate_level=6)
 
 ax_matrix_baseline_full.annotate('Voxel decoder\n'
-                                 'Cophenetic: %.3f\n'
-                                 'Mean abs. corr.: %.3f' % (
+                                 'C = %.3f\n'
+                                 '$| \\bar c_{i, j} |$ = %.3f' % (
                                      c, mean_corr),
                                  bbox={'facecolor': 'black',
                                        'boxstyle': 'round',
@@ -260,7 +261,7 @@ ax_matrix_baseline.set_xlim([x1 - .5, x2 - .5])
 ax_matrix_baseline.set_ylim([x1 - .5, x2 - .5])
 
 ax_matrix_baseline.set_yticks(range(x1, x2))
-ax_matrix_baseline.set_yticklabels(sorted_names[x1:x2])
+ax_matrix_baseline.set_yticklabels(labels)
 ax_matrix_baseline.yaxis.tick_right()
 ax_matrix_baseline.yaxis.set_label_position("right")
 
@@ -270,11 +271,11 @@ con = ConnectionPatch(xyA=(x2, x1), xyB=(0, 1),
                       axesA=ax_matrix_full, axesB=ax_matrix_baseline,
                       linestyle=":",
                       antialiased=True, zorder=10,
-                      linewidth=1)
+                      linewidth=1.5)
 ax_matrix_full.add_artist(con)
 con = ConnectionPatch(xyA=(x1, x1), xyB=(0, 0),
                       coordsA="data", coordsB="axes fraction",
-                      linewidth=1,
+                      linewidth=1.5,
                       antialiased=True, zorder=10,
                       axesA=ax_matrix_full, axesB=ax_matrix_baseline,
                       linestyle=":")
@@ -293,12 +294,11 @@ ax_matrix_baseline_full.annotate('Correlation between classification maps\n'
                                  ha='center', fontsize=14,
                                  xycoords='axes fraction'
                                  )
-ax_matrix_baseline.annotate('Zoom on a subset of classification maps\n',
+ax_matrix_baseline.annotate('Zoom on a subset of classification maps',
                             xy=(.5, -.1), fontsize=14,
                             ha='center',
                             xycoords='axes fraction'
                             )
 
 fig.savefig('dendrogram.svg')
-fig.savefig('dendrogram.png')
 fig.savefig('dendrogram.pdf')

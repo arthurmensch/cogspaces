@@ -30,7 +30,7 @@
    "longtitle": "Living-nonliving decision with plain or mirror-reversed text",
    "href": "https://openfmri.org/dataset/ds000006a"},
  "ds007": {
-   "title": "Stop-signal with spoken & manual resp.",
+   "title": "Stop-signal w/ spoken & manual resp.",
    "href": "https://openfmri.org/dataset/ds000007"},
  "ds008": {
    "title": "Stop-signal",
@@ -67,15 +67,15 @@
    "longtitle": "Incidental encoding (Posner Cueing Paradigm)",
    "href": "https://openfmri.org/dataset/ds000110"},
   "hcp": {
-    "title": "The Human Connectome  Project",
+    "title": "The Human Connectome Project",
     "href": "https://www.humanconnectome.org/"
   },
   "gauthier2009resonance": {
-    "title": "Spatio-temporal  judgement (2009)",
+    "title": "Spatio-temporal judgement (2009)",
     "href": "www.jneurosci.org/content/32/41/14433"
   },
   "gauthier2010resonance": {
-    "title": "Spatio-temporal  judgement (2010)",
+    "title": "Spatio-temporal judgement (2010)",
     "href": "www.jneurosci.org/content/32/41/14433"
   },
   "amalric2012mathematicians": {
@@ -86,7 +86,7 @@
   "la5c": {"title": "UCLA LA5c"},
   "camcan": {"title": "CamCan audio-visual"},
   "brainomics": {"title": "Brainomics localizer"},
-  "cauvet2009muslang": {"title": "Constit. structure of sentences & music"},
+  "cauvet2009muslang": {"title": "Constit. struct. of sent. & music"},
   "ds114": {"title": "Motor task & word/verb generation"},
   "ds116": {"title": "Auditory & Visual Oddball"},
   "henson2010faces": {"title": "Face recognition"},
