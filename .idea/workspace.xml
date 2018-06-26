@@ -1,20 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="d2792362-4e99-43b9-8385-dbdf804703fc" name="Default" comment="">
-      <change afterPath="$PROJECT_DIR$/exps/analyse/hierachical_clustering.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/exps/analyse/plot_figure_4.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cogspaces/models/logistic.py" beforeDir="false" afterPath="$PROJECT_DIR$/cogspaces/models/logistic.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cogspaces/plotting.py" beforeDir="false" afterPath="$PROJECT_DIR$/cogspaces/plotting.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/exps/analyse/analyse_logistic.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/analyse/analyse_logistic.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/exps/analyse/plot_maps.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/analyse/plot_maps.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/exps/analyse/project_data.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/analyse/project_data.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/exps/grids/gather_quantitative.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/grids/gather_quantitative.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/exps/grids/grid.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/grids/grid.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/exps/grids/plot_quantitative.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/grids/plot_quantitative.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/exps/train.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/train.py" afterDir="false" />
-    </list>
     <list id="6651ae70-fef5-47af-898c-4aefa16679ca" name="Revert: Analysis" comment="" />
+    <list default="true" id="d2792362-4e99-43b9-8385-dbdf804703fc" name="Default" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/exps/analyse/analyse_logistic.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/analyse/analyse_logistic.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/exps/analyse/hierachical_clustering.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/analyse/hierachical_clustering.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/exps/analyse/plot_figure_4.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/analyse/plot_figure_4.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/exps/analyse/plot_maps.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/analyse/plot_maps.py" afterDir="false" />
+    </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -70,7 +64,7 @@
     <SUITE FILE_PATH="coverage/cogspaces$transferability__drago2_.coverage" NAME="transferability (drago2) Coverage Results" MODIFIED="1521875845391" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/grids" />
     <SUITE FILE_PATH="coverage/cogspaces$find_index_mask.coverage" NAME="find_index_mask Coverage Results" MODIFIED="1528904574893" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/scripts" />
     <SUITE FILE_PATH="coverage/cogspaces$train.coverage" NAME="train Coverage Results" MODIFIED="1529314806648" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps" />
-    <SUITE FILE_PATH="coverage/cogspaces$plot_side_by_side.coverage" NAME="plot_side_by_side Coverage Results" MODIFIED="1529578657714" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/analyse" />
+    <SUITE FILE_PATH="coverage/cogspaces$plot_side_by_side.coverage" NAME="plot_side_by_side Coverage Results" MODIFIED="1529950552257" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/analyse" />
     <SUITE FILE_PATH="coverage/cogspaces$py_test_for_test_utils_test_multi_dataset_transformer.coverage" NAME="py.test for test_utils.test_multi_dataset_transformer Coverage Results" MODIFIED="1496828063258" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/cogspaces/tests" />
     <SUITE FILE_PATH="coverage/cogspaces$factored.coverage" NAME="factored Coverage Results" MODIFIED="1519471148425" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/cogspaces/models" />
     <SUITE FILE_PATH="coverage/cogspaces$mayavi_surf_plot.coverage" NAME="mayavi_surf_plot Coverage Results" MODIFIED="1529062169868" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/analyse" />
@@ -109,7 +103,7 @@
     <SUITE FILE_PATH="coverage/cogspaces$multi_predict_trace_weights.coverage" NAME="multi_predict_trace_weights Coverage Results" MODIFIED="1501595149310" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps" />
     <SUITE FILE_PATH="coverage/cogspaces$dictionary_learning.coverage" NAME="dictionary_learning Coverage Results" MODIFIED="1528148967822" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/analyse" />
     <SUITE FILE_PATH="coverage/cogspaces$find_sym.coverage" NAME="find_sym Coverage Results" MODIFIED="1527785747460" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps" />
-    <SUITE FILE_PATH="coverage/cogspaces$hierachical_clustering.coverage" NAME="hierachical_clustering Coverage Results" MODIFIED="1529601039435" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/analyse" />
+    <SUITE FILE_PATH="coverage/cogspaces$hierachical_clustering.coverage" NAME="hierachical_clustering Coverage Results" MODIFIED="1530014846772" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/analyse" />
     <SUITE FILE_PATH="coverage/cogspaces$pipeline.coverage" NAME="pipeline Coverage Results" MODIFIED="1501088270369" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/cogspaces" />
     <SUITE FILE_PATH="coverage/cogspaces$baseline.coverage" NAME="baseline Coverage Results" MODIFIED="1519314637238" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/grid" />
     <SUITE FILE_PATH="coverage/cogspaces$latent_plot.coverage" NAME="latent_plot Coverage Results" MODIFIED="1528534557442" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/analyse" />
@@ -123,20 +117,11 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file leaf-file-name="plotting.py" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/cogspaces/plotting.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="164">
-              <caret line="76" selection-start-line="76" selection-end-line="77" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="hierachical_clustering.py" pinned="false" current-in-tab="true">
+      <file leaf-file-name="hierachical_clustering.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/exps/analyse/hierachical_clustering.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="539">
-              <caret line="102" column="64" selection-start-line="102" selection-start-column="64" selection-end-line="102" selection-end-column="64" />
+            <state relative-caret-position="208">
+              <caret line="213" column="41" selection-start-line="213" selection-start-column="41" selection-end-line="213" selection-end-column="41" />
               <folding>
                 <element signature="e#0#31#0" expanded="true" />
               </folding>
@@ -144,11 +129,89 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="hierarchy.py" pinned="false" current-in-tab="false">
-        <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/scipy/cluster/hierarchy.py">
+      <file leaf-file-name="_base.py" pinned="false" current-in-tab="false">
+        <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/matplotlib/axes/_base.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="31">
-              <caret line="1221" column="4" selection-start-line="1221" selection-start-column="4" selection-end-line="1221" selection-end-column="4" />
+            <state relative-caret-position="291">
+              <caret line="2664" column="8" selection-start-line="2664" selection-start-column="8" selection-end-line="2664" selection-end-column="8" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="contrasts.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/cogspaces/datasets/contrasts.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="299">
+              <caret line="279" column="4" selection-start-line="279" selection-start-column="4" selection-end-line="279" selection-end-column="4" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="inset_locator.py" pinned="false" current-in-tab="false">
+        <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/mpl_toolkits/axes_grid1/inset_locator.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="21">
+              <caret line="469" column="4" selection-start-line="469" selection-start-column="4" selection-end-line="469" selection-end-column="4" />
+              <folding>
+                <element signature="e#82#190#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="transforms.py" pinned="false" current-in-tab="false">
+        <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/matplotlib/transforms.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="299">
+              <caret line="1038" column="8" selection-start-line="1038" selection-start-column="8" selection-end-line="1038" selection-end-column="8" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="plot_figure_4.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/exps/analyse/plot_figure_4.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="282">
+              <caret line="153" column="37" selection-start-line="153" selection-start-column="37" selection-end-line="153" selection-end-column="37" />
+              <folding>
+                <element signature="e#0#38#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="extract_dl.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/exps/analyse/extract_dl.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="778">
+              <caret line="309" lean-forward="true" selection-start-line="309" selection-end-line="309" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="plot_maps.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/exps/analyse/plot_maps.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="282">
+              <caret line="59" column="32" selection-start-line="59" selection-start-column="32" selection-end-line="59" selection-end-column="32" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="analyse_logistic.py" pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/exps/analyse/analyse_logistic.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="406">
+              <caret line="57" column="9" lean-forward="true" selection-start-line="57" selection-start-column="9" selection-end-line="57" selection-end-column="9" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="gridspec.py" pinned="false" current-in-tab="false">
+        <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/matplotlib/gridspec.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="74">
+              <caret line="174" column="8" selection-start-line="174" selection-start-column="8" selection-end-line="174" selection-end-column="8" />
             </state>
           </provider>
         </entry>
@@ -165,36 +228,36 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>.3</find>
-      <find>colors_3d</find>
-      <find>colors_</find>
-      <find>colors_3</find>
-      <find>.7</find>
-      <find>wide</find>
-      <find>full_lo</find>
-      <find>names</find>
-      <find>full_logi</find>
-      <find>full_</find>
-      <find>.png</find>
-      <find>classif</find>
-      <find>coef_</find>
-      <find>coef</find>
-      <find>lbfgs</find>
-      <find>get_datat</find>
-      <find>in zip</find>
-      <find>Paralle</find>
-      <find>if</find>
-      <find>'logistic</find>
-      <find>Full_lo</find>
-      <find>husl</find>
-      <find>sort =</find>
-      <find>Accuracy gein</find>
-      <find>pad_left</find>
-      <find>end-to-</find>
-      <find>print(</find>
-      <find>cosine</find>
-      <find>get_leaves</find>
-      <find>no_plot</find>
+      <find>distance</find>
+      <find>corr = 1</find>
+      <find>Left mo</find>
+      <find>cophene</find>
+      <find>get_</find>
+      <find>cophe</find>
+      <find>top=Fa</find>
+      <find>Calcul</find>
+      <find>top</find>
+      <find>rectan</find>
+      <find>black</find>
+      <find>annotate</find>
+      <find>.2, .</find>
+      <find>.3, .8</find>
+      <find>subplot_</find>
+      <find>adjust</find>
+      <find>Mean ab</find>
+      <find>Cophen</find>
+      <find>Mean abs</find>
+      <find>Zoom on a</find>
+      <find>x1, x2</find>
+      <find>classifs.nii.gz</find>
+      <find>compute_ni</find>
+      <find>coefs =</find>
+      <find>these_coef</find>
+      <find>hierarchica</find>
+      <find>classifs</find>
+      <find>demen</find>
+      <find>demean</find>
+      <find>hiera</find>
     </findStrings>
     <replaceStrings>
       <replace>this_output_dir</replace>
@@ -264,7 +327,6 @@
         <option value="$PROJECT_DIR$/cogspaces/models/cross_val.py" />
         <option value="$PROJECT_DIR$/cogspaces/models/factored_cv.py" />
         <option value="$PROJECT_DIR$/cogspaces/models/factored_dl.py" />
-        <option value="$PROJECT_DIR$/cogspaces/datasets/contrasts.py" />
         <option value="$PROJECT_DIR$/exps/grids/summarize.py" />
         <option value="$PROJECT_DIR$/exps/grids/plot.py" />
         <option value="$PROJECT_DIR$/exps/analyse/maps.py" />
@@ -285,28 +347,28 @@
         <option value="$PROJECT_DIR$/cogspaces/models/factored.py" />
         <option value="$PROJECT_DIR$/exps/analyse/intersting_maps.py" />
         <option value="$PROJECT_DIR$/exps/analyse/interesting_maps.py" />
-        <option value="$PROJECT_DIR$/cogspaces/datasets/brainpedia.json" />
         <option value="$PROJECT_DIR$/exps/analyse/extract_dl.py" />
         <option value="$PROJECT_DIR$/cogspaces/data.py" />
         <option value="$PROJECT_DIR$/exps/scripts/gm_mask.py" />
         <option value="$PROJECT_DIR$/exps/analyse/plot_mayavi.py" />
         <option value="$PROJECT_DIR$/cogspaces/models/logistic.py" />
         <option value="$PROJECT_DIR$/exps/grids/grid.py" />
-        <option value="$PROJECT_DIR$/exps/analyse/plot_maps.py" />
         <option value="$PROJECT_DIR$/cogspaces/plotting.py" />
-        <option value="$PROJECT_DIR$/exps/analyse/analyse_logistic.py" />
         <option value="$PROJECT_DIR$/exps/analyse/project_data.py" />
         <option value="$PROJECT_DIR$/exps/analyse/plot_side_by_side.py" />
-        <option value="$PROJECT_DIR$/exps/analyse/plot_figure_4.py" />
         <option value="$PROJECT_DIR$/exps/grids/gather_quantitative.py" />
         <option value="$PROJECT_DIR$/exps/grids/plot_quantitative.py" />
         <option value="$PROJECT_DIR$/exps/train.py" />
+        <option value="$PROJECT_DIR$/cogspaces/datasets/brainpedia.json" />
+        <option value="$PROJECT_DIR$/exps/analyse/plot_figure_4.py" />
+        <option value="$PROJECT_DIR$/cogspaces/datasets/contrasts.py" />
+        <option value="$PROJECT_DIR$/exps/analyse/plot_maps.py" />
         <option value="$PROJECT_DIR$/exps/analyse/hierachical_clustering.py" />
+        <option value="$PROJECT_DIR$/exps/analyse/analyse_logistic.py" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds" extendedState="6">
-    <option name="x" value="1920" />
     <option name="y" value="28" />
     <option name="width" value="960" />
     <option name="height" value="1052" />
@@ -878,33 +940,33 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="1920" y="28" width="1920" height="1052" extended-state="6" />
+    <frame x="0" y="28" width="1920" height="1052" extended-state="6" />
     <editor active="true" />
     <layout>
       <window_info anchor="bottom" id="TODO" order="6" weight="0.32762647" />
       <window_info anchor="bottom" id="Event Log" order="7" sideWeight="0.5250533" side_tool="true" weight="0.47027028" />
-      <window_info anchor="bottom" id="File Transfer" order="8" weight="0.3145946" />
+      <window_info anchor="bottom" id="File Transfer" order="8" weight="0.31385282" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" sideWeight="0.4749467" visible="true" weight="0.32900432" />
       <window_info anchor="bottom" id="Version Control" order="13" sideWeight="0.48344016" weight="0.8490272" />
       <window_info anchor="bottom" id="Python Console" order="10" sideWeight="0.49786323" weight="0.32864866" />
-      <window_info anchor="bottom" id="Run" order="2" sideWeight="0.4749467" weight="0.32972974" />
-      <window_info anchor="bottom" id="Terminal" order="11" sideWeight="0.47761193" weight="0.63891894" />
+      <window_info anchor="bottom" id="Terminal" order="11" sideWeight="0.47761193" weight="0.63852817" />
       <window_info anchor="right" id="Remote Host" order="3" sideWeight="0.49945474" weight="0.32889125" />
-      <window_info content_ui="combo" id="Project" order="0" sideWeight="0.48" weight="0.39392325" />
+      <window_info content_ui="combo" id="Project" order="0" sideWeight="0.48" weight="0.39818764" />
       <window_info anchor="bottom" id="Docker" order="12" weight="0.3297062" />
+      <window_info anchor="bottom" id="Find" order="1" weight="0.3243243" />
       <window_info anchor="right" id="SciView" order="6" sideWeight="0.49945474" weight="0.24413647" />
       <window_info id="Structure" order="1" sideWeight="0.5210811" side_tool="true" weight="0.15671642" />
+      <window_info anchor="bottom" id="Debug" order="3" sideWeight="0.49358973" weight="0.5508658" />
       <window_info id="Favorites" order="2" sideWeight="0.52" side_tool="true" weight="0.36247334" />
-      <window_info anchor="bottom" id="Debug" order="3" sideWeight="0.49358973" weight="0.55135137" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
-      <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
       <window_info anchor="right" id="Commander" order="0" weight="0.4" />
+      <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
       <window_info anchor="right" id="Data View" order="5" weight="0.67467946" />
       <window_info anchor="right" x="0" y="0" width="430" height="853" id="Documentation" order="7" sideWeight="0.50054526" side_tool="true" weight="0.75801283" />
       <window_info anchor="bottom" id="Messages" order="9" weight="0.32916266" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
-      <window_info anchor="bottom" id="Find" order="1" weight="0.3243243" />
       <window_info anchor="right" id="Coverage" order="4" side_tool="true" />
     </layout>
   </component>
@@ -1078,8 +1140,18 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/exps/analyse/plot_figure_4.py</url>
-          <line>46</line>
+          <line>49</line>
           <option name="timeStamp" value="681" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file:///opt/miniconda3/lib/python3.6/site-packages/nilearn/plotting/displays.py</url>
+          <line>955</line>
+          <option name="timeStamp" value="683" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/exps/analyse/analyse_logistic.py</url>
+          <line>58</line>
+          <option name="timeStamp" value="686" />
         </line-breakpoint>
       </breakpoints>
       <breakpoints-dialog>
@@ -1092,23 +1164,40 @@
           </properties>
         </breakpoint>
       </default-breakpoints>
-      <option name="time" value="683" />
+      <option name="time" value="687" />
     </breakpoint-manager>
     <watches-manager>
       <configuration name="tests">
         <watch expression="df.index.get_level_values('contrast')" language="Python" />
       </configuration>
       <configuration name="PythonConfigurationType">
-        <watch expression="clouds[10]" language="Python" />
-        <watch expression="full_proj.shape" language="Python" />
-        <watch expression="second_proj.shape" language="Python" />
-        <watch expression="list(zip(name.split('::') for name in names))" language="Python" />
-        <watch expression="list(zip(*[name.split('::') for name in names]))" language="Python" />
+        <watch expression="Z1['icoord']" language="Python" />
+        <watch expression="Z1['dcoord']" language="Python" />
       </configuration>
     </watches-manager>
   </component>
   <component name="debuggerHistoryManager">
     <expressions id="watch">
+      <expression>
+        <expression-string>Z1['dcoord']</expression-string>
+        <language-id>Python</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>Z2['dcoord']</expression-string>
+        <language-id>Python</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>Z1['icoord']</expression-string>
+        <language-id>Python</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
+      <expression>
+        <expression-string>Z1['icoords']</expression-string>
+        <language-id>Python</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
       <expression>
         <expression-string>list(zip(*[name.split('::') for name in names]))</expression-string>
         <language-id>Python</language-id>
@@ -1136,21 +1225,6 @@
       </expression>
       <expression>
         <expression-string>second_proj.shape</expression-string>
-        <language-id>Python</language-id>
-        <evaluation-mode>EXPRESSION</evaluation-mode>
-      </expression>
-      <expression>
-        <expression-string>full_proj.shape</expression-string>
-        <language-id>Python</language-id>
-        <evaluation-mode>EXPRESSION</evaluation-mode>
-      </expression>
-      <expression>
-        <expression-string>full_proj</expression-string>
-        <language-id>Python</language-id>
-        <evaluation-mode>EXPRESSION</evaluation-mode>
-      </expression>
-      <expression>
-        <expression-string>clouds[10]</expression-string>
         <language-id>Python</language-id>
         <evaluation-mode>EXPRESSION</evaluation-mode>
       </expression>
@@ -1192,61 +1266,6 @@
     </expressions>
   </component>
   <component name="editorHistoryManager">
-    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/matplotlib/__init__.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="525">
-          <caret line="1854" selection-start-line="1854" selection-end-line="1854" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/nilearn/datasets/struct.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="7504">
-          <caret line="478" column="50" selection-start-line="478" selection-start-column="50" selection-end-line="478" selection-end-column="50" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/nilearn/plotting/surf_plotting.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-83">
-          <caret line="265" column="4" selection-start-line="265" selection-start-column="4" selection-end-line="265" selection-end-column="4" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/nilearn/plotting/cm.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="355">
-          <caret line="106" column="16" lean-forward="true" selection-start-line="106" selection-start-column="16" selection-end-line="106" selection-end-column="16" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$USER_HOME$/.PyCharm2018.1/system/python_stubs/1673708030/numpy/random/mtrand.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="300">
-          <caret line="5692" column="8" selection-start-line="5692" selection-start-column="8" selection-end-line="5692" selection-end-column="8" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/matplotlib/cm.py">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
-    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/matplotlib/colors.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="22464">
-          <caret line="1417" selection-start-line="1417" selection-end-line="1417" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/nilearn/plotting/img_plotting.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="292">
-          <caret line="926" column="26" selection-start-line="926" selection-start-column="26" selection-end-line="926" selection-end-column="26" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/cogspaces/utils/dict_learning.py">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
     <entry file="file://$PROJECT_DIR$/cogspaces/utils.py" />
     <entry file="file://$PROJECT_DIR$/exps/reduce.py">
       <provider selected="true" editor-type-id="text-editor">
@@ -1313,9 +1332,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="781">
           <caret line="737" lean-forward="true" selection-start-line="737" selection-end-line="737" />
-          <folding>
-            <element signature="e#135#166#0" expanded="true" />
-          </folding>
         </state>
       </provider>
     </entry>
@@ -1337,13 +1353,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="3696">
           <caret line="246" column="35" selection-start-line="246" selection-start-column="35" selection-end-line="246" selection-end-column="35" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/cogspaces/datasets/brainpedia.json">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="275">
-          <caret line="36" column="40" selection-start-line="36" selection-start-column="40" selection-end-line="36" selection-end-column="40" />
         </state>
       </provider>
     </entry>
@@ -1379,13 +1388,7 @@
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/exps/analyse/plot_mayavi.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state>
-          <folding>
-            <element signature="e#35#53#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
+      <provider selected="true" editor-type-id="text-editor" />
     </entry>
     <entry file="file://$PROJECT_DIR$/exps/scripts/gm_mask.py">
       <provider selected="true" editor-type-id="text-editor">
@@ -1394,20 +1397,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/exps/analyse/extract_dl.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4016">
-          <caret line="272" column="36" selection-start-line="272" selection-start-column="31" selection-end-line="272" selection-end-column="36" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/exps/grids/grid.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="237">
           <caret line="441" column="68" selection-start-line="441" selection-start-column="68" selection-end-line="441" selection-end-column="68" />
-          <folding>
-            <element signature="e#0#10#0" expanded="true" />
-          </folding>
         </state>
       </provider>
     </entry>
@@ -1442,31 +1435,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/exps/analyse/analyse_logistic.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="305">
-          <caret line="72" lean-forward="true" selection-start-line="72" selection-end-line="72" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/exps/analyse/project_data.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="215">
           <caret line="119" selection-start-line="119" selection-end-line="120" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/nilearn/image/image.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="300">
-          <caret line="571" column="4" selection-start-line="571" selection-start-column="4" selection-end-line="571" selection-end-column="4" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/exps/analyse/plot_maps.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-3083">
-          <caret line="148" column="30" selection-start-line="148" selection-start-column="24" selection-end-line="148" selection-end-column="30" />
         </state>
       </provider>
     </entry>
@@ -1505,9 +1477,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="384">
           <caret line="24" selection-start-line="24" selection-end-line="26" selection-end-column="17" />
-          <folding>
-            <element signature="e#0#42#0" expanded="true" />
-          </folding>
         </state>
       </provider>
     </entry>
@@ -1518,37 +1487,138 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/exps/analyse/plot_figure_4.py">
+    <entry file="file://$PROJECT_DIR$/cogspaces/plotting.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="424">
-          <caret line="91" column="13" selection-start-line="91" selection-start-column="13" selection-end-line="91" selection-end-column="13" />
-          <folding>
-            <element signature="e#0#9#0" expanded="true" />
-          </folding>
+        <state relative-caret-position="960">
+          <caret line="76" selection-start-line="76" selection-end-line="77" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/cogspaces/plotting.py">
+    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/nilearn/plotting/img_plotting.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="164">
-          <caret line="76" selection-start-line="76" selection-end-line="77" />
+        <state relative-caret-position="14736">
+          <caret line="949" column="12" selection-start-line="949" selection-start-column="8" selection-end-line="949" selection-end-column="12" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/nilearn/plotting/displays.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="14976">
+          <caret line="955" selection-start-line="955" selection-end-line="955" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/nilearn/image/image.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="8128">
+          <caret line="524" column="4" selection-start-line="524" selection-start-column="4" selection-end-line="524" selection-end-column="4" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/matplotlib/axes/_axes.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="13824">
+          <caret line="908" column="8" selection-start-line="908" selection-start-column="8" selection-end-line="908" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/nilearn/plotting/find_cuts.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="3648">
+          <caret line="241" column="46" selection-start-line="241" selection-start-column="44" selection-end-line="241" selection-end-column="46" />
         </state>
       </provider>
     </entry>
     <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/scipy/cluster/hierarchy.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="31">
-          <caret line="1221" column="4" selection-start-line="1221" selection-start-column="4" selection-end-line="1221" selection-end-column="4" />
+        <state relative-caret-position="-935">
+          <caret line="484" column="4" selection-start-line="484" selection-start-column="4" selection-end-line="484" selection-end-column="4" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/cogspaces/datasets/brainpedia.json">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="208">
+          <caret line="47" column="31" selection-start-line="47" selection-start-column="31" selection-end-line="47" selection-end-column="31" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/exps/analyse/hierachical_clustering.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="539">
-          <caret line="102" column="64" selection-start-line="102" selection-start-column="64" selection-end-line="102" selection-end-column="64" />
+        <state relative-caret-position="208">
+          <caret line="213" column="41" selection-start-line="213" selection-start-column="41" selection-end-line="213" selection-end-column="41" />
           <folding>
             <element signature="e#0#31#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/matplotlib/axes/_base.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="291">
+          <caret line="2664" column="8" selection-start-line="2664" selection-start-column="8" selection-end-line="2664" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/cogspaces/datasets/contrasts.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="299">
+          <caret line="279" column="4" selection-start-line="279" selection-start-column="4" selection-end-line="279" selection-end-column="4" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/mpl_toolkits/axes_grid1/inset_locator.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="21">
+          <caret line="469" column="4" selection-start-line="469" selection-start-column="4" selection-end-line="469" selection-end-column="4" />
+          <folding>
+            <element signature="e#82#190#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/matplotlib/transforms.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="299">
+          <caret line="1038" column="8" selection-start-line="1038" selection-start-column="8" selection-end-line="1038" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/exps/analyse/plot_figure_4.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="282">
+          <caret line="153" column="37" selection-start-line="153" selection-start-column="37" selection-end-line="153" selection-end-column="37" />
+          <folding>
+            <element signature="e#0#38#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/exps/analyse/extract_dl.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="778">
+          <caret line="309" lean-forward="true" selection-start-line="309" selection-end-line="309" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/exps/analyse/plot_maps.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="282">
+          <caret line="59" column="32" selection-start-line="59" selection-start-column="32" selection-end-line="59" selection-end-column="32" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/matplotlib/gridspec.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="74">
+          <caret line="174" column="8" selection-start-line="174" selection-start-column="8" selection-end-line="174" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/exps/analyse/analyse_logistic.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="406">
+          <caret line="57" column="9" lean-forward="true" selection-start-line="57" selection-start-column="9" selection-end-line="57" selection-end-column="9" />
         </state>
       </provider>
     </entry>

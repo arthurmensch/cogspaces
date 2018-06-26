@@ -1,5 +1,4 @@
 import numpy as np
-import os
 import re
 import torch
 from jinja2 import Template
@@ -294,7 +293,6 @@ def make_report(output_dir):
 
 
 if __name__ == '__main__':
-    from exps.analyse.plot_mayavi import plot_3d
 
     n_jobs = 40
 
@@ -339,11 +337,11 @@ if __name__ == '__main__':
                                         for full_name in full_names)
     # Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_3d)(full_name)
     #                                     for full_name in full_names)
-    for full_name in full_names:
-        plot_2d(full_name, n_jobs=n_jobs)
+    # for full_name in full_names:
+    #     plot_2d(full_name, n_jobs=n_jobs)
     # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_grades)(full_name)
     #                                     for full_name in full_names)
     # for full_name in full_names:
     #     plot_grades(full_name, n_jobs=n_jobs)
-    for full_name in full_names:
-        make_report(full_name)
+    # for full_name in full_names:
+    #     make_report(full_name)

@@ -4,18 +4,16 @@ import os
 import re
 from jinja2 import Template
 from joblib import load, dump
-from nilearn._utils import check_niimg
 from os.path import join
 
 from cogspaces.datasets.utils import get_output_dir
-from cogspaces.plotting import plot_all
 from cogspaces.utils import get_dictionary, get_masker
 
-# output_dir = join(get_output_dir(), 'full_logistic_full')
-# full = True
+output_dir = join(get_output_dir(), 'full_logistic_full')
+full = True
 
-output_dir = join(get_output_dir(), 'logistic_gm_full')
-full = False
+# output_dir = join(get_output_dir(), 'logistic_gm_full')
+# full = False
 
 
 def classifs_html(output_dir, classifs_dir):
@@ -55,7 +53,9 @@ for this_dir in filter(regex.match, os.listdir(output_dir)):
     except FileNotFoundError:
         continue
     contrasts = target_encoder.le_[study]['contrast'].classes_
-    coefs.append(estimator.coef_[study])
+    these_coefs = estimator.coef_[study]
+    these_coefs = these_coefs - np.mean(these_coefs, axis=0, keepdims=True)
+    coefs.append(these_coefs)
     names.extend(['%s::%s' % (study, contrast) for contrast in contrasts])
 names = np.array(names)
 coefs = np.concatenate(coefs, axis=0)
@@ -74,7 +74,7 @@ else:
 masker = get_masker()
 img = masker.inverse_transform(components)
 
-img.to_filename(join(output_dir, 'components.nii.gz'))
+img.to_filename(join(output_dir, 'classifs_demean.nii.gz'))
 dump(names, join(output_dir, 'names.pkl'))
 
 #
@@ -86,3 +86,4 @@ dump(names, join(output_dir, 'names.pkl'))
 #          output_dir=join(output_dir, 'classifs'),
 #          view_types=['stat_map', 'glass_brain'], n_jobs=40)
 # classifs_html(output_dir, 'classifs')
+
