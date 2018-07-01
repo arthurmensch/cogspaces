@@ -1,5 +1,5 @@
 {"devauchelle2009sentence": {
-  "title": "Complexity",
+  "title": "Sentence/music complexity",
   "href": "http://www.pnas.org/content/108/6/2522.short"},
  "knops2009recruitment": {
    "title": "Arithmetic & saccades",
@@ -40,7 +40,7 @@
    "title": "Weather prediction",
    "href": "https://openfmri.org/dataset/ds000011"},
  "ds051": {
-   "title": "Cross-language  repetition priming",
+   "title": "Cross-language repetition priming",
    "href": "https://openfmri.org/dataset/ds000051"},
  "ds052": {
    "title": "Classif. learning & reversal",

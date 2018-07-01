@@ -1,6 +1,5 @@
 import json
 import matplotlib as mpl
-mpl.rcParams['font.family'] = 'sans-serif'
 mpl.rcParams['font.family'] = 'cmss10'
 mpl.rcParams['font.size'] = 13
 
@@ -20,7 +19,7 @@ idx = pd.IndexSlice
 
 save_dir = '/home/arthur/work/papers/papers/2018_05_nature/figures/quantitative'
 
-pad_bottom = .47
+pad_bottom = .51
 pad_top = .02
 pad_right = .02
 pad_left = 2.49
@@ -92,7 +91,7 @@ def plot_joined(data):
         ax1.errorbar(this_x, this_y, xerr=this_xerr, elinewidth=1.5,
                      capsize=2, linewidth=0, ecolor=this_color,
                      alpha=.5)
-    ax1.set_xlabel('Accuracy gain')
+    ax1.set_xlabel('Multi-study acc. gain', fontsize=15)
     ax1.spines['left'].set_position('zero')
     plt.setp(ax1.get_yticklabels(), visible=False)
 
@@ -129,17 +128,18 @@ def plot_joined(data):
     ax2.xaxis.set_major_locator(ticker.MultipleLocator(0.2))
     ax2.xaxis.set_minor_locator(ticker.MultipleLocator(0.05))
     ax2.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1))
-    ax2.set_xlabel('Decoding accuracy on test set')
+    ax2.set_xlabel('Decoding accuracy on test set', fontsize=15)
 
     handles = [rects1, rects2, lines]
-    labels = ['Baseline decoder', 'Factored decoder\nwith multi-study\nprior',
+    labels = ['Decoding from\nvoxels', 'Decoding from\nmulti-study\nnetworks',
               'Chance level']
     ax2.legend(handles, labels, loc='lower right', frameon=False,
-               fontsize=11,
-               bbox_to_anchor=(1.14, .64))
+               fontsize=13,
+               bbox_to_anchor=(1.16, .64))
 
     ax2.set_yticks(ind + width / 2)
-    ax2.annotate('Task fMRI study', xy=(-.4, -.08), xycoords='axes fraction')
+    ax2.annotate('Task fMRI study', xy=(-.4, -.09), xycoords='axes fraction',
+                 fontsize=15)
     labels = [
         '%s' % (names[label]['title']) if label in names else label
         for label in data.index.values]
@@ -227,7 +227,7 @@ def plot_compare_methods(sort, many=False):
     ax.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
     ax.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1))
-    ax.set_xlabel('Accuracy gain compared to baseline median')
+    ax.set_xlabel('Accuracy gain compared to baseline median', fontsize=15)
     ax.set_ylabel('')
     ax.spines['left'].set_position('zero')
     plt.setp(ax.spines['left'], zorder=2)
@@ -242,14 +242,14 @@ def plot_compare_methods(sort, many=False):
     )
     y_labels[baseline] = ('Decoding from\nvoxels')
     y_labels['logistic_gm'] = (
-        'Decoding from rest\n'
-        'functional networks'
+        'Decoding from\n'
+        'rest networks'
     )
     y_labels['factored_refit_gm_rest_positive_notune'] = (
         'Decoding from\n'
         'multi-study\n'
-        'end-to-end trained\n'
-        'task networks'
+        'task-optimized\n'
+        'networks'
     )
 
     if many:
@@ -280,21 +280,21 @@ def plot_compare_methods(sort, many=False):
         ax.annotate('Ablation',
                     xy=(-.12, 2.5), xytext=(-7, 0),
                     textcoords="offset points",
-                    fontsize=13,
+                    fontsize=15,
                     xycoords='data',
                     va='center', rotation=90,
                     ha='right')
         ax.annotate('Random init',
                     xy=(-.12, 5), xytext=(-7, 0),
                     textcoords="offset points",
-                    fontsize=13,
+                    fontsize=15,
                     xycoords='data',
                     va='center', rotation=90,
                     ha='right')
     for i, method in enumerate(methods):
         ax.annotate(y_labels[method], xy=(.17, i), xytext=(10, 0),
                     textcoords="offset points",
-                    fontsize=13,
+                    fontsize=15,
                     xycoords='data',
                     va='center',
                     ha='left')
@@ -351,13 +351,13 @@ def plot_gain_vs_size(sort):
                           joined_mean.index.get_level_values('study'))),
                s=8, )
     ax.set_xscale('log')
-    ax.set_ylabel('Accuracy gain')
-    ax.set_xlabel('Number of train subjects')
+    ax.set_ylabel('Multi study acc. gain', fontsize=15)
+    ax.set_xlabel('Number of train subjects', fontsize=15)
     ax.set_xlim([3, 420])
     ax.set_xticks([4, 16, 32, 100, 300, 400])
     ax.set_xticklabels([4, 16, 32, 100, 400])
 
-    ax.legend([clouds], ['Study'], frameon=True, scatterpoints=3, fontsize=11)
+    ax.legend([clouds], ['Study'], frameon=True, scatterpoints=3, fontsize=13)
 
     ax.yaxis.set_major_locator(ticker.MultipleLocator(0.05))
     ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.025))
@@ -365,7 +365,7 @@ def plot_gain_vs_size(sort):
     ax.spines['bottom'].set_position('zero')
 
     fig.subplots_adjust(left=.7 / width, right=1 - pad_right / width,
-                        bottom=0.3 / height, top=1 - .08 / height, )
+                        bottom=0.35 / height, top=1 - .08 / height, )
 
     sns.despine(fig)
     fig.savefig(join(save_dir, 'gain_vs_size.pdf'))
@@ -395,7 +395,7 @@ def plot_gain_vs_accuracy(sort):
 
         fig, ax = plt.subplots(1, 1, figsize=(width, height),)
         fig.subplots_adjust(left=.7 / width, right=1 - .2 / width,
-                            bottom=pad_bottom / height, top=1 - .08 / height, )
+                            bottom=.5 / height, top=1 - .08 / height, )
 
         sns.regplot(mean['baseline', score, 'mean'],
                     mean['diff', score, 'mean'],
@@ -425,14 +425,15 @@ def plot_gain_vs_accuracy(sort):
         ax.yaxis.set_major_locator(ticker.MultipleLocator(0.05))
         ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.025))
         if score == 'bacc':
-            ax.set_xlabel('Baseline balanced accuracy score \n(per contrast)')
+            ax.set_xlabel('Baseline balanced accuracy',
+                          fontsize=15)
         else:
             ax.set_xlabel('Baseline F1 score (per contrast)')
-        ax.set_ylabel('Gain from multi-study model     ')
+        ax.set_ylabel('Multi-study b-acc. gain    ', fontsize=15)
         ax.hlines(0, 0, 1, linestyle=(0, [2, 4]))
 
         ax.legend([clouds], ['Contrast'], frameon=True, scatterpoints=3,
-                  fontsize=11,
+                  fontsize=13,
                   loc='lower right')
 
         sns.despine(fig)

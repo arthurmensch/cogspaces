@@ -1,5 +1,9 @@
+import matplotlib as mpl
+from matplotlib.font_manager import FontProperties
+
+mpl.rcParams['font.family'] = 'cmss10'
+
 import matplotlib.gridspec as gridspec
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
@@ -15,6 +19,8 @@ from nilearn.plotting import find_xyz_cut_coords, plot_stat_map, \
 from os.path import join
 
 from cogspaces.datasets.utils import get_output_dir
+
+import matplotlib.pyplot as plt
 
 
 def plot_single_tuple(imgs, view_type, plot_dir, name):
@@ -144,11 +150,11 @@ def projections():
 
 def plot_classifs_selection():
     mem = Memory(cachedir=get_cache_dir())
-    gs = gridspec.GridSpec(5, 5, width_ratios=[1.3, 2, 2, 2, 2],
+    gs = gridspec.GridSpec(5.1, 5, width_ratios=[1.45, 2, 2, 2, 2],
                            hspace=0., wspace=0.04)
     fig = plt.figure(figsize=(15, 6.5))
 
-    fig.subplots_adjust(left=0.0, right=1., top=.87, bottom=0.01)
+    fig.subplots_adjust(left=0.0, right=1., top=.89, bottom=0.01)
 
     classifs = [('ds105', 'face_vs_house'),
                 ('ds001', 'pumps_demean_vs_ctrl_demean'),
@@ -169,7 +175,7 @@ def plot_classifs_selection():
                   'Raw z-map', 'Projection on task networks'
                   ]
 
-    ann_offsets = [6, 0, 0, 4, 0]
+    ann_offsets = [5, 0, 2, 4, 10]
 
     cut_coords = [[25.41189480229025, -39.77450008662751, -12.81076684554079],
                   # auto
@@ -189,12 +195,12 @@ def plot_classifs_selection():
                             'boxstyle': 'round',
                             'linewidth': 0},
                    'color': 'white',
-                   'fontsize': 14}
+                   'fontsize': 17}
     label_props = {'xytext': (0, 22),
                    'textcoords': 'offset points',
                    'va': 'center', 'ha': 'center',
                    'xycoords': 'axes fraction',
-                   'fontsize': 14}
+                   'fontsize': 17}
 
 
     lw = 2
@@ -269,6 +275,7 @@ def plot_classifs_selection():
                 ax_stat.annotate(ann, xycoords='axes fraction',
                                  va='bottom',
                                  xytext=(0., ann_offsets[row]),
+                                 fontsize=10,
                                  textcoords='offset points',
                                  bbox=dict(facecolor='white', edgecolor=None,
                                            linewidth=0, pad=0),
@@ -276,18 +283,20 @@ def plot_classifs_selection():
 
             if row == 0:
                 if column in [1, 3]:
-                    label = 'Classification maps' if column == 1 else 'Example input data'
-                    ax_glass.annotate(label, xy=(1., 1.33),
+                    label = '(a) Classification maps' if column == 1 else '(b) Input data transformation'
+                    font = FontProperties(weight='bold')
+                    ax_glass.annotate(label, xy=(1., 1.18), zorder=1,
+                                      fontproperties=font,
                                       **label_props_wb)
 
-                ax_stat.annotate(col_labels[column], xy=(0.75, 1),
+                ax_stat.annotate(col_labels[column], xy=(0.75, 0.9),
                                  **label_props)
                 trans = transforms.blended_transform_factory(
                     ax_stat.transAxes + offset, fig.transFigure)
-                l = matplotlib.lines.Line2D([0, 0], [0, 0.87],
+                l = matplotlib.lines.Line2D([0, 0], [0, 1] if column in [1, 3] else [0, .95],
                                             transform=trans,
                                             figure=fig, color='black',
-                                            linewidth=4,
+                                            linewidth=2,
                                             zorder=0)
                 fig.lines.append(l)
 
@@ -302,11 +311,11 @@ def plot_classifs_selection():
                         xy=(1, .5),
                         xytext=(-5, 0),
                         textcoords='offset points',
-                        fontsize=12,
+                        fontsize=15,
                         va='center', ha='right',
                         xycoords='axes fraction')
         if row == 0:
-            ax_ann.annotate(col_labels[0], xy=(0.5, 1.),
+            ax_ann.annotate(col_labels[0], xy=(0.5, 0.9),
                             **label_props)
 
     fig.savefig(join(output_dir, 'classifs.svg'),

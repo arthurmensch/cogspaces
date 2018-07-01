@@ -1,3 +1,6 @@
+import matplotlib as mpl
+mpl.rcParams['font.family'] = 'cmss10'
+
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -119,11 +122,11 @@ def get_linkage(dist):
 
 
 mem = Memory(cachedir=expanduser('~/cache'))
-width = 11
-height = 7.35
-scale = 15 / 11
+width = 10.3
+height = 7.4
+scale = 8 / 10.3
 fig = plt.figure(figsize=(width * scale, height * scale))
-fig.subplots_adjust(left=0.0, top=1, bottom=.35 / 7.35, right=1 - 4 / 11)
+fig.subplots_adjust(left=0.0, top=1, bottom=.4 / 7.4, right=1 - 3.3 / 10.3)
 gs = gridspec.GridSpec(2, 2, width_ratios=[4, 3], height_ratios=[4, 3],
                        wspace=0.05, hspace=0.05)
 
@@ -136,16 +139,16 @@ corr = 1 - dist
 mean_corr = np.mean(np.abs(corr))
 
 ax_matrix_full, _, _ = plot_correlation_dendro(corr, Z, figure=fig,
-                                               ax=gs[0, 0], truncate_level=6)
+                                               ax=gs[0, 0], truncate_level=5)
 
 ax_matrix_full.annotate('Task-network decoder\n'
-                        'Cophenetic: %.3f\n'
-                        'Mean abs. corr.: %.3f' % (c, mean_corr),
+                        'C = %.2f '
+                         '$\\overline{| c_{i, j} |}$ = %.2f' % (c, mean_corr),
                         bbox={'facecolor': 'black',
                               'boxstyle': 'round',
                               'linewidth': 0},
-                        xy=(.3, .9), xycoords='axes fraction', ha='center',
-                        va='center', fontsize=12,
+                        xy=(.05, .95), xycoords='axes fraction', ha='left',
+                        va='top', fontsize=10,
                         color='white'
                         )
 
@@ -153,7 +156,7 @@ x1, x2 = 312, 352
 # x1, x2 = 250, 290
 # Zoom rectangle
 rect = patches.Rectangle((x1 - .5, x1 - .5), x2 - x1, x2 - x1,
-                         linewidth=2,
+                         linewidth=1,
                          edgecolor='black', facecolor='none')
 ax_matrix_full.add_patch(rect)
 
@@ -165,20 +168,20 @@ ax_tdendro.set_xlim([x1 * 10, x2 * 10])
 ax_matrix.set_yticks(range(x1, x2))
 labels = [label.replace('_', ' ').replace('&', ' ')
           for label in sorted_names[x1:x2]]
-ax_matrix.set_yticklabels(labels)
+ax_matrix.set_yticklabels(labels, fontsize=5)
 ax_matrix.yaxis.tick_right()
 ax_matrix.yaxis.set_label_position("right")
 
 con = ConnectionPatch(xyA=(x2, x2), xyB=(0, 1),
                       coordsA="data", coordsB="axes fraction",
                       axesA=ax_matrix_full, axesB=ax_matrix, arrowstyle="-",
-                      linewidth=1.5, antialiased=True,
+                      linewidth=1, antialiased=True,
                       linestyle=':')
 ax_matrix_full.add_artist(con)
 con = ConnectionPatch(xyA=(x2, x1), xyB=(0, 0),
                       coordsA="data", coordsB="axes fraction",
                       antialiased=True,
-                      linewidth=1.5,
+                      linewidth=1,
                       axesA=ax_matrix_full, axesB=ax_matrix, arrowstyle="-",
                       linestyle=':')
 ax_matrix_full.add_artist(con)
@@ -190,23 +193,23 @@ ax_matrix.annotate('Calculation',
                    bbox={'facecolor': 'black',
                          'boxstyle': 'round',
                          'linewidth': 0},
-                   xy=(14 + x1, 6 + x1), xycoords='data', ha='center',
-                   va='center', fontsize=12,
+                   xy=(13 + x1, 2.5 + x1), xycoords='data', ha='center',
+                   va='center', fontsize=10,
                    color='white')
 ax_matrix.annotate('Stop',
                    bbox={'facecolor': 'black',
                          'boxstyle': 'round',
                          'linewidth': 0},
-                   xy=(24.5 + x1, 21.5 + x1), xycoords='data', ha='center',
-                   va='center', fontsize=12,
+                   xy=(24.5 + x1, 21 + x1), xycoords='data', ha='center',
+                   va='center', fontsize=10,
                    color='white')
 ax_matrix.annotate('Left motor',
-                   xy=(31 + x1, 34.5 + x1), xycoords='data', ha='center',
+                   xy=(31 + x1, 37 + x1), xycoords='data', ha='center',
                    bbox={'facecolor': 'black',
                          'boxstyle': 'round',
                          'linewidth': 0},
                    color='white',
-                   fontsize=12,
+                   fontsize=10,
                    va='center')
 
 ###########################################################################
@@ -229,18 +232,18 @@ ax_matrix_baseline_full, ax_ldendro, _ = plot_correlation_dendro(
     figure=fig, top=False,
     left=True,
     ax=gs[1, 0],
-    truncate_level=6)
+    truncate_level=5)
 
 ax_matrix_baseline_full.annotate('Voxel decoder\n'
-                                 'C = %.3f\n'
-                                 '$| \\bar c_{i, j} |$ = %.3f' % (
+                                 'C = %.2f\n'
+                                 '$\\overline{| c_{i, j} |}$ = %.2f' % (
                                      c, mean_corr),
                                  bbox={'facecolor': 'black',
                                        'boxstyle': 'round',
                                        'linewidth': 0},
-                                 xy=(.3, .9), xycoords='axes fraction',
-                                 ha='center',
-                                 va='center', fontsize=12,
+                                 xy=(.05, .95), xycoords='axes fraction',
+                                 ha='left',
+                                 va='top', fontsize=10,
                                  color='white'
                                  )
 
@@ -253,7 +256,7 @@ ax_matrix_baseline, _, _ = plot_correlation_dendro(factored_sorted_corr, Z,
                                                    figure=fig, left=False,
                                                    top=False,
                                                    ax=gs[1, 1],
-                                                   truncate_level=6)
+                                                   truncate_level=5)
 # ax_tdendro.clear()
 # ax_tdendro.axis('off')
 
@@ -261,7 +264,7 @@ ax_matrix_baseline.set_xlim([x1 - .5, x2 - .5])
 ax_matrix_baseline.set_ylim([x1 - .5, x2 - .5])
 
 ax_matrix_baseline.set_yticks(range(x1, x2))
-ax_matrix_baseline.set_yticklabels(labels)
+ax_matrix_baseline.set_yticklabels(labels, fontsize=5)
 ax_matrix_baseline.yaxis.tick_right()
 ax_matrix_baseline.yaxis.set_label_position("right")
 
@@ -271,11 +274,11 @@ con = ConnectionPatch(xyA=(x2, x1), xyB=(0, 1),
                       axesA=ax_matrix_full, axesB=ax_matrix_baseline,
                       linestyle=":",
                       antialiased=True, zorder=10,
-                      linewidth=1.5)
+                      linewidth=1)
 ax_matrix_full.add_artist(con)
 con = ConnectionPatch(xyA=(x1, x1), xyB=(0, 0),
                       coordsA="data", coordsB="axes fraction",
-                      linewidth=1.5,
+                      linewidth=1,
                       antialiased=True, zorder=10,
                       axesA=ax_matrix_full, axesB=ax_matrix_baseline,
                       linestyle=":")
@@ -284,18 +287,18 @@ ax_matrix_full.set_zorder(1)
 ax_matrix_baseline_full.set_zorder(-1)
 
 ax_ldendro.annotate('Hierarchical\nclustering',
-                    xy=(.5, -.1),
-                    ha='center', fontsize=14,
+                    xy=(.5, -.01), va='top',
+                    ha='center', fontsize=10,
                     xycoords='axes fraction')
 
-ax_matrix_baseline_full.annotate('Correlation between classification maps\n'
-                                 '(sorted using average linkage)',
-                                 xy=(.5, -.1),
-                                 ha='center', fontsize=14,
+ax_matrix_baseline_full.annotate('Cosine distance between\nclassification maps\n',
+                                 xy=(.5, -.01), va='top',
+                                 ha='center', fontsize=10,
                                  xycoords='axes fraction'
                                  )
-ax_matrix_baseline.annotate('Zoom on a subset of classification maps',
-                            xy=(.5, -.1), fontsize=14,
+ax_matrix_baseline.annotate('Zoom on a subset of maps',
+                            xy=(.5, -.01), fontsize=10,
+                            va='top',
                             ha='center',
                             xycoords='axes fraction'
                             )
