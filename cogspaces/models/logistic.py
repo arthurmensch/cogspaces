@@ -2,8 +2,12 @@ import numpy as np
 import pandas as pd
 from joblib import load
 from sklearn.base import BaseEstimator
+from sklearn.feature_selection import f_regression, \
+    SelectPercentile
 from sklearn.linear_model import LogisticRegressionCV, LogisticRegression
 from sklearn.model_selection import GroupShuffleSplit
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
 
 
@@ -65,12 +69,16 @@ class MultiLogisticClassifier(BaseEstimator):
                         tol=1e-4,
                         verbose=self.verbose).fit(this_X, this_y)
             else:
-                self.estimators_[study] = LinearSVC(
+                anova_filter = SelectPercentile(f_regression, percentile=10)
+                linear_svc = LinearSVC(
                     multi_class='ovr',
                     dual=this_X.shape[0] < this_X.shape[1],
-                    C=1, max_iter=self.max_iter,
+                    C=10, max_iter=self.max_iter,
                     tol=1e-4,
-                    verbose=self.verbose).fit(this_X, this_y)
+                    verbose=self.verbose)
+                sc = StandardScaler()
+                self.estimators_[study] = make_pipeline(anova_filter, linear_svc)
+                self.estimators_[study].fit(this_X, this_y)
 
     def predict_proba(self, X):
         res = {}

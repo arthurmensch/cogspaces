@@ -1,11 +1,11 @@
 from math import sqrt
 
 import numpy as np
+import pandas as pd
 from numba import jit
 from numpy.linalg import svd
 from sklearn.base import BaseEstimator
 from sklearn.utils import check_array
-import pandas as pd
 
 
 def lipschitz_constant(X, dataset_weights, xslices, fit_intercept=False,
@@ -172,7 +172,7 @@ def _ista_loop(L, Lmax, X, coef, coef_diff, coef_grad, intercept,
                 loss += alpha * trace_norm(coef)
             print('Iteration', iter, 'rank', rank, 'loss', loss,
                   'step size', 1 / L)
-            callback(iter)
+            print(coef)
 
         loss, rank, L, max_backtracking_iter = _prox_grad(X, y, preds, coef,
                                                           intercept,
@@ -261,6 +261,7 @@ class TraceClassifier(BaseEstimator):
                    self.verbose, self.momentum,
                    callback,
                    )
+        callback(self, 0)
 
     @property
     def coef_(self):
@@ -298,6 +299,7 @@ class TraceClassifier(BaseEstimator):
         preds = {}
         for study, contrast in contrasts.items():
             preds[study] = pd.DataFrame(dict(contrast=contrast, study=0,
+                                             all_contrast=0,
                                              subject=0))
         return preds
 

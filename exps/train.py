@@ -17,6 +17,7 @@ from cogspaces.models.factored import FactoredClassifier
 from cogspaces.models.factored_dl import FactoredDL
 from cogspaces.models.factored_ss import StudySelector
 from cogspaces.models.logistic import MultiLogisticClassifier
+from cogspaces.models.trace import TraceClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
@@ -30,16 +31,16 @@ def default():
     full = False
     system = dict(
         device=-1,
-        verbose=2,
+        verbose=20,
         n_jobs=3,
     )
     data = dict(
-        source_dir=join(get_data_dir(), 'masked_gm'),
-        studies=['brainomics', 'archi'],
+        source_dir=join(get_data_dir(), 'reduced_512_gm'),
+        studies=['brainomics'],
     )
     model = dict(
-        estimator='factored',
-        normalize=False,
+        estimator='trace',
+        normalize=True,
         seed=100,
         refinement=None,
         target_study='archi',
@@ -71,10 +72,15 @@ def default():
     )
 
     logistic = dict(
-        estimator='logistic',
+        estimator='svc',
         l2_penalty=[7e-5],
-        max_iter=3000,
+        max_iter=1000,
         refit_from=None,
+    )
+
+    trace = dict(
+        trace_penalty=1e-7,
+        max_iter=1000,
     )
 
     refinement = dict(
@@ -229,7 +235,7 @@ def load_data(source_dir, studies):
 
 @exp.main
 def train(system, model, logistic, refinement,
-          factored, full,
+          factored, full, trace,
           _run, _seed):
     data, target = load_data()
     print(_seed)
@@ -288,6 +294,12 @@ def train(system, model, logistic, refinement,
     elif model['estimator'] == 'logistic':
         estimator = MultiLogisticClassifier(verbose=system['verbose'],
                                             **logistic)
+        train_test_data = train_data
+        train_test_targets = train_targets
+    elif model['estimator'] == 'trace':
+        estimator = TraceClassifier(verbose=system['verbose'],
+                                    step_size_multiplier=100000,
+                                    **trace)
         train_test_data = train_data
         train_test_targets = train_targets
     else:

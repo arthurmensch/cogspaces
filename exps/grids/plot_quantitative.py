@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 idx = pd.IndexSlice
 
-save_dir = '/home/arthur/work/papers/papers/2018_05_nature/figures/quantitative'
+save_dir = '/home/arthur/work/papers/papers/thesis/figures/nature/quantitative'
 
 pad_bottom = .51
 pad_top = .02
@@ -131,7 +131,7 @@ def plot_joined(data):
     ax2.set_xlabel('Decoding accuracy on test set', fontsize=15)
 
     handles = [rects1, rects2, lines]
-    labels = ['Decoding from\nvoxels', 'Decoding from\nmulti-study\nnetworks',
+    labels = ['Baseline:\nDecoding from\nvoxels', 'Decoding from\nmulti-study\nnetworks',
               'Chance level']
     ax2.legend(handles, labels, loc='lower right', frameon=False,
                fontsize=13,
@@ -153,27 +153,32 @@ def plot_joined(data):
     return sort
 
 
-def plot_compare_methods(sort, many=False):
+def plot_compare_methods(sort, ablation=None):
     width, height = 6.2, 3
+
+    # if ablation is not None:
+    #     width = 8
 
     output_dir = get_output_dir()
 
-    baseline = 'full_logistic'
-
-    if many:
-        exps = [baseline,
-                'logistic_gm',
-                # 'factored_refit_gm_rest_positive_notune',
-                # 'factored_refit_gm_notune',
-                # 'factored_gm',
-                # 'factored_refit_gm_normal_init_rest_positive_notune',
-                # # 'factored_refit_gm_normal_init_positive_notune',
-                # 'factored_refit_gm_normal_init_notune',
-                # 'factored_gm_normal_init',
-                ]
+    if ablation is None:
+        baseline = 'full_logistic'
     else:
+        baseline = 'factored_refit_gm_rest_positive_notune'
+
+    if ablation is None:
         exps = [baseline, 'logistic_gm',
                 'factored_refit_gm_rest_positive_notune']
+    elif ablation == 'init':
+        exps = [baseline, 'factored_refit_gm_rest_positive_notune',
+                'factored_refit_gm_normal_init_positive_notune']
+    elif ablation == 'posthoc':
+        exps = ['full_logistic', baseline,
+                'factored_refit_gm_normal_init_positive_notune',
+                'factored_gm',
+                'factored_gm_normal_init']
+    else:
+        raise ValueError
 
     dfs = []
     for exp in exps:
@@ -182,7 +187,7 @@ def plot_compare_methods(sort, many=False):
             if exp == 'factored_refit_gm_rest_positive_notune':
                 df = df.loc[0.0001]
             else:
-                df = df.loc[0.0001]
+                df = df.loc[0.00001]
         if exp in ['factored_gm', 'factored_gm_normal_init']:
             df = df.groupby(['study', 'seed']).mean()
         dfs.append(df)
@@ -207,12 +212,16 @@ def plot_compare_methods(sort, many=False):
     n_studies = len(df_sort['study'].unique())
 
     diff_color = sns.color_palette("husl", n_studies)
-    if many:
+    if ablation is not None:
         height = height * len(exps) / 3
 
     fig, ax = plt.subplots(1, 1, figsize=(width, height))
-    fig.subplots_adjust(left=.07 / width, right=1 - 1.65 /width,
-                        bottom=0.55 / height, top=1 - pad_top / height, )
+    if ablation is None:
+        fig.subplots_adjust(left=.07 / width, right=1 - 1.65 /width,
+                            bottom=0.55 / height, top=1 - pad_top / height, )
+    else:
+        fig.subplots_adjust(left=.07 / width, right=1 - 1.8 / width,
+                            bottom=0.55 / height, top=1 - pad_top / height, )
 
     params = dict(x="accuracy", y="method", hue="study",
                   data=df_sort, dodge=True, ax=ax,
@@ -223,11 +232,18 @@ def plot_compare_methods(sort, many=False):
     sns.boxplot(x="accuracy", y="method", color='0.75', showfliers=False,
                 whis=1.5,
                 data=df_sort, ax=ax, zorder=100)
-    ax.set_xlim([-0.14, 0.175])
+    if ablation is None:
+        ax.set_xlim([-0.14, 0.175])
+    else:
+        ax.set_xlim([-0.125, 0.10])
     ax.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
     ax.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1))
-    ax.set_xlabel('Accuracy gain compared to baseline median', fontsize=15)
+    if ablation is None:
+        ax.set_xlabel('Accuracy gain compared to baseline median', fontsize=15)
+    else:
+        ax.set_xlabel('Accuracy gain compared to proposed model median', fontsize=15)
+
     ax.set_ylabel('')
     ax.spines['left'].set_position('zero')
     plt.setp(ax.spines['left'], zorder=2)
@@ -240,7 +256,7 @@ def plot_compare_methods(sort, many=False):
     y_labels['factored_gm_single'] = (
         'Factored decoder\nwith single-\nstudy prior'
     )
-    y_labels[baseline] = ('Decoding from\nvoxels')
+    y_labels['full_logistic'] = ('Decoding from\nvoxels')
     y_labels['logistic_gm'] = (
         'Decoding from\n'
         'rest networks'
@@ -252,47 +268,47 @@ def plot_compare_methods(sort, many=False):
         'networks'
     )
 
-    if many:
-        y_labels['factored_refit_gm_normal_init_rest_positive_notune'] = (
-            'Random init +\n'
-            'sparse NMF\nwith rest init')
+    if ablation is not None:
+        if ablation == 'init':
+            y_labels['factored_refit_gm_rest_positive_notune'] = (
+                'Resting-state init.\nfor second layer')
+        elif ablation == 'posthoc':
+            y_labels['factored_refit_gm_rest_positive_notune'] = (
+                'Proposed model:\nresting-state init.\npost-hoc transform.')
+        y_labels['full_logistic'] = ('Baseline:\nDecoding from\nvoxels')
+
         y_labels['factored_refit_gm_normal_init_positive_notune'] = (
-            'Random init +\n'
-            'sparse NMF\nwith random init')
+            'Random init.\nfor second layer')
         y_labels['factored_refit_gm_normal_init_notune'] = (
             'Random init +\n'
             'DL with\nrandom init')
         y_labels['factored_gm_normal_init'] = (
-            'Random init')
-        y_labels['factored_refit_gm_rest_positive_notune'] = (
-            'Rest init +\n'
-            'sparse NMF\n'
-            'with rest init')
+            'Random init. and\n'
+            'no post-hoc\ntransform.')
         y_labels['factored_refit_gm_notune'] = (
             'Rest init +\n'
             'DL with rest init')
         y_labels['factored_gm'] = (
-            'Rest init')
-        y_labels['full_logistic'] = 'Full logistic'
+            'Training without\npost-hoc transform.')
         y_labels['logistic_gm'] = 'Rest compressed logistic'
 
-        ax.hlines([1.5, 3.5], *ax.get_xlim(), linestyle='--', color='.5')
+        ax.hlines([1.5], -.8, .1, linestyle='--', color='.5')
         ax.annotate('Ablation',
-                    xy=(-.12, 2.5), xytext=(-7, 0),
+                    xy=(-.8, 1.5), xytext=(-2, 0),
                     textcoords="offset points",
                     fontsize=15,
                     xycoords='data',
-                    va='center', rotation=90,
+                    va='center', rotation=0,
                     ha='right')
-        ax.annotate('Random init',
-                    xy=(-.12, 5), xytext=(-7, 0),
-                    textcoords="offset points",
-                    fontsize=15,
-                    xycoords='data',
-                    va='center', rotation=90,
-                    ha='right')
+        # ax.annotate('Random init',
+        #             xy=(-.12, 5), xytext=(-7, 0),
+        #             textcoords="offset points",
+        #             fontsize=15,
+        #             xycoords='data',
+        #             va='center', rotation=90,
+        #             ha='right')
     for i, method in enumerate(methods):
-        ax.annotate(y_labels[method], xy=(.17, i), xytext=(10, 0),
+        ax.annotate(y_labels[method], xy=(.095, i), xytext=(10, 0),
                     textcoords="offset points",
                     fontsize=15,
                     xycoords='data',
@@ -302,8 +318,7 @@ def plot_compare_methods(sort, many=False):
     sns.despine(fig)
 
     plt.setp(ax.legend(), visible=False)
-    plt.savefig(join(save_dir, 'comparison_method%s.pdf' %
-                     ('_many' if many else '')))
+    plt.savefig(join(save_dir, 'comparison_method%s.pdf' % ('_%s' % ablation if ablation is not None else '')))
     plt.close(fig)
 
 
@@ -442,8 +457,9 @@ def plot_gain_vs_accuracy(sort):
 
 if __name__ == '__main__':
     data, sort = make_data()
-    plot_joined(data)
-    plot_compare_methods(sort)
-    plot_compare_methods(sort, many=True)
-    plot_gain_vs_accuracy(sort)
-    plot_gain_vs_size(sort)
+    # plot_joined(data)
+    # plot_compare_methods(sort)
+    # plot_compare_methods(sort, ablation='init')
+    plot_compare_methods(sort, ablation='posthoc')
+    # plot_gain_vs_accuracy(sort)
+    # plot_gain_vs_size(sort)
