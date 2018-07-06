@@ -2,11 +2,10 @@
 from math import ceil
 
 import json
-import numpy as np
 import os
 import pandas as pd
 import re
-from joblib import load, Parallel, delayed
+from joblib import Parallel, delayed
 from os.path import join
 
 from cogspaces.data import load_data_from_dir
@@ -21,8 +20,8 @@ def gather_factored(output_dir, flavor='simple'):
         extra_indices = ['alpha']
     elif flavor == 'reset':
         extra_indices = ['reset']
-    else:
-        extra_indices = []
+    elif flavor == 'l2':
+        extra_indices = ['l2']
     accuracies = []
     metrics = []
     for this_dir in filter(regex.match, os.listdir(output_dir)):
@@ -34,26 +33,26 @@ def gather_factored(output_dir, flavor='simple'):
             run = json.load(open(join(this_exp_dir, 'run.json'), 'r'))
             seed = config['seed']
             test_scores = run['result']
-            Cs, precs, f1s, recalls = load(
-                join(this_exp_dir, 'scores.pkl'))
+            # Cs, precs, f1s, recalls = load(
+            #     join(this_exp_dir, 'scores.pkl'))
         except (FileNotFoundError, json.decoder.JSONDecodeError):
             print('Skipping exp %i' % this_dir)
             continue
 
-        baccs = {}
-        for study in precs:
-            C = Cs[study]
-            total = np.sum(C)
-            baccs[study] = {}
-            for i, contrast in enumerate(precs[study]):
-                t = np.sum(C[i])
-                p = np.sum(C[:, i])
-                n = total - p
-                tp = C[i, i]
-                fp = p - tp
-                fn = t - tp
-                tn = total - fp - fn - tp
-                baccs[study][contrast] = .5 * (tp / p + tn / n)
+        # baccs = {}
+        # for study in precs:
+        #     C = Cs[study]
+        #     total = np.sum(C)
+        #     baccs[study] = {}
+        #     for i, contrast in enumerate(precs[study]):
+        #         t = np.sum(C[i])
+        #         p = np.sum(C[:, i])
+        #         n = total - p
+        #         tp = C[i, i]
+        #         fp = p - tp
+        #         fn = t - tp
+        #         tn = total - fp - fn - tp
+        #         baccs[study][contrast] = .5 * (tp / p + tn / n)
 
         if flavor in ['single_study', 'transfer']:
             if flavor == 'single_study':
@@ -62,18 +61,18 @@ def gather_factored(output_dir, flavor='simple'):
                 study = config['model']['target_study']
             accuracies.append(dict(study=study, accuracy=test_scores[study],
                                    seed=seed))
-            f1s = f1s[study]
-            recalls = recalls[study]
-            precs = precs[study]
-            baccs = baccs[study]
+            # f1s = f1s[study]
+            # recalls = recalls[study]
+            # precs = precs[study]
+            # baccs = baccs[study]
 
-            metrics.extend([dict(study=study, contrast=contrast,
-                                 prec=precs[contrast],
-                                 recall=recalls[contrast],
-                                 bacc=baccs[contrast],
-                                 f1=f1s[contrast],
-                                 seed=seed)
-                            for contrast in f1s])
+            # metrics.extend([dict(study=study, contrast=contrast,
+                                 # prec=precs[contrast],
+                                 # recall=recalls[contrast],
+                                 # bacc=baccs[contrast],
+                                 # f1=f1s[contrast],
+                                 # seed=seed)
+                            # for contrast in f1s])
         else:
             if flavor == 'refit':
                 refit_from = config['factored']['refit_from']
@@ -81,31 +80,36 @@ def gather_factored(output_dir, flavor='simple'):
             elif flavor == 'reset':
                 reset = config['factored']['reset_classifiers']
                 extra_dict = dict(reset=reset)
+            elif flavor == 'l2':
+                l2 = config['factored']['l2_penalty']
+                extra_dict = dict(l2=l2)
             else:
                 extra_dict = {}
             accuracies.extend([dict(seed=seed, study=study, accuracy=score,
                                     **extra_dict) for study, score in
                                test_scores.items()])
-            metrics.extend([dict(study=study, contrast=contrast,
-                                 prec=precs[study][contrast],
-                                 recall=recalls[study][contrast],
-                                 f1=f1s[study][contrast],
-                                 bacc=baccs[study][contrast],
-                                 seed=seed,
-                                 **extra_dict
-                                 )
-                            for study in f1s
-                            for contrast in f1s[study]
-                            ])
-    metrics = pd.DataFrame(metrics)
-    metrics = metrics.set_index([*extra_indices, 'study', 'contrast', 'seed'])
-    metrics_mean = metrics.groupby(
-        [*extra_indices, 'study', 'contrast']).aggregate(
-        ['mean', 'std'])
-    metrics.to_pickle(join(output_dir, 'metrics.pkl'))
-    metrics_mean.to_pickle(join(output_dir, 'metrics_mean.pkl'))
+            # metrics.extend([dict(study=study, contrast=contrast,
+            #                      prec=precs[study][contrast],
+            #                      recall=recalls[study][contrast],
+            #                      f1=f1s[study][contrast],
+            #                      bacc=baccs[study][contrast],
+            #                      seed=seed,
+            #                      **extra_dict
+            #                      )
+            #                 for study in f1s
+            #                 for contrast in f1s[study]
+            #                 ])
+    # metrics = pd.DataFrame(metrics)
+    # print(metrics)
+    # metrics = metrics.set_index([*extra_indices, 'study', 'contrast', 'seed'])
+    # metrics_mean = metrics.groupby(
+    #     [*extra_indices, 'study', 'contrast']).aggregate(
+    #     ['mean', 'std'])
+    # metrics.to_pickle(join(output_dir, 'metrics.pkl'))
+    # metrics_mean.to_pickle(join(output_dir, 'metrics_mean.pkl'))
 
     accuracies = pd.DataFrame(accuracies)
+    print(accuracies)
     accuracies = accuracies.set_index([*extra_indices, 'study', 'seed'])[
         'accuracy']
     accuracies_mean = accuracies.groupby([*extra_indices, 'study']).aggregate(
@@ -204,8 +208,12 @@ def get_studies():
 
 if __name__ == '__main__':
     launch = [
-        # delayed(gather_factored)(join(get_output_dir(), 'factored_gm')),
+        # delayed(gather_factored)(join(get_output_dir(), 'factored')),
+        delayed(gather_factored)(join(get_output_dir(), 'factored_l2'), flavor='l2'),
+        # delayed(gather_factored)(join(get_output_dir(), 'adaptive_dropout')),
+        # delayed(gather_factored)(join(get_output_dir(), 'bn')),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_low_lr'), flavor='refit'),
+        # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_positive_notune'), flavor='refit'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_rest_positive_notune'), flavor='refit'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_positive_notune'), flavor='refit'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_rest_positive_notune'), flavor='refit'),

@@ -54,6 +54,51 @@ def factored():
     )
 
 
+def trace():
+    seed = 860
+    full = False
+    system = dict(
+        device=-1,
+        verbose=5,
+        n_jobs=3,
+    )
+    data = dict(
+        source_dir=join(get_data_dir(), 'reduced_512_gm'),
+        studies=['archi', 'hcp'],
+    )
+    model = dict(
+        estimator='trace',
+        normalize=True,
+        seed=100,
+    )
+
+    trace = dict(
+        trace_penalty=1e-1,
+        max_iter=6000,
+        momentum=True,
+    )
+    factored = dict(
+        optimizer='adam',
+        latent_size='auto',
+        activation='linear',
+        regularization=1,
+        adaptive_dropout=True,
+        sampling='random',
+        weight_power=0.6,
+        batch_size=128,
+        epoch_counting='all',
+        init='rest_gm',
+        batch_norm=True,
+        dropout=0.75,
+        input_dropout=0.25,
+        seed=100,
+        lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
+            'finetune': 1e-3},
+        max_iter={'pretrain': 200, 'train': 300, 'sparsify': 0,
+                  'finetune': 200},
+    )
+
+
 def factored_transfer():
     seed = 100
     full = False
@@ -389,6 +434,26 @@ if __name__ == '__main__':
                           for alpha in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]
                           for decomposition in ['dl_rest_positive']]
 
+    elif grid == 'factored_refit_gm_full_positive_notune':
+        exp.config(factored_refit)
+        init_dir = join(get_output_dir(), 'factored_gm_normal_init_full')
+
+        config_updates = [{'seed': 0,
+                           'factored.refit_from': join(init_dir,
+                                                       '%s_%i_%.0e.pkl' %
+                                                       (decomposition, 0,
+                                                        alpha)),
+                           'factored.refit_data': ['classifier', 'dropout'],
+                           'factored.max_iter': {'pretrain': 0,
+                                                 'train': 0,
+                                                 'sparsify': 0,
+                                                 'finetune': 0}
+                           }
+                          for alpha in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]
+                          for decomposition in ['dl_positive']]
+
+
+
 
     elif grid == 'factored_refit_gm_notune':
         exp.config(factored_refit)
@@ -426,6 +491,16 @@ if __name__ == '__main__':
         exp.config(factored_transfer)
         config_updates = ParameterGrid({'model.target_study': studies,
                                         'seed': seeds})
+    elif grid == 'factored_l2_no_rank':
+        exp.config(factored)
+        config_updates = ParameterGrid({'seed': seeds,
+                                        'factored.seed': [100],
+                                        'factored.latent_size': ['auto'],
+                                        'factored.dropout': [0],
+                                        'factored.init': ['normal'],
+                                        'factored.adaptive_dropout': [False],
+                                        'factored.l2_penalty': np.logspace(-4, -1, 4)
+                                        })
 
     elif grid == 'weight_power':
         exp.config(factored)
@@ -441,6 +516,23 @@ if __name__ == '__main__':
                                         'factored.dropout': dropout,
                                         'factored.adaptive_dropout':
                                             adaptive_dropout})
+    elif grid == 'bn':
+        exp.config(factored)
+        config_updates = ParameterGrid({'seed': seeds,
+                                        'factored.batch_norm': [False]})
+    elif grid == 'adaptive_dropout':
+        exp.config(factored)
+        config_updates = ParameterGrid({'seed': seeds,
+                                        'factored.adaptive_dropout': [False]})
+    elif grid == 'trace':
+        exp.config(trace)
+        config_updates = ParameterGrid({'seed': seeds,
+                                        'trace.trace_penalty':
+                                            np.logspace(-4, 0, 5)})
+    elif grid == 'trace_baseline':
+        exp.config(trace)
+        config_updates = ParameterGrid(
+            {'seed': seeds, 'model.estimator': ['factored']})
     elif grid in ['logistic_gm', 'full_logistic']:
         if grid == 'logistic_gm':
             exp.config(logistic)
@@ -467,7 +559,7 @@ if __name__ == '__main__':
         raise ValueError('Directory exists.')
 
     _id = get_id(output_dir)
-    Parallel(n_jobs=25, verbose=100)(delayed(run_exp)(output_dir,
+    Parallel(n_jobs=40, verbose=100)(delayed(run_exp)(output_dir,
                                                       config_update,
                                                       mock=False,
                                                       _id=_id + i)

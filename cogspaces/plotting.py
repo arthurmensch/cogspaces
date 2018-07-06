@@ -71,7 +71,7 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None,
 
     srcs = []
     vmax = np.abs(img.get_data()).max()
-    # threshold = vmax / 5
+    threshold = vmax / 8
 
     for view_type in view_types:
         src = join(output_dir, '%s_%s.png' % (name, view_type))
@@ -111,28 +111,32 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None,
                               vmax=vmax,
                               colorbar=False,
                               output_file=src,
-                              cmap=cmap)
+                              # cmap=cmap
+                              )
                 plot_stat_map(img, threshold=threshold,
-                              cut_coords=(cut_coords[2],),
+                              cut_coords=cut_coords,
                               vmax=vmax,
-                              display_mode='z',
-                              colorbar=False,
+                              display_mode='ortho',
+                              colorbar=True,
                               output_file=src.replace('.png', '_z.svg'),
-                              cmap=cmap)
+                              # cmap=cmap
+                              )
             else:
                 plot_glass_brain(img, threshold=threshold,
                                  vmax=vmax,
                                  plot_abs=False,
                                  output_file=src,
                                  colorbar=False,
-                                 cmap=cmap_white)
+                                 # cmap=cmap_white
+                                 )
                 plot_glass_brain(img, threshold=threshold,
                                  vmax=vmax,
-                                 display_mode='xz',
+                                 display_mode='ortho',
                                  plot_abs=False,
                                  output_file=src.replace('.png', '_xz.svg'),
-                                 colorbar=False,
-                                 cmap=cmap_white)
+                                 colorbar=True,
+                                 # cmap=cmap_white
+                                 )
         else:
             raise ValueError('Wrong view type in `view_types`: got %s' %
                              view_type)

@@ -172,7 +172,6 @@ def _ista_loop(L, Lmax, X, coef, coef_diff, coef_grad, intercept,
                 loss += alpha * trace_norm(coef)
             print('Iteration', iter, 'rank', rank, 'loss', loss,
                   'step size', 1 / L)
-            print(coef)
 
         loss, rank, L, max_backtracking_iter = _prox_grad(X, y, preds, coef,
                                                           intercept,
@@ -267,7 +266,7 @@ class TraceClassifier(BaseEstimator):
     def coef_(self):
         coefs = {}
         for study, yslice in zip(self.studies_, self.yslices_):
-            coefs[study] = self.coef_cat_[:, yslice[0]:yslice[1]]
+            coefs[study] = self.coef_cat_[:, yslice[0]:yslice[1]].T
         return coefs
 
     @property
@@ -277,31 +276,19 @@ class TraceClassifier(BaseEstimator):
             intercept[study] = self.intercept_cat_[yslice[0]:yslice[1]]
         return intercept
 
-    def predict_proba(self, Xs):
-        yslices = self.yslices_
-        n_targets = yslices[-1, 1]
-        X, xslices, studies = check_Xs_ys(Xs)
-        assert (studies == self.studies_)
-        n_samples = X.shape[0]
-        pred = np.empty((n_samples, n_targets), dtype=np.float32)
-        _predict(X, pred, self.coef_cat_, self.intercept_cat_, xslices,
-                 yslices)
-        preds = {}
-        for study, xslice, yslice in zip(studies, xslices, yslices):
-            preds[study] = np.exp(pred[xslice[0]:xslice[1],
-                                  yslice[0]:yslice[1]])
-        return preds
-
     def predict(self, X):
-        contrasts = self.predict_proba(X)
-        contrasts = {study: np.argmax(contrast, axis=1)
-                     for study, contrast in contrasts.items()}
-        preds = {}
-        for study, contrast in contrasts.items():
-            preds[study] = pd.DataFrame(dict(contrast=contrast, study=0,
-                                             all_contrast=0,
-                                             subject=0))
-        return preds
+        res = {}
+        coef = self.coef_
+        intercept = self.intercept_
+        for study, this_X in X.items():
+            this_coef = coef[study]
+            this_intercept = intercept[study]
+            pred = this_X.dot(this_coef.T) + this_intercept[None, :]
+            pred = np.argmax(pred, axis=1)
+            res[study] = pd.DataFrame(dict(
+                contrast=pred, all_contrast=0,
+                subject=0, study=0))
+        return res
 
 
 def check_Xs_ys(Xs, ys=None):

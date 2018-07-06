@@ -198,6 +198,7 @@ class FactoredClassifier(BaseEstimator):
                  init='normal',
                  refit_from=None,
                  refit_data=['dropout', 'classifier'],
+                 l2_penalty=0.,
                  adaptive_dropout=True,
                  n_jobs=1,
                  patience=200,
@@ -208,6 +209,8 @@ class FactoredClassifier(BaseEstimator):
         self.activation = activation
         self.input_dropout = input_dropout
         self.dropout = dropout
+
+        self.l2_penalty = l2_penalty
 
         self.regularization = regularization
 
@@ -291,6 +294,11 @@ class FactoredClassifier(BaseEstimator):
                         for study, this_y in y.items()}
         in_features = next(iter(X.values())).shape[1]
 
+        if self.latent_size == 'auto':
+            latent_size = sum(list(target_sizes.values()))
+        else:
+            latent_size = self.latent_size
+
         # Loss
         if self.sampling == 'random':
             loss_study_weights = {study: 1. for study in data}
@@ -308,7 +316,7 @@ class FactoredClassifier(BaseEstimator):
             regularization=self.regularization,
             activation=self.activation,
             lengths=eff_lengths,
-            latent_size=self.latent_size,
+            latent_size=latent_size,
             target_sizes=target_sizes)
 
         if self.refit_from is not None:
@@ -370,6 +378,7 @@ class FactoredClassifier(BaseEstimator):
 
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         module.parameters()),
+                                 weight_decay=self.l2_penalty,
                                  lr=self.lr[phase], amsgrad=True)
             elif phase == 'train':
                 module.embedder.linear.weight.requires_grad = True

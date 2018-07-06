@@ -1,5 +1,6 @@
 import json
 import matplotlib as mpl
+
 mpl.rcParams['font.family'] = 'cmss10'
 mpl.rcParams['font.size'] = 13
 
@@ -11,7 +12,6 @@ from os.path import expanduser, join
 
 from cogspaces.datasets.utils import get_output_dir
 from exps.grids.gather_quantitative import get_chance_subjects
-
 
 import matplotlib.pyplot as plt
 
@@ -26,7 +26,6 @@ pad_left = 2.49
 
 
 def make_data():
-
     output_dir = get_output_dir()
 
     factored_output_dir = join(output_dir,
@@ -131,7 +130,8 @@ def plot_joined(data):
     ax2.set_xlabel('Decoding accuracy on test set', fontsize=15)
 
     handles = [rects1, rects2, lines]
-    labels = ['Baseline:\nDecoding from\nvoxels', 'Decoding from\nmulti-study\nnetworks',
+    labels = ['Decoding from\nvoxels',
+              'Decoding from\nmulti-study\nnetworks',
               'Chance level']
     ax2.legend(handles, labels, loc='lower right', frameon=False,
                fontsize=13,
@@ -146,7 +146,8 @@ def plot_joined(data):
     ax2.set_yticklabels(labels, ha='right', va='center', fontsize=8.5)
     sns.despine(fig)
 
-    plt.savefig(join(save_dir, 'joined_mean.pdf'), facecolor=None, edgecolor=None,
+    plt.savefig(join(save_dir, 'joined_mean.pdf'), facecolor=None,
+                edgecolor=None,
                 transparent=True)
     plt.close(fig)
 
@@ -163,20 +164,43 @@ def plot_compare_methods(sort, ablation=None):
 
     if ablation is None:
         baseline = 'full_logistic'
-    else:
+    elif ablation == 'posthoc':
         baseline = 'factored_refit_gm_rest_positive_notune'
+    elif ablation == 'gm':
+        baseline = 'factored_gm'
+    elif ablation == 'transfer':
+        baseline = 'factored_gm'
+    elif ablation == 'dropout':
+        baseline = 'factored_gm'
+    elif ablation == 'l2':
+        baseline = 'factored_gm'
+
 
     if ablation is None:
         exps = [baseline, 'logistic_gm',
                 'factored_refit_gm_rest_positive_notune']
-    elif ablation == 'init':
-        exps = [baseline, 'factored_refit_gm_rest_positive_notune',
-                'factored_refit_gm_normal_init_positive_notune']
-    elif ablation == 'posthoc':
+    elif ablation == 'gm':
         exps = ['full_logistic', baseline,
-                'factored_refit_gm_normal_init_positive_notune',
+                'factored']
+    elif ablation == 'posthoc':
+        exps = ['full_logistic', 'factored_gm_normal_init',
                 'factored_gm',
-                'factored_gm_normal_init']
+                'factored_refit_gm_normal_init_positive_notune',
+                baseline,
+                ]
+    elif ablation == 'dropout':
+        exps = ['full_logistic',
+                'adaptive_dropout',
+                'bn',
+                baseline,
+                ]
+    elif ablation == 'l2':
+        exps = ['full_logistic',
+                'factored_l2',
+                baseline,
+                ]
+    elif ablation == 'transfer':
+        exps = ['full_logistic', 'factored_transfer', baseline]
     else:
         raise ValueError
 
@@ -187,9 +211,11 @@ def plot_compare_methods(sort, ablation=None):
             if exp == 'factored_refit_gm_rest_positive_notune':
                 df = df.loc[0.0001]
             else:
-                df = df.loc[0.00001]
-        if exp in ['factored_gm', 'factored_gm_normal_init']:
+                df = df.loc[0.001]
+        if exp in ['factored_gm', 'factored_gm_normal_init', 'factored']:
             df = df.groupby(['study', 'seed']).mean()
+        if exp == 'factored_l2':
+            df = df.groupby(['study', 'seed']).max()
         dfs.append(df)
 
     df = pd.concat(dfs, axis=0, keys=exps, names=['method'])
@@ -217,10 +243,10 @@ def plot_compare_methods(sort, ablation=None):
 
     fig, ax = plt.subplots(1, 1, figsize=(width, height))
     if ablation is None:
-        fig.subplots_adjust(left=.07 / width, right=1 - 1.65 /width,
+        fig.subplots_adjust(left=.07 / width, right=1 - 1.65 / width,
                             bottom=0.55 / height, top=1 - pad_top / height, )
     else:
-        fig.subplots_adjust(left=.07 / width, right=1 - 1.8 / width,
+        fig.subplots_adjust(left=.11 / width, right=1 - 1.8 / width,
                             bottom=0.55 / height, top=1 - pad_top / height, )
 
     params = dict(x="accuracy", y="method", hue="study",
@@ -235,14 +261,15 @@ def plot_compare_methods(sort, ablation=None):
     if ablation is None:
         ax.set_xlim([-0.14, 0.175])
     else:
-        ax.set_xlim([-0.125, 0.10])
+        ax.set_xlim([-0.125, 0.11])
     ax.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
     ax.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1))
     if ablation is None:
         ax.set_xlabel('Accuracy gain compared to baseline median', fontsize=15)
     else:
-        ax.set_xlabel('Accuracy gain compared to proposed model median', fontsize=15)
+        ax.set_xlabel('Accuracy gain compared to proposed model median',
+                      fontsize=15)
 
     ax.set_ylabel('')
     ax.spines['left'].set_position('zero')
@@ -274,8 +301,17 @@ def plot_compare_methods(sort, ablation=None):
                 'Resting-state init.\nfor second layer')
         elif ablation == 'posthoc':
             y_labels['factored_refit_gm_rest_positive_notune'] = (
-                'Proposed model:\nresting-state init.\npost-hoc transform.')
-        y_labels['full_logistic'] = ('Baseline:\nDecoding from\nvoxels')
+                # 'Proposed model:\n'
+                'Resting-state init.\npost-hoc transform.')
+        elif ablation == 'gm':
+            y_labels['factored_refit_gm_rest_positive_notune'] = (
+                # 'Proposed model:\n'
+                'Decoding from\n'
+                'Grey matter\n'
+                'func networks')
+        y_labels['full_logistic'] = (
+            # 'Baseline:\n'
+            'Decoding from\nvoxels')
 
         y_labels['factored_refit_gm_normal_init_positive_notune'] = (
             'Random init.\nfor second layer')
@@ -288,18 +324,86 @@ def plot_compare_methods(sort, ablation=None):
         y_labels['factored_refit_gm_notune'] = (
             'Rest init +\n'
             'DL with rest init')
-        y_labels['factored_gm'] = (
-            'Training without\npost-hoc transform.')
+        if ablation == 'posthoc':
+            y_labels['factored_gm'] = (
+                'Training without\npost-hoc transform.')
+        elif ablation == 'gm':
+            y_labels['factored_gm'] = (
+                # 'Proposed model:\n'
+                'Grey matter\n'
+                'func. networks')
+        elif ablation == 'transfer':
+            y_labels['factored_gm'] = (
+                # 'Proposed model:\n'
+                'Joint training\n'
+                'of all studies')
+        elif ablation == 'dropout':
+            y_labels['factored_gm'] = (
+                # 'Proposed model:\n'
+                'Adaptive dropout\n'
+                'and batch norm.')
+        elif ablation == 'l2':
+            y_labels['factored_gm'] = (
+                # 'Proposed model:\n'
+                'Transfer via\n'
+                'dropout +\n'
+                'hard rank constr.')
+        y_labels['factored_transfer'] = (
+            'Decoding from\n'
+            'pre-learned\n'
+            'second layer   ')
+        y_labels['factored'] = (
+            'Decoding from\n'
+            'all-brain\n'
+            'func. networks')
+        y_labels['factored_l2'] = (
+            'Transfer via $\\ell_2$\n'
+            'regularization')
+        y_labels['bn'] = (
+            'No batch norm.')
+        y_labels['adaptive_dropout'] = (
+            'Fixed dropout')
         y_labels['logistic_gm'] = 'Rest compressed logistic'
 
-        ax.hlines([1.5], -.8, .1, linestyle='--', color='.5')
-        ax.annotate('Ablation',
-                    xy=(-.8, 1.5), xytext=(-2, 0),
-                    textcoords="offset points",
-                    fontsize=15,
-                    xycoords='data',
-                    va='center', rotation=0,
-                    ha='right')
+        if ablation in ['gm', 'transfer', 'l2']:
+            line = ax.axhline(0.5, -.2, 1.4, linestyle='--', color='.5')
+            line.set_clip_on(False)
+            y_text = 1
+            line = ax.axhline(1.5, -.2, 1.4, linestyle='--', color='.5')
+            line.set_clip_on(False)
+
+        elif ablation == 'posthoc':
+            y_text = 2
+            line = ax.axhline(0.5, -.2, 1.4, linestyle='--', color='.5')
+            line.set_clip_on(False)
+            line = ax.axhline(3.5, -.2, 1.4, linestyle='--', color='.5')
+            line.set_clip_on(False)
+        elif ablation == 'dropout':
+            y_text = 1.5
+            line = ax.axhline(0.5, -.2, 1.4, linestyle='--', color='.5')
+            line.set_clip_on(False)
+            line = ax.axhline(2.5, -.2, 1.4, linestyle='--', color='.5')
+            line.set_clip_on(False)
+
+        if ablation is not None:
+            props = dict(xytext=(-2, 0),
+                         textcoords="offset points",
+                         bbox={'facecolor': 'black',
+                               'boxstyle': 'round',
+                               'linewidth': 0},
+                         color='white',
+                         fontsize=13,
+                         xycoords='data',
+                         va='center', rotation=0,
+                         zorder=300,
+                         ha='right')
+
+            ax.annotate('Ablation',
+                        xy=(-.09, y_text), **props)
+            ax.annotate('Baseline',
+                        xy=(-.092, 0.25), **props)
+            ax.annotate('Proposed',
+                        xy=(-.088, len(exps) - 1), **props)
         # ax.annotate('Random init',
         #             xy=(-.12, 5), xytext=(-7, 0),
         #             textcoords="offset points",
@@ -308,7 +412,7 @@ def plot_compare_methods(sort, ablation=None):
         #             va='center', rotation=90,
         #             ha='right')
     for i, method in enumerate(methods):
-        ax.annotate(y_labels[method], xy=(.095, i), xytext=(10, 0),
+        ax.annotate(y_labels[method], xy=(.11, i), xytext=(10, 0),
                     textcoords="offset points",
                     fontsize=15,
                     xycoords='data',
@@ -318,7 +422,8 @@ def plot_compare_methods(sort, ablation=None):
     sns.despine(fig)
 
     plt.setp(ax.legend(), visible=False)
-    plt.savefig(join(save_dir, 'comparison_method%s.pdf' % ('_%s' % ablation if ablation is not None else '')))
+    plt.savefig(join(save_dir, 'comparison_method%s.pdf' % (
+        '_%s' % ablation if ablation is not None else '')))
     plt.close(fig)
 
 
@@ -350,7 +455,7 @@ def plot_gain_vs_size(sort):
     joined = joined.set_index(['study'])
     joined_mean = joined.groupby('study').aggregate(['mean', 'std'])
 
-    fig, ax = plt.subplots(1, 1, figsize=(width, height),)
+    fig, ax = plt.subplots(1, 1, figsize=(width, height), )
 
     sns.regplot(joined_mean['n_subjects', 'mean'], joined_mean['diff', 'mean'],
                 n_boot=1000, ax=ax, color='black', logx=True,
@@ -361,10 +466,12 @@ def plot_gain_vs_size(sort):
     # vertices = ax.collections[0].get_paths()[0].vertices
     # vertices[:, 0] = np.exp(vertices[:, 0])
     # print(joined_mean['n_subjects', 'mean'])
-    clouds = ax.scatter(joined_mean['n_subjects', 'mean'], joined_mean['diff', 'mean'],
-               c=list(map(lambda x: colors[x],
-                          joined_mean.index.get_level_values('study'))),
-               s=8, )
+    clouds = ax.scatter(joined_mean['n_subjects', 'mean'],
+                        joined_mean['diff', 'mean'],
+                        c=list(map(lambda x: colors[x],
+                                   joined_mean.index.get_level_values(
+                                       'study'))),
+                        s=8, )
     ax.set_xscale('log')
     ax.set_ylabel('Multi study acc. gain', fontsize=15)
     ax.set_xlabel('Number of train subjects', fontsize=15)
@@ -408,7 +515,7 @@ def plot_gain_vs_accuracy(sort):
 
     for score in ['bacc']:
 
-        fig, ax = plt.subplots(1, 1, figsize=(width, height),)
+        fig, ax = plt.subplots(1, 1, figsize=(width, height), )
         fig.subplots_adjust(left=.7 / width, right=1 - .2 / width,
                             bottom=.5 / height, top=1 - .08 / height, )
 
@@ -418,10 +525,10 @@ def plot_gain_vs_accuracy(sort):
                     scatter=False)
 
         clouds = ax.scatter(mean['baseline', score, 'mean'],
-                   mean['diff', score, 'mean'],
-                   s=4,
-                   c=list(map(lambda x: colors[x], mean['study'])),
-                   marker='o')
+                            mean['diff', score, 'mean'],
+                            s=4,
+                            c=list(map(lambda x: colors[x], mean['study'])),
+                            marker='o')
         if score == 'bacc':
             ax.set_xlim([.49, 1.01])
             ax.set_ylim([-0.05, 0.1])
@@ -459,7 +566,10 @@ if __name__ == '__main__':
     data, sort = make_data()
     # plot_joined(data)
     # plot_compare_methods(sort)
-    # plot_compare_methods(sort, ablation='init')
     plot_compare_methods(sort, ablation='posthoc')
+    # plot_compare_methods(sort, ablation='gm')
+    # plot_compare_methods(sort, ablation='transfer')
+    # plot_compare_methods(sort, ablation='dropout')
+    # plot_compare_methods(sort, ablation='l2')
     # plot_gain_vs_accuracy(sort)
     # plot_gain_vs_size(sort)

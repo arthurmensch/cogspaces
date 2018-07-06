@@ -31,27 +31,27 @@ def default():
     full = False
     system = dict(
         device=-1,
-        verbose=20,
+        verbose=5,
         n_jobs=3,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_gm'),
-        studies=['brainomics'],
+        studies=['archi', 'hcp'],
     )
     model = dict(
-        estimator='trace',
-        normalize=True,
+        estimator='factored',
+        normalize=False,
         seed=100,
         refinement=None,
-        target_study='archi',
+        target_study=None,
     )
     factored = dict(
         optimizer='adam',
-        latent_size=128,
+        latent_size='auto',
         activation='linear',
-        black_list_target=True,
+        black_list_target=False,
         regularization=1,
-        adaptive_dropout=True,
+        adaptive_dropout=False,
         sampling='random',
         weight_power=0.6,
         batch_size=128,
@@ -61,13 +61,14 @@ def default():
         reset_classifiers=False,
         # refit_from=join(get_output_dir(), 'factored_gm',
         #                 'dl_rest_860_1e-04.pkl'),
-        dropout=0.5,
+        dropout=0.,
         input_dropout=0.25,
+        l2_penalty=.001,
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'sparsify': 1e-4,
             'finetune': 1e-3},
-        max_iter={'pretrain': 0, 'train': 10, 'sparsify': 0,
-                  'finetune': 10},
+        max_iter={'pretrain': 0, 'train': 200, 'sparsify': 0,
+                  'finetune': 0},
         refit_data=['classifier', 'dropout']
     )
 
@@ -79,8 +80,9 @@ def default():
     )
 
     trace = dict(
-        trace_penalty=1e-7,
+        trace_penalty=1e-1,
         max_iter=1000,
+        momentum=True,
     )
 
     refinement = dict(

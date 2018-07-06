@@ -1,8 +1,9 @@
 import numpy as np
+import os
 import re
 import torch
 from jinja2 import Template
-from joblib import load, Memory, dump, delayed, Parallel
+from joblib import load, Memory, dump
 from matplotlib.testing.compare import get_cache_dir
 from nilearn.datasets import fetch_surf_fsaverage5
 from os.path import join
@@ -13,6 +14,7 @@ from cogspaces.datasets.utils import get_output_dir, get_data_dir
 from cogspaces.plotting import plot_word_clouds, plot_all
 from cogspaces.utils import get_dictionary, get_masker
 from exps.analyse.interesting_maps import select
+# from exps.analyse.plot_mayavi import plot_3d
 from exps.train import load_data
 
 mem = Memory(cachedir=get_cache_dir())
@@ -271,20 +273,20 @@ def plot_2d(output_dir, n_jobs=40):
 
     names, full_names = get_names(output_dir)
 
-    plot_all(join(output_dir, 'classifs.nii.gz'),
-             output_dir=join(output_dir, 'classifs'),
-             names=full_names,
-             view_types=view_types, threshold=0,
-             n_jobs=n_jobs)
-    #
-    # colors = np.load(join(output_dir, 'colors_2d.npy'))
-    #
-    # plot_all(join(output_dir, 'components.nii.gz'),
-    #          output_dir=join(output_dir, 'components'),
-    #          names='components',
-    #          colors=colors,
-    #          view_types=view_types,
+    # plot_all(join(output_dir, 'classifs.nii.gz'),
+    #          output_dir=join(output_dir, 'classifs'),
+    #          names=full_names,
+    #          view_types=view_types, threshold=0,
     #          n_jobs=n_jobs)
+    #
+    colors = np.load(join(output_dir, 'colors_2d.npy'))
+
+    plot_all(join(output_dir, 'components.nii.gz'),
+             output_dir=join(output_dir, 'components'),
+             names='components',
+             colors=colors,
+             view_types=view_types,
+             n_jobs=n_jobs)
 
 
 def make_report(output_dir):
@@ -299,16 +301,17 @@ if __name__ == '__main__':
     regex = re.compile(r'[0-9]+$')
     full_names = []
 
-    # output_dir = join(get_output_dir(), 'components')
-    # output_dir = join(get_output_dir(),
-    #                   'best_components')
-    #
-    # for dirpath, dirnames, filenames in os.walk(output_dir):
-    #     for dirname in filter(lambda f: re.match(regex, f), dirnames):
-    #         full_name = join(dirpath, dirname)
-    #         full_names.append(full_name)
-    full_names = [join(get_output_dir(), 'best_components')]
+    output_dir = join(get_output_dir(), 'factored_refit_gm_normal_init_full_positive_notune')
 
+    for dirpath, dirnames, filenames in os.walk(output_dir):
+        for dirname in filter(lambda f: re.match(regex, f), dirnames):
+            full_name = join(dirpath, dirname)
+            full_names.append(full_name)
+
+    full_names = [join(get_output_dir(), 'white_matter')]
+    # full_names = [join(get_output_dir(),
+    #                    'factored_refit_gm_normal_init_full_positive_notune',
+    #                    '2')]
     rng = check_random_state(1000)
 
     colors = np.arange(128)
@@ -333,15 +336,15 @@ if __name__ == '__main__':
         np.save(join(full_name, 'colors_2d.npy'), colors_2d)
         np.save(join(full_name, 'colors_3d.npy'), colors_3d)
 
-    Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
-                                        for full_name in full_names)
+    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
+    #                                     for full_name in full_names)
     # Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_3d)(full_name)
     #                                     for full_name in full_names)
-    # for full_name in full_names:
-    #     plot_2d(full_name, n_jobs=n_jobs)
+    for full_name in full_names:
+        plot_2d(full_name, n_jobs=n_jobs)
     # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_grades)(full_name)
     #                                     for full_name in full_names)
     # for full_name in full_names:
     #     plot_grades(full_name, n_jobs=n_jobs)
-    # for full_name in full_names:
-    #     make_report(full_name)
+    for full_name in full_names:
+        make_report(full_name)
