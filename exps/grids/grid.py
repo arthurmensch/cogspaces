@@ -504,7 +504,7 @@ if __name__ == '__main__':
 
     elif grid == 'weight_power':
         exp.config(factored)
-        weight_power = np.linspace(0, 1, 10)
+        weight_power = np.linspace(0, 1, 11)
         config_updates = ParameterGrid({'factored.weight_power': weight_power,
                                         'seed': seeds})
 

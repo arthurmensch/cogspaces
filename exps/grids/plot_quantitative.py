@@ -436,7 +436,7 @@ def plot_gain_vs_size(sort):
     colors = {study: color for study, color in zip(sort, colors)}
 
     factored_output_dir = join(output_dir, 'factored_refit_gm_notune')
-    baseline_output_dir = join(output_dir, 'logistic_gm')
+    baseline_output_dir = join(output_dir, 'full_logistic')
 
     factored = pd.read_pickle(join(factored_output_dir, 'accuracies.pkl'))
     factored = factored.loc[0.0001]
@@ -458,14 +458,9 @@ def plot_gain_vs_size(sort):
     fig, ax = plt.subplots(1, 1, figsize=(width, height), )
 
     sns.regplot(joined_mean['n_subjects', 'mean'], joined_mean['diff', 'mean'],
-                n_boot=1000, ax=ax, color='black', logx=True,
+                n_boot=10000, ax=ax, color='black', logx=True,
                 order=1, truncate=True, lowess=True,
                 scatter=False)
-    # xdata = ax.lines[0].get_xdata()
-    # ax.lines[0].set_xdata(np.exp(xdata))
-    # vertices = ax.collections[0].get_paths()[0].vertices
-    # vertices[:, 0] = np.exp(vertices[:, 0])
-    # print(joined_mean['n_subjects', 'mean'])
     clouds = ax.scatter(joined_mean['n_subjects', 'mean'],
                         joined_mean['diff', 'mean'],
                         c=list(map(lambda x: colors[x],
@@ -493,13 +488,114 @@ def plot_gain_vs_size(sort):
     fig.savefig(join(save_dir, 'gain_vs_size.pdf'))
 
 
+def plot_gain_vs_size_multi():
+    width, height = 3, 2.3
+
+    output_dir = get_output_dir()
+
+    factored_output_dir = join(output_dir, 'weight_power')
+    baseline_output_dir = join(output_dir, 'full_logistic')
+
+    many_factored = pd.read_pickle(join(factored_output_dir, 'accuracies.pkl'))
+    baseline = pd.read_pickle(join(baseline_output_dir, 'accuracies.pkl'))
+    chance_level, n_subjects = get_chance_subjects()
+
+    handles = []
+    labels = []
+    fig, ax = plt.subplots(1, 1, figsize=(width, height), )
+
+    for weight_power in [0., 6 / 9, 1.]:
+        factored = many_factored.loc[weight_power]
+        joined = pd.concat([factored, baseline],
+                           keys=['factored', 'baseline', ], axis=1)
+        joined['diff'] = joined['factored'] - joined['baseline']
+        joined = joined.reset_index('study')
+        joined = joined.assign(chance=lambda x:
+        list(map(lambda y: chance_level.loc[y], x.study)),
+                               n_subjects=lambda x:
+                               list(map(lambda y: n_subjects.loc[y], x.study)))
+        joined = joined.set_index(['study'])
+        joined_mean = joined.groupby('study').aggregate(['mean', 'std'])
+
+        sns.regplot(joined_mean['n_subjects', 'mean'], joined_mean['diff', 'mean'],
+                    n_boot=10, ax=ax, logx=True,
+                    order=1, truncate=True, lowess=True,
+                    scatter=False)
+        handles.append(ax.scatter(joined_mean['n_subjects', 'mean'],
+                            joined_mean['diff', 'mean'],
+                            s=4, ))
+        labels.append(weight_power)
+    ax.set_xscale('log')
+    ax.set_ylabel('Multi study acc. gain', fontsize=15)
+    ax.set_xlabel('Number of train subjects', fontsize=15)
+    ax.set_xlim([3, 420])
+    ax.set_xticks([4, 16, 32, 100, 300, 400])
+    ax.set_xticklabels([4, 16, 32, 100, 400])
+    ax.set_ylim([-0.075, 0.15])
+
+    labels = ['$\\beta = %.1f$' % beta for beta in [0., 6/9, 1]]
+
+    ax.legend(handles, labels, frameon=True, scatterpoints=3, fontsize=10)
+
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(0.05))
+    ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.025))
+    ax.yaxis.set_major_formatter(ticker.PercentFormatter(xmax=1, decimals=0))
+    ax.spines['bottom'].set_position('zero')
+
+    fig.subplots_adjust(left=.75 / width, right=1 - pad_right / width,
+                        bottom=0.35 / height, top=1 - .08 / height, )
+
+    sns.despine(fig)
+    fig.savefig(join(save_dir, 'gain_vs_size_multi.pdf'))
+
+
+def plot_weight_power():
+    width, height = 3, 2.3
+
+    output_dir = get_output_dir()
+
+    factored_output_dir = join(output_dir, 'weight_power')
+    baseline_output_dir = join(output_dir, 'full_logistic')
+
+    many_factored = pd.read_pickle(join(factored_output_dir, 'accuracies.pkl'))
+    baseline = pd.read_pickle(join(baseline_output_dir, 'accuracies.pkl'))
+    fig, ax = plt.subplots(1, 1, figsize=(width, height), constrained_layout=True)
+
+    baseline = pd.concat([baseline] * 10, keys=np.linspace(0, 1, 10),
+                         names=['weight_power'])
+    joined = pd.concat([many_factored, baseline],
+                       keys=['factored', 'baseline'], axis=1)
+    joined['diff'] = joined['factored'] - joined['baseline']
+    data = joined['diff'].reset_index()
+    data = data.dropna()
+    print(data)
+    # sns.boxplot(x='weight_power', y='diff', data=data, ax=ax, whis=0, showfliers=False,
+    #             color='grey')
+    ax.set_ylim([-0.0, 0.07])
+    res = joined['diff'].groupby(level='weight_power').aggregate({'median': lambda x: x.median(),
+                                                                  '25quart': lambda x: x.quantile(.25),
+                                                                  '75quart': lambda x: x.quantile(.75)})
+    ax.plot(np.linspace(0, 1, 10), res['median'])
+    ax.fill_between(np.linspace(0, 1, 10), res['25quart'], res['75quart'], alpha=0.25)
+    ax.yaxis.set_major_formatter(
+        ticker.PercentFormatter(xmax=1, decimals=0))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(0.025))
+    ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.0125))
+    ax.set_xlabel('Study weight $\\sim$ size$^\\beta$')
+    ax.set_ylabel('Accuracy gain (median)')
+
+
+    sns.despine(fig)
+    fig.savefig(join(save_dir, 'weight_power.pdf'))
+
+
 def plot_gain_vs_accuracy(sort):
     width, height = 3, 2.3
 
     metrics = pd.read_pickle(join(get_output_dir(), 'factored_refit_gm_low_lr',
                                   'metrics.pkl'))
     metrics = metrics.loc[0.0001]
-    ref_metrics = pd.read_pickle(join(get_output_dir(), 'logistic_gm',
+    ref_metrics = pd.read_pickle(join(get_output_dir(), 'full_logistic',
                                       'metrics.pkl'))
     joined = pd.concat([metrics, ref_metrics], axis=1,
                        keys=['factored', 'baseline'], join='inner')
@@ -566,10 +662,12 @@ if __name__ == '__main__':
     data, sort = make_data()
     # plot_joined(data)
     # plot_compare_methods(sort)
-    plot_compare_methods(sort, ablation='posthoc')
+    # plot_compare_methods(sort, ablation='posthoc')
     # plot_compare_methods(sort, ablation='gm')
     # plot_compare_methods(sort, ablation='transfer')
     # plot_compare_methods(sort, ablation='dropout')
     # plot_compare_methods(sort, ablation='l2')
     # plot_gain_vs_accuracy(sort)
     # plot_gain_vs_size(sort)
+    plot_gain_vs_size_multi()
+    plot_weight_power()

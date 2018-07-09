@@ -3,7 +3,7 @@ import os
 import re
 import torch
 from jinja2 import Template
-from joblib import load, Memory, dump
+from joblib import load, Memory, dump, delayed, Parallel
 from matplotlib.testing.compare import get_cache_dir
 from nilearn.datasets import fetch_surf_fsaverage5
 from os.path import join
@@ -308,7 +308,8 @@ if __name__ == '__main__':
             full_name = join(dirpath, dirname)
             full_names.append(full_name)
 
-    full_names = [join(get_output_dir(), 'white_matter')]
+    # full_names = [join(get_output_dir(), 'white_matter')]
+    full_names = [join(get_output_dir(), 'factored_gm_full', '1')]
     # full_names = [join(get_output_dir(),
     #                    'factored_refit_gm_normal_init_full_positive_notune',
     #                    '2')]
@@ -336,8 +337,8 @@ if __name__ == '__main__':
         np.save(join(full_name, 'colors_2d.npy'), colors_2d)
         np.save(join(full_name, 'colors_3d.npy'), colors_3d)
 
-    # Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
-    #                                     for full_name in full_names)
+    Parallel(n_jobs=n_jobs, verbose=10)(delayed(compute_nifti)(full_name)
+                                        for full_name in full_names)
     # Parallel(n_jobs=n_jobs, verbose=10)(delayed(plot_3d)(full_name)
     #                                     for full_name in full_names)
     for full_name in full_names:
