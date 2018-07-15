@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list id="6651ae70-fef5-47af-898c-4aefa16679ca" name="Revert: Analysis" comment="" />
     <list default="true" id="d2792362-4e99-43b9-8385-dbdf804703fc" name="Default" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/exps/analyse/plot_maps.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/analyse/plot_maps.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cogspaces/datasets/brainpedia.json" beforeDir="false" afterPath="$PROJECT_DIR$/cogspaces/datasets/brainpedia.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/exps/grids/gather_quantitative.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/grids/gather_quantitative.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/exps/grids/grid.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/grids/grid.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/exps/grids/plot_quantitative.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/grids/plot_quantitative.py" afterDir="false" />
     </list>
+    <list id="6651ae70-fef5-47af-898c-4aefa16679ca" name="Revert: Analysis" comment="" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -28,7 +27,7 @@
     <SUITE FILE_PATH="coverage/cogspaces$find_init.coverage" NAME="find_init Coverage Results" MODIFIED="1528904715084" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/scripts" />
     <SUITE FILE_PATH="coverage/cogspaces$model.coverage" NAME="model Coverage Results" MODIFIED="1496734604145" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/cogspaces" />
     <SUITE FILE_PATH="coverage/cogspaces$Nosetests_for_predict_contrast_train_generator.coverage" NAME="Nosetests for predict_contrast.train_generator Coverage Results" MODIFIED="1496086154542" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/examples" />
-    <SUITE FILE_PATH="coverage/cogspaces$plot.coverage" NAME="plot Coverage Results" MODIFIED="1530947810199" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/grids" />
+    <SUITE FILE_PATH="coverage/cogspaces$plot.coverage" NAME="plot Coverage Results" MODIFIED="1531697637533" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/grids" />
     <SUITE FILE_PATH="coverage/cogspaces$Nosetests_for_test_predict_test_make_data_frame.coverage" NAME="Nosetests for test_predict.test_make_data_frame Coverage Results" MODIFIED="1496819807758" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/examples/new/tests" />
     <SUITE FILE_PATH="coverage/cogspaces$Nosetests_in_predict_contrast_py.coverage" NAME="Nosetests in predict_contrast.py Coverage Results" MODIFIED="1496086123537" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/examples" />
     <SUITE FILE_PATH="coverage/cogspaces$convert_to_pandas_020.coverage" NAME="convert_to_pandas_020 Coverage Results" MODIFIED="1508662486518" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/pipelining" />
@@ -129,8 +128,8 @@
       <file leaf-file-name="grid.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/exps/grids/grid.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="7904">
-              <caret line="506" column="43" selection-start-line="506" selection-start-column="43" selection-end-line="506" selection-end-column="43" />
+            <state relative-caret-position="8112">
+              <caret line="519" column="28" selection-start-line="519" selection-start-column="28" selection-end-line="519" selection-end-column="28" />
             </state>
           </provider>
         </entry>
@@ -156,20 +155,17 @@
       <file leaf-file-name="gather_quantitative.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/exps/grids/gather_quantitative.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1248">
-              <caret line="89" column="59" selection-start-line="89" selection-start-column="59" selection-end-line="89" selection-end-column="59" />
-              <folding>
-                <element signature="e#20#41#0" expanded="true" />
-              </folding>
+            <state relative-caret-position="463">
+              <caret line="234" selection-start-line="234" selection-end-line="234" />
             </state>
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="plot_quantitative.py" pinned="false" current-in-tab="false">
+      <file leaf-file-name="plot_quantitative.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/exps/grids/plot_quantitative.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="468">
-              <caret line="533" column="29" selection-start-line="533" selection-start-column="29" selection-end-line="533" selection-end-column="29" />
+            <state relative-caret-position="368">
+              <caret line="419" column="45" selection-start-line="419" selection-start-column="45" selection-end-line="419" selection-end-column="45" />
               <folding>
                 <element signature="e#0#11#0" expanded="true" />
               </folding>
@@ -177,11 +173,20 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="brainpedia.json" pinned="false" current-in-tab="true">
+      <file leaf-file-name="parsers.py" pinned="false" current-in-tab="false">
+        <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/pandas/io/parsers.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="42672">
+              <caret line="2710" column="60" selection-start-line="2710" selection-start-column="60" selection-end-line="2710" selection-end-column="60" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="brainpedia.json" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/cogspaces/datasets/brainpedia.json">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="192">
-              <caret line="12" column="16" selection-start-line="12" selection-start-column="16" selection-end-line="12" selection-end-column="16" />
+            <state relative-caret-position="736">
+              <caret line="46" column="52" selection-start-line="46" selection-start-column="52" selection-end-line="46" selection-end-column="52" />
             </state>
           </provider>
         </entry>
@@ -204,15 +209,6 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="plotting.py" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/cogspaces/plotting.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1952">
-              <caret line="138" column="33" selection-start-line="138" selection-start-column="33" selection-end-line="138" selection-end-column="33" />
-            </state>
-          </provider>
-        </entry>
-      </file>
     </leaf>
   </component>
   <component name="FileTemplateManagerImpl">
@@ -225,26 +221,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>threshold=</find>
-      <find>plot_all</find>
-      <find>import</find>
-      <find>'l2</find>
-      <find>factored_l2</find>
-      <find />
-      <find>latent_s</find>
-      <find>latent_size=</find>
-      <find>xy</find>
-      <find>coef_</find>
-      <find>bbox_</find>
-      <find>'autot</find>
-      <find>'auto'</find>
-      <find>init=</find>
-      <find>'init'</find>
-      <find>init</find>
-      <find>study_</find>
-      <find>study_we</find>
-      <find>study_weight</find>
-      <find>weigh</find>
       <find>weight_power</find>
       <find>baseline_output_dir</find>
       <find>lowess</find>
@@ -255,6 +231,26 @@
       <find>pinel</find>
       <find>twings</find>
       <find>pinel2007</find>
+      <find>(2009</find>
+      <find>brainpedia.</find>
+      <find>Ablation</find>
+      <find>Ablation'</find>
+      <find>branpedi</find>
+      <find>pedia.</find>
+      <find>pedia.vs</find>
+      <find>Post-ho</find>
+      <find>factored_l2</find>
+      <find>Study weight</find>
+      <find>\ell</find>
+      <find>hard</find>
+      <find>Variant</find>
+      <find>Numer of</find>
+      <find>Study weigh</find>
+      <find>Number of</find>
+      <find>hline</find>
+      <find>axhl</find>
+      <find>beta</find>
+      <find>Number of train</find>
     </findStrings>
     <replaceStrings>
       <replace>this_output_dir</replace>
@@ -358,18 +354,18 @@
         <option value="$PROJECT_DIR$/exps/train.py" />
         <option value="$PROJECT_DIR$/cogspaces/plotting.py" />
         <option value="$PROJECT_DIR$/exps/analyse/plot_maps.py" />
-        <option value="$PROJECT_DIR$/exps/grids/gather_quantitative.py" />
         <option value="$PROJECT_DIR$/../../github/seaborn/seaborn/regression.py" />
-        <option value="$PROJECT_DIR$/exps/grids/grid.py" />
-        <option value="$PROJECT_DIR$/exps/grids/plot_quantitative.py" />
         <option value="$PROJECT_DIR$/cogspaces/datasets/brainpedia.json" />
+        <option value="$PROJECT_DIR$/exps/grids/grid.py" />
+        <option value="$PROJECT_DIR$/exps/grids/gather_quantitative.py" />
+        <option value="$PROJECT_DIR$/exps/grids/plot_quantitative.py" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds" extendedState="6">
-    <option name="y" value="115" />
-    <option name="width" value="1910" />
-    <option name="height" value="789" />
+    <option name="y" value="27" />
+    <option name="width" value="1920" />
+    <option name="height" value="1053" />
   </component>
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectView">
@@ -377,42 +373,7 @@
       <autoscrollFromSource Scope="true" ProjectPane="true" />
       <foldersAlwaysOnTop value="true" />
     </navigator>
-    <panes>
-      <pane id="ProjectPane">
-        <subPane>
-          <expand>
-            <path>
-              <item name="cogspaces" type="b2602c69:ProjectViewProjectNode" />
-              <item name="cogspaces" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="cogspaces" type="b2602c69:ProjectViewProjectNode" />
-              <item name="cogspaces" type="462c0819:PsiDirectoryNode" />
-              <item name="cogspaces" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="cogspaces" type="b2602c69:ProjectViewProjectNode" />
-              <item name="cogspaces" type="462c0819:PsiDirectoryNode" />
-              <item name="cogspaces" type="462c0819:PsiDirectoryNode" />
-              <item name="datasets" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="cogspaces" type="b2602c69:ProjectViewProjectNode" />
-              <item name="cogspaces" type="462c0819:PsiDirectoryNode" />
-              <item name="exps" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="cogspaces" type="b2602c69:ProjectViewProjectNode" />
-              <item name="cogspaces" type="462c0819:PsiDirectoryNode" />
-              <item name="exps" type="462c0819:PsiDirectoryNode" />
-              <item name="grids" type="462c0819:PsiDirectoryNode" />
-            </path>
-          </expand>
-          <select />
-        </subPane>
-      </pane>
-      <pane id="Scope" />
-    </panes>
+    <panes />
   </component>
   <component name="PropertiesComponent">
     <property name="DefaultHtmlFileTemplate" value="HTML File" />
@@ -753,27 +714,27 @@
     <layout>
       <window_info anchor="bottom" id="TODO" order="6" weight="0.32762647" />
       <window_info anchor="bottom" id="Event Log" order="7" sideWeight="0.5250533" side_tool="true" weight="0.47027028" />
+      <window_info anchor="bottom" id="File Transfer" order="8" weight="0.3133188" />
       <window_info anchor="bottom" id="Version Control" order="13" sideWeight="0.48344016" weight="0.8484849" />
       <window_info anchor="bottom" id="Python Console" order="10" sideWeight="0.49786323" weight="0.32864866" />
-      <window_info anchor="bottom" id="Run" order="2" sideWeight="0.4749467" weight="0.32900432" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" sideWeight="0.4749467" visible="true" weight="0.3286026" />
       <window_info anchor="bottom" id="Terminal" order="11" sideWeight="0.47761193" weight="0.63852817" />
       <window_info anchor="right" id="Remote Host" order="3" sideWeight="0.49945474" weight="0.32889125" />
       <window_info content_ui="combo" id="Project" order="0" sideWeight="0.48" weight="0.42057568" />
       <window_info anchor="bottom" id="Docker" order="12" weight="0.3297062" />
-      <window_info anchor="right" id="SciView" order="6" sideWeight="0.49945474" visible="true" weight="0.24413647" />
+      <window_info anchor="right" id="SciView" order="6" sideWeight="0.49945474" weight="0.24413647" />
       <window_info id="Structure" order="1" sideWeight="0.5210811" side_tool="true" weight="0.15671642" />
       <window_info id="Favorites" order="2" sideWeight="0.52" side_tool="true" weight="0.36247334" />
       <window_info anchor="bottom" id="Debug" order="3" sideWeight="0.49358973" weight="0.5508658" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
-      <window_info anchor="right" id="Commander" order="0" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
+      <window_info anchor="right" id="Commander" order="0" weight="0.4" />
       <window_info anchor="right" id="Data View" order="5" weight="0.67467946" />
       <window_info anchor="right" x="0" y="0" width="430" height="853" id="Documentation" order="7" sideWeight="0.50054526" side_tool="true" weight="0.75801283" />
       <window_info anchor="bottom" id="Messages" order="9" weight="0.32916266" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
-      <window_info anchor="bottom" id="File Transfer" order="8" weight="0.31385282" />
       <window_info anchor="bottom" id="Find" order="1" weight="0.3243243" />
       <window_info anchor="right" id="Coverage" order="4" side_tool="true" />
     </layout>
@@ -842,7 +803,6 @@
     <MESSAGE value="Template + mayavi" />
     <MESSAGE value="Big gm fit" />
     <MESSAGE value="Fix" />
-    <MESSAGE value="WIP" />
     <MESSAGE value="Plots" />
     <MESSAGE value="GOod cmap" />
     <MESSAGE value="Wordcloud" />
@@ -855,7 +815,8 @@
     <MESSAGE value="Figure 4" />
     <MESSAGE value="ALl figures" />
     <MESSAGE value="Last experiments before the bar closes" />
-    <option name="LAST_COMMIT_MESSAGE" value="Last experiments before the bar closes" />
+    <MESSAGE value="WIP" />
+    <option name="LAST_COMMIT_MESSAGE" value="WIP" />
     <option name="OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT" value="true" />
   </component>
   <component name="XDebuggerManager">
@@ -908,7 +869,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/exps/grids/plot_quantitative.py</url>
-          <line>230</line>
+          <line>231</line>
           <option name="timeStamp" value="666" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
@@ -928,7 +889,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/exps/grids/plot_quantitative.py</url>
-          <line>652</line>
+          <line>660</line>
           <option name="timeStamp" value="677" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
@@ -938,7 +899,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/exps/grids/plot_quantitative.py</url>
-          <line>213</line>
+          <line>214</line>
           <option name="timeStamp" value="680" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
@@ -963,7 +924,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/exps/grids/plot_quantitative.py</url>
-          <line>224</line>
+          <line>225</line>
           <option name="timeStamp" value="688" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
@@ -988,7 +949,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/exps/grids/plot_quantitative.py</url>
-          <line>506</line>
+          <line>511</line>
           <option name="timeStamp" value="693" />
         </line-breakpoint>
       </breakpoints>
@@ -1092,13 +1053,6 @@
     </expressions>
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/cogspaces/data.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="880">
-          <caret line="67" column="64" selection-start-line="67" selection-start-column="64" selection-end-line="67" selection-end-column="64" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/exps/analyse/plot_maps.html">
       <provider selected="true" editor-type-id="text-editor" />
     </entry>
@@ -1425,37 +1379,41 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/exps/grids/gather_quantitative.py">
+    <entry file="file://$PROJECT_DIR$/cogspaces/datasets/brainpedia.json">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1248">
-          <caret line="89" column="59" selection-start-line="89" selection-start-column="59" selection-end-line="89" selection-end-column="59" />
-          <folding>
-            <element signature="e#20#41#0" expanded="true" />
-          </folding>
+        <state relative-caret-position="736">
+          <caret line="46" column="52" selection-start-line="46" selection-start-column="52" selection-end-line="46" selection-end-column="52" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/pandas/io/parsers.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="42672">
+          <caret line="2710" column="60" selection-start-line="2710" selection-start-column="60" selection-end-line="2710" selection-end-column="60" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/exps/grids/grid.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="7904">
-          <caret line="506" column="43" selection-start-line="506" selection-start-column="43" selection-end-line="506" selection-end-column="43" />
+        <state relative-caret-position="8112">
+          <caret line="519" column="28" selection-start-line="519" selection-start-column="28" selection-end-line="519" selection-end-column="28" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/exps/grids/gather_quantitative.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="463">
+          <caret line="234" selection-start-line="234" selection-end-line="234" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/exps/grids/plot_quantitative.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="468">
-          <caret line="533" column="29" selection-start-line="533" selection-start-column="29" selection-end-line="533" selection-end-column="29" />
+        <state relative-caret-position="368">
+          <caret line="419" column="45" selection-start-line="419" selection-start-column="45" selection-end-line="419" selection-end-column="45" />
           <folding>
             <element signature="e#0#11#0" expanded="true" />
           </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/cogspaces/datasets/brainpedia.json">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="192">
-          <caret line="12" column="16" selection-start-line="12" selection-start-column="16" selection-end-line="12" selection-end-column="16" />
         </state>
       </provider>
     </entry>

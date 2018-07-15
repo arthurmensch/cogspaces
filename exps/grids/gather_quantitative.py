@@ -214,8 +214,9 @@ def get_studies():
 if __name__ == '__main__':
     launch = [
         # delayed(gather_factored)(join(get_output_dir(), 'factored')),
+        delayed(gather_factored)(join(get_output_dir(), 'factored_l2_no_rank'), flavor='l2'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_l2'), flavor='l2'),
-        delayed(gather_factored)(join(get_output_dir(), 'weight_power'), flavor='weight_power'),
+        # delayed(gather_factored)(join(get_output_dir(), 'weight_power'), flavor='weight_power'),
         # delayed(gather_factored)(join(get_output_dir(), 'adaptive_dropout')),
         # delayed(gather_factored)(join(get_output_dir(), 'bn')),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_refit_gm_normal_init_low_lr'), flavor='refit'),

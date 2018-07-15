@@ -1,4 +1,3 @@
-import json
 import matplotlib as mpl
 
 mpl.rcParams['font.family'] = 'cmss10'
@@ -8,7 +7,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import gridspec, ticker
-from os.path import expanduser, join
+from os.path import join
 
 from cogspaces.datasets.utils import get_output_dir
 from exps.grids.gather_quantitative import get_chance_subjects
@@ -55,10 +54,12 @@ def make_data():
 def plot_joined(data):
     width, height = 8.5, 5.6
 
-    with open(expanduser('~/work/repos/cogspaces/cogspaces/'
-                         'datasets/brainpedia.json')) as f:
-        names = json.load(f)
-
+    # with open(expanduser('~/work/repos/cogspaces/cogspaces/'
+    #                      'datasets/brainpedia.json')) as f:
+    #     names = json.load(f)
+    df = pd.read_csv('~/work/papers/papers/thesis/brainpedia.csv', index_col=0,
+                     header=0)
+    print(df)
     gs = gridspec.GridSpec(1, 2,
                            width_ratios=[2.7, 1]
                            )
@@ -141,8 +142,7 @@ def plot_joined(data):
     ax2.annotate('Task fMRI study', xy=(-.4, -.09), xycoords='axes fraction',
                  fontsize=15)
     labels = [
-        '%s' % (names[label]['title']) if label in names else label
-        for label in data.index.values]
+        '%s' % df.loc[label]['Description'] for label in data.index.values]
     ax2.set_yticklabels(labels, ha='right', va='center', fontsize=8.5)
     sns.despine(fig)
 
@@ -175,7 +175,6 @@ def plot_compare_methods(sort, ablation=None):
     elif ablation == 'l2':
         baseline = 'factored_gm'
 
-
     if ablation is None:
         exps = [baseline, 'logistic_gm',
                 'factored_refit_gm_rest_positive_notune']
@@ -196,7 +195,8 @@ def plot_compare_methods(sort, ablation=None):
                 ]
     elif ablation == 'l2':
         exps = ['full_logistic',
-                'factored_l2',
+                'factored_l2_no_rank',
+                'factored_l2_good',
                 baseline,
                 ]
     elif ablation == 'transfer':
@@ -211,10 +211,10 @@ def plot_compare_methods(sort, ablation=None):
             if exp == 'factored_refit_gm_rest_positive_notune':
                 df = df.loc[0.0001]
             else:
-                df = df.loc[0.001]
+                df = df.loc[0.00001]
         if exp in ['factored_gm', 'factored_gm_normal_init', 'factored']:
             df = df.groupby(['study', 'seed']).mean()
-        if exp == 'factored_l2':
+        if exp in ['factored_l2_good', 'factored_l2_no_rank', 'factored_l2']:
             df = df.groupby(['study', 'seed']).max()
         dfs.append(df)
 
@@ -302,7 +302,7 @@ def plot_compare_methods(sort, ablation=None):
         elif ablation == 'posthoc':
             y_labels['factored_refit_gm_rest_positive_notune'] = (
                 # 'Proposed model:\n'
-                'Resting-state init.\npost-hoc transform.')
+                'Resting-state init.\npost-hoc consensus.')
         elif ablation == 'gm':
             y_labels['factored_refit_gm_rest_positive_notune'] = (
                 # 'Proposed model:\n'
@@ -320,13 +320,13 @@ def plot_compare_methods(sort, ablation=None):
             'DL with\nrandom init')
         y_labels['factored_gm_normal_init'] = (
             'Random init. and\n'
-            'no post-hoc\ntransform.')
+            'no post-hoc\nconsensus.')
         y_labels['factored_refit_gm_notune'] = (
             'Rest init +\n'
             'DL with rest init')
         if ablation == 'posthoc':
             y_labels['factored_gm'] = (
-                'Training without\npost-hoc transform.')
+                'Training without\npost-hoc consensus')
         elif ablation == 'gm':
             y_labels['factored_gm'] = (
                 # 'Proposed model:\n'
@@ -351,12 +351,16 @@ def plot_compare_methods(sort, ablation=None):
         y_labels['factored_transfer'] = (
             'Decoding from\n'
             'pre-learned\n'
-            'second layer   ')
+            'second layer')
         y_labels['factored'] = (
             'Decoding from\n'
             'all-brain\n'
             'func. networks')
-        y_labels['factored_l2'] = (
+        y_labels['factored_l2_good'] = (
+            'Transfer via $\\ell_2$\n'
+            'regularization +\n'
+            'hard rank constr.')
+        y_labels['factored_l2_no_rank'] = (
             'Transfer via $\\ell_2$\n'
             'regularization')
         y_labels['bn'] = (
@@ -365,7 +369,7 @@ def plot_compare_methods(sort, ablation=None):
             'Fixed dropout')
         y_labels['logistic_gm'] = 'Rest compressed logistic'
 
-        if ablation in ['gm', 'transfer', 'l2']:
+        if ablation in ['gm', 'transfer']:
             line = ax.axhline(0.5, -.2, 1.4, linestyle='--', color='.5')
             line.set_clip_on(False)
             y_text = 1
@@ -378,7 +382,7 @@ def plot_compare_methods(sort, ablation=None):
             line.set_clip_on(False)
             line = ax.axhline(3.5, -.2, 1.4, linestyle='--', color='.5')
             line.set_clip_on(False)
-        elif ablation == 'dropout':
+        elif ablation in ['dropout', 'l2']:
             y_text = 1.5
             line = ax.axhline(0.5, -.2, 1.4, linestyle='--', color='.5')
             line.set_clip_on(False)
@@ -392,18 +396,18 @@ def plot_compare_methods(sort, ablation=None):
                                'boxstyle': 'round',
                                'linewidth': 0},
                          color='white',
-                         fontsize=13,
+                         fontsize=14,
                          xycoords='data',
                          va='center', rotation=0,
                          zorder=300,
                          ha='right')
 
-            ax.annotate('Ablation',
+            ax.annotate('Variant',
                         xy=(-.09, y_text), **props)
             ax.annotate('Baseline',
-                        xy=(-.092, 0.25), **props)
+                        xy=(-.09, 0.25), **props)
             ax.annotate('Proposed',
-                        xy=(-.088, len(exps) - 1), **props)
+                        xy=(-.085, len(exps) - 1), **props)
         # ax.annotate('Random init',
         #             xy=(-.12, 5), xytext=(-7, 0),
         #             textcoords="offset points",
@@ -412,7 +416,7 @@ def plot_compare_methods(sort, ablation=None):
         #             va='center', rotation=90,
         #             ha='right')
     for i, method in enumerate(methods):
-        ax.annotate(y_labels[method], xy=(.11, i), xytext=(10, 0),
+        ax.annotate(y_labels[method], xy=(.17, i), xytext=(10, 0),
                     textcoords="offset points",
                     fontsize=15,
                     xycoords='data',
@@ -469,7 +473,7 @@ def plot_gain_vs_size(sort):
                         s=8, )
     ax.set_xscale('log')
     ax.set_ylabel('Multi study acc. gain', fontsize=15)
-    ax.set_xlabel('Number of train subjects', fontsize=15)
+    ax.set_xlabel('Number of train subjects', fontsize=15, zorder=400)
     ax.set_xlim([3, 420])
     ax.set_xticks([4, 16, 32, 100, 300, 400])
     ax.set_xticklabels([4, 16, 32, 100, 400])
@@ -517,23 +521,24 @@ def plot_gain_vs_size_multi():
         joined = joined.set_index(['study'])
         joined_mean = joined.groupby('study').aggregate(['mean', 'std'])
 
-        sns.regplot(joined_mean['n_subjects', 'mean'], joined_mean['diff', 'mean'],
+        sns.regplot(joined_mean['n_subjects', 'mean'],
+                    joined_mean['diff', 'mean'],
                     n_boot=10, ax=ax, logx=True,
                     order=1, truncate=True, lowess=True,
                     scatter=False)
         handles.append(ax.scatter(joined_mean['n_subjects', 'mean'],
-                            joined_mean['diff', 'mean'],
-                            s=4, ))
+                                  joined_mean['diff', 'mean'],
+                                  s=4, ))
         labels.append(weight_power)
     ax.set_xscale('log')
     ax.set_ylabel('Multi study acc. gain', fontsize=15)
-    ax.set_xlabel('Number of train subjects', fontsize=15)
+    ax.set_xlabel('Number of train subjects', fontsize=13, zorder=400)
     ax.set_xlim([3, 420])
     ax.set_xticks([4, 16, 32, 100, 300, 400])
     ax.set_xticklabels([4, 16, 32, 100, 400])
     ax.set_ylim([-0.075, 0.15])
 
-    labels = ['$\\beta = %.1f$' % beta for beta in [0., 6/9, 1]]
+    labels = ['$\\beta = %.1f$' % beta for beta in [0., .6, 1]]
 
     ax.legend(handles, labels, frameon=True, scatterpoints=3, fontsize=10)
 
@@ -559,7 +564,8 @@ def plot_weight_power():
 
     many_factored = pd.read_pickle(join(factored_output_dir, 'accuracies.pkl'))
     baseline = pd.read_pickle(join(baseline_output_dir, 'accuracies.pkl'))
-    fig, ax = plt.subplots(1, 1, figsize=(width, height), constrained_layout=True)
+    fig, ax = plt.subplots(1, 1, figsize=(width, height),
+                           constrained_layout=True)
 
     baseline = pd.concat([baseline] * 10, keys=np.linspace(0, 1, 10),
                          names=['weight_power'])
@@ -572,18 +578,19 @@ def plot_weight_power():
     # sns.boxplot(x='weight_power', y='diff', data=data, ax=ax, whis=0, showfliers=False,
     #             color='grey')
     ax.set_ylim([-0.0, 0.07])
-    res = joined['diff'].groupby(level='weight_power').aggregate({'median': lambda x: x.median(),
-                                                                  '25quart': lambda x: x.quantile(.25),
-                                                                  '75quart': lambda x: x.quantile(.75)})
+    res = joined['diff'].groupby(level='weight_power').aggregate(
+        {'median': lambda x: x.median(),
+         '25quart': lambda x: x.quantile(.25),
+         '75quart': lambda x: x.quantile(.75)})
     ax.plot(np.linspace(0, 1, 10), res['median'])
-    ax.fill_between(np.linspace(0, 1, 10), res['25quart'], res['75quart'], alpha=0.25)
+    ax.fill_between(np.linspace(0, 1, 10), res['25quart'], res['75quart'],
+                    alpha=0.25)
     ax.yaxis.set_major_formatter(
         ticker.PercentFormatter(xmax=1, decimals=0))
     ax.yaxis.set_major_locator(ticker.MultipleLocator(0.025))
     ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.0125))
-    ax.set_xlabel('Study weight $\\sim$ size$^\\beta$')
+    ax.set_xlabel('$\\beta$ s.t. study weight $\\sim$ size$^\\beta$')
     ax.set_ylabel('Accuracy gain (median)')
-
 
     sns.despine(fig)
     fig.savefig(join(save_dir, 'weight_power.pdf'))
@@ -661,13 +668,14 @@ def plot_gain_vs_accuracy(sort):
 if __name__ == '__main__':
     data, sort = make_data()
     # plot_joined(data)
-    # plot_compare_methods(sort)
+    plot_compare_methods(sort)
+    # plot_gain_vs_accuracy(sort)
+    # plot_gain_vs_size(sort)
+    #
     # plot_compare_methods(sort, ablation='posthoc')
     # plot_compare_methods(sort, ablation='gm')
     # plot_compare_methods(sort, ablation='transfer')
     # plot_compare_methods(sort, ablation='dropout')
     # plot_compare_methods(sort, ablation='l2')
-    # plot_gain_vs_accuracy(sort)
-    # plot_gain_vs_size(sort)
     plot_gain_vs_size_multi()
     plot_weight_power()
