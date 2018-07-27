@@ -1,11 +1,12 @@
 # Load data
 
 
-import numpy as np
 import os
+from os.path import join
+
+import numpy as np
 from joblib import dump, Memory
 from matplotlib.testing.compare import get_cache_dir
-from os.path import join
 from sacred import Experiment
 from sklearn.metrics import accuracy_score, confusion_matrix, \
     precision_recall_fscore_support
@@ -37,6 +38,8 @@ def default():
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_gm'),
         studies=['archi', 'hcp'],
+        test_size=0.,
+        train_size=1.
     )
     model = dict(
         estimator='factored',
@@ -236,19 +239,21 @@ def load_data(source_dir, studies):
 
 
 @exp.main
-def train(system, model, logistic, refinement,
+def train(data, system, model, logistic, refinement,
           factored, full, trace,
           _run, _seed):
-    data, target = load_data()
+    input_data, target = load_data()
     print(_seed)
 
     target_encoder = MultiTargetEncoder().fit(target)
     target = target_encoder.transform(target)
 
     train_data, test_data, train_targets, test_targets = \
-        train_test_split(data, target, random_state=_seed)
+        train_test_split(input_data, target, random_state=_seed,
+                         test_size=data['test_size'],
+                         train_size=data['train_size'])
     if full:
-        train_data = data
+        train_data = input_data
         train_targets = target
 
     if model['normalize']:

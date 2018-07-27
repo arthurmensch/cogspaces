@@ -1,15 +1,16 @@
+import os
 import sys
+from os.path import join
 
 import numpy as np
-import os
 from joblib import Parallel, delayed
-from os.path import join
 from sklearn.model_selection import ParameterGrid
 from sklearn.utils import check_random_state
 
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.utils.sacred import get_id, OurFileStorageObserver
+from exps.grids.gather_quantitative import get_studies
 from exps.train import exp
 
 
@@ -52,6 +53,12 @@ def factored():
         max_iter={'pretrain': 200, 'train': 300, 'sparsify': 0,
                   'finetune': 200},
     )
+
+
+def training_curve():
+    studies = get_studies()
+    data = dict(train_size={study: 1. for study in studies})
+    data = dict(test_size={study: 0. for study in studies})
 
 
 def trace():
@@ -344,7 +351,20 @@ if __name__ == '__main__':
 
     output_dir = join(get_output_dir(), grid)
 
-    if grid == 'factored_gm':
+    if grid == 'training_curves':
+        exp.config(factored)
+        exp.config(training_curve)
+        config_updates = []
+        for seed in seeds:
+            for study in ['brainomics', 'archi', 'henson2010faces', 'camcan']:
+                for size in np.linspace(.1, .5, 5):
+                    config_updates.append(
+                        {'seed': seed,
+                         'data.train_size': {study: size},
+                         'data.test_size': {study: .5}
+                         }
+                    )
+    elif grid == 'factored_gm':
         exp.config(factored)
         config_updates = ParameterGrid({'seed': seeds,
                                         'factored.seed': model_seeds,
@@ -452,9 +472,6 @@ if __name__ == '__main__':
                           for alpha in [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]
                           for decomposition in ['dl_positive']]
 
-
-
-
     elif grid == 'factored_refit_gm_notune':
         exp.config(factored_refit)
         init_dir = join(get_output_dir(), 'factored_gm')
@@ -499,7 +516,9 @@ if __name__ == '__main__':
                                         'factored.dropout': [0],
                                         'factored.init': ['normal'],
                                         'factored.adaptive_dropout': [False],
-                                        'factored.l2_penalty': np.logspace(-4, -1, 4)
+                                        'factored.l2_penalty': np.logspace(-4,
+                                                                           -1,
+                                                                           4)
                                         })
 
     elif grid == 'weight_power':
@@ -555,13 +574,14 @@ if __name__ == '__main__':
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    else:
-        raise ValueError('Directory exists.')
+    # else:
+    #     raise ValueError('Directory exists.')
 
     _id = get_id(output_dir)
-    Parallel(n_jobs=40, verbose=100)(delayed(run_exp)(output_dir,
-                                                      config_update,
-                                                      mock=False,
-                                                      _id=_id + i)
-                                     for i, config_update
-                                     in enumerate(config_updates))
+    Parallel(n_jobs=2, verbose=100, backend='multiprocessing')(
+        delayed(run_exp)(output_dir,
+                         config_update,
+                         mock=True,
+                         _id=_id + i)
+        for i, config_update
+        in enumerate(list(config_updates)))
