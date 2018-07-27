@@ -1,6 +1,14 @@
 import matplotlib as mpl
 
-mpl.rcParams['font.family'] = 'cmss10'
+import matplotlib.pyplot as plt
+
+# plt.rc('text', usetex=True)
+# font = {'family': 'sans-serif', 'size': 13,
+#         'sans-serif': ['computer modern sans']}
+# plt.rc('font', **font)
+# mpl.rcParams['text.latex.preamble'] = [r'\usepackage{amsmath}']
+
+mpl.rcParams['font.family'] = 'CMU Sans Serif'
 mpl.rcParams['font.size'] = 13
 
 import numpy as np
@@ -12,7 +20,6 @@ from os.path import join
 from cogspaces.datasets.utils import get_output_dir
 from exps.grids.gather_quantitative import get_chance_subjects
 
-import matplotlib.pyplot as plt
 
 idx = pd.IndexSlice
 
@@ -179,8 +186,8 @@ def plot_compare_methods(sort, ablation=None):
         exps = [baseline, 'logistic_gm',
                 'factored_refit_gm_rest_positive_notune']
     elif ablation == 'gm':
-        exps = ['full_logistic', baseline,
-                'factored']
+        exps = ['full_logistic', 'factored', baseline
+                ]
     elif ablation == 'posthoc':
         exps = ['full_logistic', 'factored_gm_normal_init',
                 'factored_gm',
@@ -415,10 +422,19 @@ def plot_compare_methods(sort, ablation=None):
         #             xycoords='data',
         #             va='center', rotation=90,
         #             ha='right')
+    x = ax.get_xlim()[1]
+    x = x - 0.01 if ablation == 'posthoc' else x - 0.005
     for i, method in enumerate(methods):
-        ax.annotate(y_labels[method], xy=(.17, i), xytext=(10, 0),
+        if i == len(methods) - 1:
+            fontweight = 'bold'
+        else:
+            fontweight = 'normal'
+            # y_labels[method] = r'\textbf{' + y_labels[method].replace('\n', '\\linebreak ') + r'}'
+        # font = FontProperties(weight=fontweight, size=15,)
+        ax.annotate(y_labels[method], xy=(x, i), xytext=(10, 0),
                     textcoords="offset points",
                     fontsize=15,
+                    fontweight=fontweight,
                     xycoords='data',
                     va='center',
                     ha='left')
@@ -672,10 +688,10 @@ if __name__ == '__main__':
     # plot_gain_vs_accuracy(sort)
     # plot_gain_vs_size(sort)
     #
-    # plot_compare_methods(sort, ablation='posthoc')
-    # plot_compare_methods(sort, ablation='gm')
-    # plot_compare_methods(sort, ablation='transfer')
-    # plot_compare_methods(sort, ablation='dropout')
-    # plot_compare_methods(sort, ablation='l2')
-    plot_gain_vs_size_multi()
-    plot_weight_power()
+    plot_compare_methods(sort, ablation='posthoc')
+    plot_compare_methods(sort, ablation='gm')
+    plot_compare_methods(sort, ablation='transfer')
+    plot_compare_methods(sort, ablation='dropout')
+    plot_compare_methods(sort, ablation='l2')
+    # plot_gain_vs_size_multi()
+    # plot_weight_power()
