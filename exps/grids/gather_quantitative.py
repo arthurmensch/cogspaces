@@ -1,13 +1,13 @@
 # Baseline logistic
-from math import ceil
-
 import json
-import numpy as np
 import os
-import pandas as pd
 import re
-from joblib import Parallel, delayed, load
+from math import ceil
 from os.path import join
+
+import numpy as np
+import pandas as pd
+from joblib import Parallel, delayed, load
 
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
@@ -25,6 +25,8 @@ def gather_factored(output_dir, flavor='simple'):
         extra_indices = ['l2']
     elif flavor == 'weight_power':
         extra_indices = ['weight_power']
+    elif flavor == 'training_curves':
+        extra_indices = ['train_size']
     accuracies = []
     metrics = []
     for this_dir in filter(regex.match, os.listdir(output_dir)):
@@ -57,13 +59,22 @@ def gather_factored(output_dir, flavor='simple'):
                 tn = total - fp - fn - tp
                 baccs[study][contrast] = .5 * (tp / p + tn / n)
 
-        if flavor in ['single_study', 'transfer']:
+        if flavor in ['single_study', 'transfer', 'training_curves']:
             if flavor == 'single_study':
                 study = config['data']['studies']
-            else:
+                extra_dict = {}
+            elif flavor == 'transfer':
                 study = config['model']['target_study']
+                extra_dict = {}
+            else:
+                train_size = config['data']['train_size']
+                for study, this_size in train_size.items():
+                    if this_size != 1:
+                        extra_dict = {'train_size': this_size}
+                        break
             accuracies.append(dict(study=study, accuracy=test_scores[study],
-                                   seed=seed))
+                                   seed=seed, **extra_dict))
+
             f1s = f1s[study]
             recalls = recalls[study]
             precs = precs[study]
@@ -74,7 +85,8 @@ def gather_factored(output_dir, flavor='simple'):
                                  recall=recalls[contrast],
                                  bacc=baccs[contrast],
                                  f1=f1s[contrast],
-                                 seed=seed)
+                                 seed=seed,
+                                 **extra_dict)
                             for contrast in f1s])
         else:
             if flavor == 'refit':
@@ -204,6 +216,15 @@ def get_chance_subjects():
     return chance_level, n_subjects
 
 
+def get_full_subjects():
+    _, target = load_data_from_dir(
+        data_dir=join(get_data_dir(), 'reduced_512'))
+    n_subjects = {}
+    for study, this_target in target.items():
+        n_subjects[study] = len(this_target['subject'].unique())
+    return n_subjects
+
+
 def get_studies():
     source_dir = join(get_data_dir(), 'reduced_512')
     _, target = load_data_from_dir(data_dir=source_dir)
@@ -214,7 +235,9 @@ def get_studies():
 if __name__ == '__main__':
     launch = [
         # delayed(gather_factored)(join(get_output_dir(), 'factored')),
-        delayed(gather_factored)(join(get_output_dir(), 'factored_l2_no_rank'), flavor='l2'),
+        # delayed(gather_factored)(join(get_output_dir(), 'factored_l2_no_rank'), flavor='l2'),
+        # delayed(gather_factored)(join(get_output_dir(), 'training_curves'), flavor='training_curves'),
+        delayed(gather_factored)(join(get_output_dir(), 'logistic_tc'), flavor='training_curves'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_l2'), flavor='l2'),
         # delayed(gather_factored)(join(get_output_dir(), 'weight_power'), flavor='weight_power'),
         # delayed(gather_factored)(join(get_output_dir(), 'adaptive_dropout')),

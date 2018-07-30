@@ -2,9 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="d2792362-4e99-43b9-8385-dbdf804703fc" name="Default" comment="Training curves">
+      <change afterPath="$PROJECT_DIR$/exps/analyse/plot_training_curves.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/exps/grids/gather_quantitative.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/grids/gather_quantitative.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/exps/grids/grid.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/grids/grid.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/exps/grids/plot_quantitative.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/grids/plot_quantitative.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/exps/train.py" beforeDir="false" afterPath="$PROJECT_DIR$/exps/train.py" afterDir="false" />
     </list>
     <list id="6651ae70-fef5-47af-898c-4aefa16679ca" name="Revert: Analysis" comment="" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -19,6 +21,7 @@
     <SUITE FILE_PATH="coverage/cogspaces$introspect_.coverage" NAME="introspect  Coverage Results" MODIFIED="1527157059529" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps" />
     <SUITE FILE_PATH="coverage/cogspaces$mayavi_surf_plot.coverage" NAME="mayavi_surf_plot Coverage Results" MODIFIED="1529062169868" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/analyse" />
     <SUITE FILE_PATH="coverage/cogspaces$predict_contrast_l1.coverage" NAME="predict_contrast_l1 Coverage Results" MODIFIED="1496818397757" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/examples" />
+    <SUITE FILE_PATH="coverage/cogspaces$plot_training_curves.coverage" NAME="plot_training_curves Coverage Results" MODIFIED="1532954143642" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps/analyse" />
     <SUITE FILE_PATH="coverage/cogspaces$py_test_for_test_utils_test_multi_dataset_transformer.coverage" NAME="py.test for test_utils.test_multi_dataset_transformer Coverage Results" MODIFIED="1496828063258" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/cogspaces/tests" />
     <SUITE FILE_PATH="coverage/cogspaces$predict_trace_norm.coverage" NAME="predict_trace_norm Coverage Results" MODIFIED="1497011385656" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/examples" />
     <SUITE FILE_PATH="coverage/cogspaces$train__1_.coverage" NAME="train (1) Coverage Results" MODIFIED="1519310252311" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/exps" />
@@ -113,19 +116,20 @@
     <session id="-326518054">
       <usages-collector id="statistics.lifecycle.project">
         <counts>
-          <entry key="project.closed" value="6" />
+          <entry key="project.closed" value="7" />
           <entry key="project.open.time.1" value="1" />
           <entry key="project.open.time.14" value="1" />
           <entry key="project.open.time.16" value="2" />
+          <entry key="project.open.time.2" value="1" />
           <entry key="project.open.time.8" value="2" />
-          <entry key="project.open.time.9" value="2" />
-          <entry key="project.opened" value="8" />
+          <entry key="project.open.time.9" value="3" />
+          <entry key="project.opened" value="10" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.extensions.edit">
         <counts>
           <entry key="json" value="1" />
-          <entry key="py" value="2893" />
+          <entry key="py" value="5662" />
           <entry key="txt" value="44" />
         </counts>
       </usages-collector>
@@ -133,21 +137,21 @@
         <counts>
           <entry key="JSON" value="1" />
           <entry key="PLAIN_TEXT" value="19" />
-          <entry key="Python" value="2730" />
+          <entry key="Python" value="5499" />
           <entry key="Scratch" value="188" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.extensions.open">
         <counts>
           <entry key="json" value="1" />
-          <entry key="py" value="23" />
+          <entry key="py" value="27" />
           <entry key="txt" value="1" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.open">
         <counts>
           <entry key="JSON" value="1" />
-          <entry key="Python" value="22" />
+          <entry key="Python" value="26" />
           <entry key="Scratch" value="2" />
         </counts>
       </usages-collector>
@@ -161,8 +165,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/exps/train.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1072">
-              <caret line="87" column="10" selection-start-line="87" selection-start-column="10" selection-end-line="87" selection-end-column="10" />
+            <state relative-caret-position="483">
+              <caret line="60" column="29" selection-start-line="60" selection-start-column="29" selection-end-line="60" selection-end-column="29" />
               <folding>
                 <element signature="e#14#23#0" expanded="true" />
               </folding>
@@ -173,8 +177,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/cogspaces/model_selection.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="288">
-              <caret line="21" column="13" selection-start-line="21" selection-start-column="13" selection-end-line="21" selection-end-column="13" />
+            <state relative-caret-position="600">
+              <caret line="22" column="27" selection-start-line="22" selection-start-column="27" selection-end-line="22" selection-end-column="27" />
               <folding>
                 <element signature="e#0#18#0" expanded="true" />
               </folding>
@@ -183,23 +187,40 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
+        <entry file="file://$USER_HOME$/opt/miniconda3/lib/python3.7/site-packages/sklearn/model_selection/_split.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="189">
+              <caret line="1670" column="4" selection-start-line="1670" selection-start-column="4" selection-end-line="1670" selection-end-column="4" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/exps/grids/grid.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="9072">
-              <caret line="580" column="54" selection-start-line="580" selection-start-column="54" selection-end-line="580" selection-end-column="54" />
+            <state relative-caret-position="277">
+              <caret line="254" selection-start-line="254" selection-end-line="254" />
               <folding>
-                <element signature="e#0#9#0" expanded="true" />
-                <marker date="1532700025360" expanded="true" signature="1449:1601" ph="..." />
+                <marker date="1532951108899" expanded="true" signature="1449:1601" ph="..." />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/exps/grids/plot_quantitative.py">
+        <entry file="file://$PROJECT_DIR$/exps/analyse/plot_figure_4.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="463">
-              <caret line="441" column="40" selection-start-line="441" selection-start-column="40" selection-end-line="441" selection-end-column="40" />
+            <state relative-caret-position="1213">
+              <caret line="193" selection-start-line="193" selection-end-line="195" selection-end-column="44" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/exps/analyse/plot_training_curves.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="479">
+              <caret line="51" column="65" lean-forward="true" selection-start-line="51" selection-start-column="65" selection-end-line="51" selection-end-column="65" />
               <folding>
                 <element signature="e#0#24#0" expanded="true" />
               </folding>
@@ -207,50 +228,32 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/cogspaces/models/logistic.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="720">
+              <caret line="82" column="8" selection-start-line="82" selection-start-column="4" selection-end-line="82" selection-end-column="8" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/exps/grids/plot_quantitative.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state>
+              <caret column="24" lean-forward="true" selection-start-column="24" selection-end-column="24" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/exps/grids/gather_quantitative.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="865">
-              <caret line="207" column="39" selection-start-line="207" selection-start-column="39" selection-end-line="207" selection-end-column="39" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/cogspaces/datasets/brainpedia.json">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1216">
-              <caret line="76" column="28" selection-start-line="76" selection-start-column="28" selection-end-line="76" selection-end-column="28" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$APPLICATION_CONFIG_DIR$/scratches/buffer1.txt">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="16">
-              <caret line="1" column="12" selection-start-line="1" selection-start-column="12" selection-end-line="1" selection-end-column="12" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$APPLICATION_CONFIG_DIR$/scratches/scratch.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="80">
-              <caret line="5" column="59" selection-start-line="5" selection-start-column="59" selection-end-line="5" selection-end-column="59" />
+            <state relative-caret-position="814">
+              <caret line="224" column="21" selection-start-line="224" selection-start-column="21" selection-end-line="224" selection-end-column="21" />
               <folding>
-                <marker date="1532698584860" expanded="true" signature="47:52" ph="..." />
+                <marker date="1532953135170" expanded="true" signature="8848:8851" ph="..." />
               </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$USER_HOME$/opt/miniconda3/lib/python3.7/multiprocessing/pool.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="10400">
-              <caret line="661" column="39" selection-start-line="661" selection-start-column="39" selection-end-line="661" selection-end-column="39" />
             </state>
           </provider>
         </entry>
@@ -258,7 +261,7 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$USER_HOME$/opt/miniconda3/lib/python3.7/pickle.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="8544">
+            <state relative-caret-position="1185">
               <caret line="545" column="38" selection-start-line="545" selection-start-column="38" selection-end-line="545" selection-end-column="38" />
             </state>
           </provider>
@@ -276,21 +279,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>0.5</find>
-      <find>.5</find>
-      <find>train_size</find>
-      <find>mock=</find>
-      <find>mock=-</find>
-      <find>mock=False</find>
-      <find>Propose</find>
-      <find>Proposed'</find>
-      <find>Joint training</find>
-      <find>Training on</find>
-      <find>Training on</find>
-      <find>Decoding</find>
-      <find>2nd la</find>
-      <find>Main model</find>
-      <find>Decoding from</find>
       <find>Standar</find>
       <find>0.25</find>
       <find>trained o</find>
@@ -304,8 +292,23 @@
       <find>axhlin</find>
       <find>0.17</find>
       <find>x =-</find>
-      <find>Standar</find>
       <find>else 13</find>
+      <find>train_</find>
+      <find>training_cur</find>
+      <find>training</find>
+      <find>def logi</find>
+      <find>training_curves</find>
+      <find>logistic</find>
+      <find>verbose</find>
+      <find>def logis</find>
+      <find>def</find>
+      <find>logistic_tc</find>
+      <find>logisitc</find>
+      <find>logistic_</find>
+      <find>logisit</find>
+      <find>full_logistic_tc</find>
+      <find>Perce</find>
+      <find>camcan</find>
     </findStrings>
     <replaceStrings>
       <replace>this_output_dir</replace>
@@ -363,7 +366,6 @@
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
-        <option value="$PROJECT_DIR$/exps/analyse/latent_extraction.py" />
         <option value="$PROJECT_DIR$/cogspaces/models/baseline.py" />
         <option value="$PROJECT_DIR$/cogspaces/models/factored_fast.py" />
         <option value="$PROJECT_DIR$/cogspaces/modules/utils.py" />
@@ -403,7 +405,6 @@
         <option value="$PROJECT_DIR$/cogspaces/plotting.py" />
         <option value="$PROJECT_DIR$/exps/analyse/plot_maps.py" />
         <option value="$PROJECT_DIR$/../../github/seaborn/seaborn/regression.py" />
-        <option value="$PROJECT_DIR$/exps/grids/gather_quantitative.py" />
         <option value="$PROJECT_DIR$/cogspaces/models/factored.py" />
         <option value="$PROJECT_DIR$/cogspaces/modules/loss.py" />
         <option value="$PROJECT_DIR$/cogspaces/setup.py" />
@@ -411,16 +412,17 @@
         <option value="$APPLICATION_CONFIG_DIR$/scratches/scratch.py" />
         <option value="$PROJECT_DIR$/cogspaces/datasets/brainpedia.json" />
         <option value="$PROJECT_DIR$/cogspaces/model_selection.py" />
+        <option value="$PROJECT_DIR$/exps/grids/plot_quantitative.py" />
         <option value="$PROJECT_DIR$/exps/train.py" />
         <option value="$PROJECT_DIR$/exps/grids/grid.py" />
-        <option value="$PROJECT_DIR$/exps/grids/plot_quantitative.py" />
+        <option value="$PROJECT_DIR$/exps/grids/gather_quantitative.py" />
+        <option value="$PROJECT_DIR$/exps/analyse/plot_training_curves.py" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds" extendedState="6">
-    <option name="y" value="28" />
-    <option name="width" value="2560" />
-    <option name="height" value="1412" />
+    <option name="width" value="1920" />
+    <option name="height" value="1080" />
   </component>
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectView">
@@ -429,7 +431,6 @@
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
-      <pane id="Scope" />
       <pane id="ProjectPane">
         <subPane>
           <expand>
@@ -446,6 +447,12 @@
               <item name="cogspaces" type="b2602c69:ProjectViewProjectNode" />
               <item name="cogspaces" type="462c0819:PsiDirectoryNode" />
               <item name="exps" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="cogspaces" type="b2602c69:ProjectViewProjectNode" />
+              <item name="cogspaces" type="462c0819:PsiDirectoryNode" />
+              <item name="exps" type="462c0819:PsiDirectoryNode" />
+              <item name="analyse" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
               <item name="cogspaces" type="b2602c69:ProjectViewProjectNode" />
@@ -496,6 +503,7 @@
           <select />
         </subPane>
       </pane>
+      <pane id="Scope" />
     </panes>
   </component>
   <component name="PropertiesComponent">
@@ -510,8 +518,8 @@
     <property name="add_unversioned_files" value="true" />
     <property name="com.intellij.ide.scratch.LRUPopupBuilder$1/New Scratch File" value="Python" />
     <property name="com.intellij.ide.scratch.LRUPopupBuilder$2/Languages" value="Python&#10;Bash" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/../../github/seaborn" />
-    <property name="settings.editor.selected.configurable" value="preferences.keymap" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../hcp_builder" />
+    <property name="settings.editor.selected.configurable" value="preferences.externalTools" />
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
@@ -541,7 +549,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.plot">
+  <component name="RunManager" selected="Python.plot_training_curves">
     <configuration default="true" type="PythonConfigurationType" factoryName="Python">
       <module name="cogspaces" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -736,7 +744,7 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="project_data" type="PythonConfigurationType" factoryName="Python" temporary="true">
+    <configuration name="plot_training_curves" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="cogspaces" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -755,7 +763,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/exps/analyse/project_data.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/exps/analyse/plot_training_curves.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -856,19 +864,19 @@
       <item itemvalue="Python.plot" />
       <item itemvalue="Python.maps" />
       <item itemvalue="Python.grid" />
-      <item itemvalue="Python.project_data" />
       <item itemvalue="Python.plot_mayavi" />
       <item itemvalue="Python.plot_side_by_side" />
       <item itemvalue="Python.hierachical_clustering" />
       <item itemvalue="Python.scratch" />
+      <item itemvalue="Python.plot_training_curves" />
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.plot_training_curves" />
         <item itemvalue="Python.scratch" />
         <item itemvalue="Python.plot_side_by_side" />
         <item itemvalue="Python.hierachical_clustering" />
         <item itemvalue="Python.plot_mayavi" />
-        <item itemvalue="Python.project_data" />
       </list>
     </recent_temporary>
   </component>
@@ -920,12 +928,12 @@
     <frame x="0" y="28" width="2560" height="1412" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info active="true" content_ui="combo" id="Project" order="0" sideWeight="0.47921568" visible="true" weight="0.41985646" />
+      <window_info content_ui="combo" id="Project" order="0" sideWeight="0.47921568" weight="0.4238437" />
       <window_info id="Structure" order="1" sideWeight="0.5207843" side_tool="true" weight="0.41985646" />
       <window_info id="Favorites" order="2" sideWeight="0.5207843" side_tool="true" weight="0.41985646" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" weight="0.3243243" />
-      <window_info anchor="bottom" id="Run" order="2" sideWeight="0.4749467" weight="0.9796078" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" sideWeight="0.4749467" visible="true" weight="0.15529412" />
       <window_info anchor="bottom" id="Debug" order="3" sideWeight="0.49358973" weight="0.55058825" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
@@ -940,10 +948,10 @@
       <window_info anchor="right" id="Commander" order="0" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
-      <window_info anchor="right" id="Remote Host" order="3" sideWeight="0.49945474" weight="0.32869378" />
+      <window_info anchor="right" id="Remote Host" order="3" sideWeight="0.49945474" weight="0.32854864" />
       <window_info anchor="right" id="Coverage" order="4" side_tool="true" />
       <window_info anchor="right" id="Data View" order="5" weight="0.67467946" />
-      <window_info anchor="right" id="SciView" order="6" sideWeight="0.49945474" weight="0.24401914" />
+      <window_info anchor="right" id="SciView" order="6" sideWeight="0.49945474" visible="true" weight="0.24401914" />
       <window_info anchor="right" x="0" y="0" width="430" height="853" id="Documentation" order="7" sideWeight="0.50054526" side_tool="true" weight="0.75801283" />
     </layout>
   </component>
@@ -1038,17 +1046,17 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/exps/grids/grid.py</url>
-          <line>586</line>
+          <line>601</line>
           <option name="timeStamp" value="698" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/exps/grids/grid.py</url>
-          <line>580</line>
+          <line>595</line>
           <option name="timeStamp" value="699" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/exps/grids/grid.py</url>
-          <line>339</line>
+          <line>341</line>
           <option name="timeStamp" value="700" />
         </line-breakpoint>
       </breakpoints>
@@ -1153,8 +1161,6 @@
     </expressions>
   </component>
   <component name="editorHistoryManager">
-    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/scipy/cluster/hierarchy.py" />
-    <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/matplotlib/gridspec.py" />
     <entry file="file://$PROJECT_DIR$/exps/analyse/analyse_logistic.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="282">
@@ -1224,13 +1230,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/cogspaces/models/logistic.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="346">
-          <caret line="91" selection-start-line="91" selection-end-line="100" selection-end-column="18" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/cogspaces/models/trace.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="190">
@@ -1240,13 +1239,6 @@
     </entry>
     <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/sklearn/feature_selection/univariate_selection.py" />
     <entry file="file:///opt/miniconda3/lib/python3.6/site-packages/sklearn/linear_model/base.py" />
-    <entry file="file://$PROJECT_DIR$/exps/analyse/plot_figure_4.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="3072">
-          <caret line="193" selection-start-line="193" selection-end-line="195" selection-end-column="44" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/cogspaces/plotting.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="1952">
@@ -1328,37 +1320,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/exps/train.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1072">
-          <caret line="87" column="10" selection-start-line="87" selection-start-column="10" selection-end-line="87" selection-end-column="10" />
-          <folding>
-            <element signature="e#14#23#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/cogspaces/model_selection.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="288">
-          <caret line="21" column="13" selection-start-line="21" selection-start-column="13" selection-end-line="21" selection-end-column="13" />
-          <folding>
-            <element signature="e#0#18#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/exps/grids/grid.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="9072">
-          <caret line="580" column="54" selection-start-line="580" selection-start-column="54" selection-end-line="580" selection-end-column="54" />
-          <folding>
-            <element signature="e#0#9#0" expanded="true" />
-            <marker date="1532700025360" expanded="true" signature="1449:1601" ph="..." />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/cogspaces/datasets/brainpedia.json">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="1216">
@@ -1392,25 +1353,86 @@
     </entry>
     <entry file="file://$USER_HOME$/opt/miniconda3/lib/python3.7/pickle.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="8544">
+        <state relative-caret-position="1185">
           <caret line="545" column="38" selection-start-line="545" selection-start-column="38" selection-end-line="545" selection-end-column="38" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/exps/grids/plot_quantitative.py">
+    <entry file="file://$PROJECT_DIR$/exps/analyse/plot_figure_4.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="463">
-          <caret line="441" column="40" selection-start-line="441" selection-start-column="40" selection-end-line="441" selection-end-column="40" />
+        <state relative-caret-position="1213">
+          <caret line="193" selection-start-line="193" selection-end-line="195" selection-end-column="44" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/exps/train.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="483">
+          <caret line="60" column="29" selection-start-line="60" selection-start-column="29" selection-end-line="60" selection-end-column="29" />
           <folding>
-            <element signature="e#0#24#0" expanded="true" />
+            <element signature="e#14#23#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/cogspaces/model_selection.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="600">
+          <caret line="22" column="27" selection-start-line="22" selection-start-column="27" selection-end-line="22" selection-end-column="27" />
+          <folding>
+            <element signature="e#0#18#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/opt/miniconda3/lib/python3.7/site-packages/sklearn/model_selection/_split.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="189">
+          <caret line="1670" column="4" selection-start-line="1670" selection-start-column="4" selection-end-line="1670" selection-end-column="4" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/exps/grids/grid.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="277">
+          <caret line="254" selection-start-line="254" selection-end-line="254" />
+          <folding>
+            <marker date="1532951108899" expanded="true" signature="1449:1601" ph="..." />
           </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/exps/grids/gather_quantitative.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="865">
-          <caret line="207" column="39" selection-start-line="207" selection-start-column="39" selection-end-line="207" selection-end-column="39" />
+        <state relative-caret-position="814">
+          <caret line="224" column="21" selection-start-line="224" selection-start-column="21" selection-end-line="224" selection-end-column="21" />
+          <folding>
+            <marker date="1532953135170" expanded="true" signature="8848:8851" ph="..." />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/cogspaces/models/logistic.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="720">
+          <caret line="82" column="8" selection-start-line="82" selection-start-column="4" selection-end-line="82" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/exps/grids/plot_quantitative.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret column="24" lean-forward="true" selection-start-column="24" selection-end-column="24" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/exps/analyse/plot_training_curves.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="479">
+          <caret line="51" column="65" lean-forward="true" selection-start-line="51" selection-start-column="65" selection-end-line="51" selection-end-column="65" />
+          <folding>
+            <element signature="e#0#24#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>

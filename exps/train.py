@@ -37,12 +37,12 @@ def default():
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_gm'),
-        studies=['archi', 'hcp'],
+        studies=['archi'],
         test_size=0.,
         train_size=1.
     )
     model = dict(
-        estimator='factored',
+        estimator='logistic',
         normalize=False,
         seed=100,
         refinement=None,
@@ -76,7 +76,7 @@ def default():
     )
 
     logistic = dict(
-        estimator='svc',
+        estimator='logistic',
         l2_penalty=[7e-5],
         max_iter=1000,
         refit_from=None,

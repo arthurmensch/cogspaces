@@ -57,8 +57,8 @@ def factored():
 
 def training_curve():
     studies = get_studies()
-    data = dict(train_size={study: 1. for study in studies})
-    data = dict(test_size={study: 0. for study in studies})
+    data = dict(train_size={study: 1. for study in studies},
+                test_size={study: 0. for study in studies})
 
 
 def trace():
@@ -236,17 +236,18 @@ def logistic():
     seed = 1
     system = dict(
         device=-1,
-        verbose=100,
+        verbose=0,
     )
     data = dict(
         source_dir=join(get_data_dir(), 'reduced_512_gm'),
-        studies='ds009'
+        studies='all'
     )
     model = dict(
         normalize=False,
         estimator='logistic',
     )
     logistic = dict(
+        estimator='logistic',
         max_iter=2000,
         solver='lbfgs',
         l2_penalty=np.logspace(-5, 1, 7).tolist(),
@@ -270,6 +271,7 @@ def full_logistic():
         estimator='logistic',
     )
     logistic = dict(
+        estimator='logistic',
         l2_penalty=[1e-3],
         solver='lbfgs',
         max_iter=2000
@@ -560,6 +562,19 @@ if __name__ == '__main__':
         config_updates = [{'seed': seed,
                            'data.studies': study} for seed in seeds
                           for study in studies]
+    elif grid in ['logistic_tc', 'full_logistic_tc']:
+        if grid == 'logistic_tc':
+            exp.config(logistic)
+        elif grid == 'full_logistic_tc':
+            exp.config(full_logistic)
+        exp.config(training_curve)
+        config_updates = [{'seed': seed,
+                           'data.train_size': {study: size},
+                           'data.test_size': {study: .5},
+                           'data.studies': study}
+                          for seed in seeds
+                          for study in ['brainomics', 'archi', 'henson2010faces', 'camcan']
+                          for size in np.linspace(0.1, 0.5, 5)]
     elif grid in ['logistic_gm_full', 'full_logistic_full']:
         if grid == 'logistic_gm_full':
             exp.config(logistic)
