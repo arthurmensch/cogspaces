@@ -578,10 +578,10 @@ if __name__ == '__main__':
     #     raise ValueError('Directory exists.')
 
     _id = get_id(output_dir)
-    Parallel(n_jobs=2, verbose=100, backend='multiprocessing')(
+    Parallel(n_jobs=50, verbose=100, backend='multiprocessing')(
         delayed(run_exp)(output_dir,
                          config_update,
-                         mock=True,
+                         mock=False,
                          _id=_id + i)
         for i, config_update
         in enumerate(list(config_updates)))

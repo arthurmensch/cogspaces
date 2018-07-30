@@ -290,10 +290,10 @@ def plot_compare_methods(sort, ablation=None):
     y_labels['factored_gm_single'] = (
         'Factored decoder\nwith single-\nstudy prior'
     )
-    y_labels['full_logistic'] = ('Decoding from\nvoxels')
+    y_labels['full_logistic'] = ('Standard decoding\nfrom voxels')
     y_labels['logistic_gm'] = (
         'Decoding from\n'
-        'rest networks'
+        'functional networks'
     )
     y_labels['factored_refit_gm_rest_positive_notune'] = (
         'Decoding from\n'
@@ -317,8 +317,7 @@ def plot_compare_methods(sort, ablation=None):
                 'Grey matter\n'
                 'func networks')
         y_labels['full_logistic'] = (
-            # 'Baseline:\n'
-            'Decoding from\nvoxels')
+            'Standard decoding:\nfrom voxels')
 
         y_labels['factored_refit_gm_normal_init_positive_notune'] = (
             'Random init.\nfor second layer')
@@ -342,8 +341,8 @@ def plot_compare_methods(sort, ablation=None):
         elif ablation == 'transfer':
             y_labels['factored_gm'] = (
                 # 'Proposed model:\n'
-                'Joint training\n'
-                'of all studies')
+                '2° + 3° layer\ntrained '
+                'on\nN studies jointly')
         elif ablation == 'dropout':
             y_labels['factored_gm'] = (
                 # 'Proposed model:\n'
@@ -356,9 +355,10 @@ def plot_compare_methods(sort, ablation=None):
                 'dropout +\n'
                 'hard rank constr.')
         y_labels['factored_transfer'] = (
-            'Decoding from\n'
-            'pre-learned\n'
-            'second layer')
+            '2° layer trained\non '
+            'N - 1 study\n'
+            '3° layer trained\non '
+            'new study')
         y_labels['factored'] = (
             'Decoding from\n'
             'all-brain\n'
@@ -377,23 +377,23 @@ def plot_compare_methods(sort, ablation=None):
         y_labels['logistic_gm'] = 'Rest compressed logistic'
 
         if ablation in ['gm', 'transfer']:
-            line = ax.axhline(0.5, -.2, 1.4, linestyle='--', color='.5')
+            line = ax.axhline(0.5, -.2, 1.5, linestyle='--', color='.5')
             line.set_clip_on(False)
             y_text = 1
-            line = ax.axhline(1.5, -.2, 1.4, linestyle='--', color='.5')
+            line = ax.axhline(1.5, -.2, 1.5, linestyle=':', color='.6')
             line.set_clip_on(False)
 
         elif ablation == 'posthoc':
             y_text = 2
-            line = ax.axhline(0.5, -.2, 1.4, linestyle='--', color='.5')
+            line = ax.axhline(0.5, -.2, 1.5, linestyle='--', color='.5')
             line.set_clip_on(False)
-            line = ax.axhline(3.5, -.2, 1.4, linestyle='--', color='.5')
+            line = ax.axhline(3.5, -.2, 1.5, linestyle=':', color='.6')
             line.set_clip_on(False)
         elif ablation in ['dropout', 'l2']:
             y_text = 1.5
-            line = ax.axhline(0.5, -.2, 1.4, linestyle='--', color='.5')
+            line = ax.axhline(0.5, -.2, 1.5, linestyle='--', color='.5')
             line.set_clip_on(False)
-            line = ax.axhline(2.5, -.2, 1.4, linestyle='--', color='.5')
+            line = ax.axhline(2.5, -.2, 1.5, linestyle=':', color='.6')
             line.set_clip_on(False)
 
         if ablation is not None:
@@ -404,17 +404,17 @@ def plot_compare_methods(sort, ablation=None):
                                'linewidth': 0},
                          color='white',
                          fontsize=14,
-                         xycoords='data',
-                         va='center', rotation=0,
-                         zorder=300,
-                         ha='right')
+                         xycoords=('axes fraction', 'data'),
+                         va='bottom', rotation=0,
+                         ha='left',
+                         zorder=300,)
 
             ax.annotate('Variant',
-                        xy=(-.09, y_text), **props)
-            ax.annotate('Baseline',
-                        xy=(-.09, 0.25), **props)
-            ax.annotate('Proposed',
-                        xy=(-.085, len(exps) - 1), **props)
+                        xy=(0., y_text + 0.4), **props)
+            ax.annotate('Voxel',
+                        xy=(0., 0.4), **props)
+            ax.annotate('Main\nmodel',
+                        xy=(0., len(exps) - 1 + 0.4), **props)
         # ax.annotate('Random init',
         #             xy=(-.12, 5), xytext=(-7, 0),
         #             textcoords="offset points",
@@ -422,8 +422,6 @@ def plot_compare_methods(sort, ablation=None):
         #             xycoords='data',
         #             va='center', rotation=90,
         #             ha='right')
-    x = ax.get_xlim()[1]
-    x = x - 0.01 if ablation == 'posthoc' else x - 0.005
     for i, method in enumerate(methods):
         if i == len(methods) - 1:
             fontweight = 'bold'
@@ -431,11 +429,11 @@ def plot_compare_methods(sort, ablation=None):
             fontweight = 'normal'
             # y_labels[method] = r'\textbf{' + y_labels[method].replace('\n', '\\linebreak ') + r'}'
         # font = FontProperties(weight=fontweight, size=15,)
-        ax.annotate(y_labels[method], xy=(x, i), xytext=(10, 0),
+        ax.annotate(y_labels[method], xy=(1, i), xytext=(10, 0),
                     textcoords="offset points",
-                    fontsize=15,
+                    fontsize=15 if method != 'factored_transfer' else 13,
                     fontweight=fontweight,
-                    xycoords='data',
+                    xycoords=('axes fraction', 'data'),
                     va='center',
                     ha='left')
 
