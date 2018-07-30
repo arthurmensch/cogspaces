@@ -1,4 +1,4 @@
-from os.path import join
+from os.path import join, expanduser
 
 import matplotlib as mpl
 
@@ -17,21 +17,26 @@ from exps.grids.gather_quantitative import get_full_subjects
 
 output_dir = get_output_dir()
 
-baseline = pd.read_pickle(
-    join(output_dir, 'logistic_tc', 'accuracies_mean.pkl'))
+baselines = [pd.read_pickle(join(output_dir, 'logistic_tc', 'accuracies_mean.pkl')),
+             pd.read_pickle(join(output_dir, 'logistic_tc_2', 'accuracies_mean.pkl'))]
+baseline = pd.concat(baselines, axis=0)
 factored = pd.read_pickle(
     join(output_dir, 'training_curves', 'accuracies_mean.pkl'))
 
 data = pd.concat((baseline, factored), keys=['baseline', 'factored'],
                  names=['method'])
 
+data = data.drop('henson2010faces', axis=0, level='study')
+
 subjects = get_full_subjects()
+print(subjects)
 
 fig, axes = plt.subplots(2, 2)
 axes = axes.ravel()
 
 names = {'archi': "Pinel et al. '07", 'brainomics': "Papadopoulos-Orfanos '12",
          'camcan': "CamCan (Shafto et al. '14)",
+         'ds009': "Cohen '09",
          'henson2010faces': "Henson et al. '10"}
 
 for i, (ax, (study, this_data)) in enumerate(
@@ -52,7 +57,7 @@ for i, (ax, (study, this_data)) in enumerate(
         ax.fill_between(x, y + std, y - std, alpha=0.5, zorder=5)
         sns.despine(fig, ax)
         if i in [2, 3]:
-            ax.set_xlabel('Train size')
+            ax.set_xlabel('# training subjects in target study')
         if i == 1:
             l = ax.legend(handles, ['Standard decoding', 'Multi-study decoder'])
             l.set_zorder(20)
@@ -64,4 +69,4 @@ for i, (ax, (study, this_data)) in enumerate(
         if i in [0, 2]:
             ax.set_ylabel('Test accuracy')
 plt.subplots_adjust(left=0.12, right=0.98, top=0.98)
-plt.savefig(join(output_dir, 'training_curves.pdf'))
+plt.savefig(expanduser('~/work/papers/papers/nature/figures/training_curves.pdf'))

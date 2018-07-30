@@ -247,6 +247,8 @@ def plot_compare_methods(sort, ablation=None):
     diff_color = sns.color_palette("husl", n_studies)
     if ablation is not None:
         height = height * len(exps) / 3
+        if ablation == 'transfer':
+            height *= 1.1
 
     fig, ax = plt.subplots(1, 1, figsize=(width, height))
     if ablation is None:
@@ -341,7 +343,7 @@ def plot_compare_methods(sort, ablation=None):
         elif ablation == 'transfer':
             y_labels['factored_gm'] = (
                 # 'Proposed model:\n'
-                '2° + 3° layer\ntrained '
+                '2$^{nd}$ + 3$^{rd}$ layer\ntrained '
                 'on\nN studies jointly')
         elif ablation == 'dropout':
             y_labels['factored_gm'] = (
@@ -355,10 +357,10 @@ def plot_compare_methods(sort, ablation=None):
                 'dropout +\n'
                 'hard rank constr.')
         y_labels['factored_transfer'] = (
-            '2° layer trained\non '
-            'N - 1 study\n'
-            '3° layer trained\non '
-            'new study')
+            '2$^{nd}$ layer trained\non '
+            'N - 1 studies\n'
+            '3$^{rd}$ layer trained\non '
+            'target study')
         y_labels['factored'] = (
             'Decoding from\n'
             'all-brain\n'
@@ -682,14 +684,14 @@ def plot_gain_vs_accuracy(sort):
 if __name__ == '__main__':
     data, sort = make_data()
     # plot_joined(data)
-    plot_compare_methods(sort)
+    # plot_compare_methods(sort)
     # plot_gain_vs_accuracy(sort)
     # plot_gain_vs_size(sort)
     #
-    plot_compare_methods(sort, ablation='posthoc')
-    plot_compare_methods(sort, ablation='gm')
+    # plot_compare_methods(sort, ablation='posthoc')
+    # plot_compare_methods(sort, ablation='gm')
     plot_compare_methods(sort, ablation='transfer')
-    plot_compare_methods(sort, ablation='dropout')
-    plot_compare_methods(sort, ablation='l2')
+    # plot_compare_methods(sort, ablation='dropout')
+    # plot_compare_methods(sort, ablation='l2')
     # plot_gain_vs_size_multi()
     # plot_weight_power()

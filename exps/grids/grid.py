@@ -353,12 +353,14 @@ if __name__ == '__main__':
 
     output_dir = join(get_output_dir(), grid)
 
-    if grid == 'training_curves':
+    if grid == 'training_curves_2':
         exp.config(factored)
         exp.config(training_curve)
         config_updates = []
+        studies = ['brainomics', 'archi', 'henson2010faces', 'camcan']
+        studies = ['ds009']
         for seed in seeds:
-            for study in ['brainomics', 'archi', 'henson2010faces', 'camcan']:
+            for study in studies:
                 for size in np.linspace(.1, .5, 5):
                     config_updates.append(
                         {'seed': seed,
@@ -562,7 +564,9 @@ if __name__ == '__main__':
         config_updates = [{'seed': seed,
                            'data.studies': study} for seed in seeds
                           for study in studies]
-    elif grid in ['logistic_tc', 'full_logistic_tc']:
+    elif grid in ['logistic_tc_2', 'full_logistic_tc']:
+        studies = ['brainomics', 'archi', 'henson2010faces', 'camcan']
+        studies = ['ds009']
         if grid == 'logistic_tc':
             exp.config(logistic)
         elif grid == 'full_logistic_tc':
@@ -573,7 +577,7 @@ if __name__ == '__main__':
                            'data.test_size': {study: .5},
                            'data.studies': study}
                           for seed in seeds
-                          for study in ['brainomics', 'archi', 'henson2010faces', 'camcan']
+                          for study in studies
                           for size in np.linspace(0.1, 0.5, 5)]
     elif grid in ['logistic_gm_full', 'full_logistic_full']:
         if grid == 'logistic_gm_full':
