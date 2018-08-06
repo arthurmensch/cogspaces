@@ -7,10 +7,9 @@ from os.path import join
 
 import numpy as np
 import pandas as pd
-from joblib import Parallel, delayed, load
-
 from cogspaces.data import load_data_from_dir
 from cogspaces.datasets.utils import get_data_dir, get_output_dir
+from joblib import Parallel, delayed, load
 
 idx = pd.IndexSlice
 
@@ -237,8 +236,9 @@ if __name__ == '__main__':
         # delayed(gather_factored)(join(get_output_dir(), 'factored')),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_l2_no_rank'), flavor='l2'),
         # delayed(gather_factored)(join(get_output_dir(), 'training_curves'), flavor='training_curves'),
+        delayed(gather_factored)(join(get_output_dir(), 'training_curves_2'), flavor='training_curves'),
         # delayed(gather_factored)(join(get_output_dir(), 'logistic_tc'), flavor='training_curves'),
-        delayed(gather_factored)(join(get_output_dir(), 'logistic_tc_2'), flavor='training_curves'),
+        # delayed(gather_factored)(join(get_output_dir(), 'logistic_tc_2'), flavor='training_curves'),
         # delayed(gather_factored)(join(get_output_dir(), 'factored_l2'), flavor='l2'),
         # delayed(gather_factored)(join(get_output_dir(), 'weight_power'), flavor='weight_power'),
         # delayed(gather_factored)(join(get_output_dir(), 'adaptive_dropout')),
