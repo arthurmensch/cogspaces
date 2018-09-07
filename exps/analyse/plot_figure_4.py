@@ -1,7 +1,16 @@
+import matplotlib
 import matplotlib as mpl
 from matplotlib.font_manager import FontProperties
 
-mpl.rcParams['font.family'] = 'cmss10'
+mpl.use('pgf')
+mplparams = {
+    "font.family": "sans-serif",
+    "text.usetex": True,
+    "pgf.texsystem": "pdflatex",
+    "pgf.rcfonts": False,
+}
+mpl.rcParams.update(mplparams)
+# mpl.rcParams['font.family'] = 'cmss10'
 
 import matplotlib.gridspec as gridspec
 import numpy as np
@@ -148,11 +157,11 @@ def projections():
     classifs_html(output_dir)
 
 
-def plot_classifs_selection():
+def plot_classifs_selection(mode='direct'):
     mem = Memory(cachedir=get_cache_dir())
-    gs = gridspec.GridSpec(5.1, 5, width_ratios=[1.45, 2, 2, 2, 2],
+    gs = gridspec.GridSpec(5, 3, width_ratios=[1.45, 2, 2],
                            hspace=0., wspace=0.04)
-    fig = plt.figure(figsize=(15, 6.5))
+    fig = plt.figure(figsize=(9, 6.5))
 
     fig.subplots_adjust(left=0.0, right=1., top=.89, bottom=0.01)
 
@@ -163,16 +172,17 @@ def plot_classifs_selection():
                 ('brainomics', 'vertical_checkerboard')
                 ]
 
-    row_labels = ["Face vs house\nHaxby et al., '01",
-                  "Pumps vs control\nSchonberg et al., '12",
-                  "Language vs sound\nPinel et al., '09",
-                  "Complex vs simple music\nCauvet et al., '09",
-                  "Vertical checkerboard\nPapadopoulos et al., '15"
-                  ]
-    col_labels = ['Contrast label',
-                  'Voxelwise decoder',
-                  'Task-network decoder',
-                  'Raw z-map', 'Projection on task networks'
+    # row_labels = ["Face vs house\nHaxby et al.$^{60}$",
+    #               "Pumps vs control\nSchonberg et al.$^{70}$",
+    #               "Language vs sound\nPinel et al.$^{66}$",
+    #               "Complex vs simple music\nCauvet et al.$^{50}$",
+    #               "Vertical checkerboard\nPapadopoulos O. et al.$^{65}$"
+    #               ]
+    row_labels = ["Face vs house\nHaxby \\textit{et al.}\\textsuperscript{60}",
+                  "Pumps vs control\nSchonberg \\textit{et al.}\\textsuperscript{70}",
+                  "Language vs sound\nPinel \\textit{et al.}\\textsuperscript{66}",
+                  "Complex vs simple music\nCauvet \\textit{et al.}\\textsuperscript{50}",
+                  "Vertical checkerboard\nPapadopoulos O. \\textit{et al.}\\textsuperscript{65}"
                   ]
 
     ann_offsets = [5, 0, 2, 4, 10]
@@ -202,11 +212,6 @@ def plot_classifs_selection():
                    'xycoords': 'axes fraction',
                    'fontsize': 17}
 
-
-    lw = 2
-    offset = transforms.ScaledTranslation(-8 * lw / 72. / 2., 0,
-                                          fig.dpi_scale_trans)
-
     output_dir = join(get_output_dir(), 'figure_4')
     names = load(join(output_dir, 'classifs', 'names.pkl'))
     index = []
@@ -224,14 +229,24 @@ def plot_classifs_selection():
         get_imgs)(
         output_dir, selected.values.tolist())
 
-    fig.savefig(join(output_dir, 'figure_4.svg'))
+    if mode == 'direct':
+        imgs_list = [classifs_full, classifs_factored]
+        col_labels = ['Contrast label',
+                      'Voxelwise decoder',
+                      'Task-network decoder',
+                      ]
+    else:
+        imgs_list = [proj_full, proj_factored]
+        col_labels = ['Contrast label',
+                      'Raw z-map',
+                      'Projection on task networks'
+                      ]
+
     for row, ((study, contrast), index) in enumerate(selected.iteritems()):
-        for column, imgs in enumerate([classifs_full, classifs_factored,
-                                       proj_full, proj_factored]):
-            column += 1
+        for column, imgs in enumerate(imgs_list):
             sub_gs = gridspec.GridSpecFromSubplotSpec(1, 2,
                                                       subplot_spec=gs[
-                                                          row, column],
+                                                          row, column + 1],
                                                       wspace=0.02,
                                                       width_ratios=[2, 1],
                                                       hspace=0.0)
@@ -263,15 +278,11 @@ def plot_classifs_selection():
                              vmax=vmax,
                              cut_coords=cut_coords,
                              colorbar=False,
-                             annotate=column == 4,
+                             annotate=column == 1,
                              display_mode='z',
                              axes=ax_glass)
 
-            if column >= 3:
-                ax_stat.set_facecolor('0.75')
-                ax_glass.set_facecolor('0.75')
-
-            if column == 1:
+            if column == 0:
                 ax_stat.annotate(ann, xycoords='axes fraction',
                                  va='bottom',
                                  xytext=(0., ann_offsets[row]),
@@ -282,24 +293,35 @@ def plot_classifs_selection():
                                  ha='left', xy=(.03, -0.04))
 
             if row == 0:
-                if column in [1, 3]:
-                    label = '(a) Classification maps' if column == 1 else '(b) Input data transformation'
+                if column == 0:
+                    label = 'Classification maps' if mode == 'direct' else 'Input data transformation'
                     font = FontProperties(weight='bold')
-                    ax_glass.annotate(label, xy=(1., 1.18), zorder=1,
+                    ax_glass.annotate(label, xy=(1., 1.19), zorder=1,
                                       fontproperties=font,
                                       **label_props_wb)
 
-                ax_stat.annotate(col_labels[column], xy=(0.75, 0.9),
+                ax_stat.annotate(col_labels[column], xy=(0.75, 0.91),
                                  **label_props)
+                lw = 2
+                offset = transforms.ScaledTranslation(-8 * lw / 72. / 2., 0,
+                                                      fig.dpi_scale_trans)
                 trans = transforms.blended_transform_factory(
-                    ax_stat.transAxes + offset, fig.transFigure)
-                l = matplotlib.lines.Line2D([0, 0], [0, 1] if column in [1, 3] else [0, .95],
+                    ax_stat.transAxes + offset, fig.transFigure, )
+                l = matplotlib.lines.Line2D([0, 0], [0, 1] if column == 0 else [0, .95],
                                             transform=trans,
                                             figure=fig, color='black',
                                             linewidth=2,
                                             zorder=0)
                 fig.lines.append(l)
-
+        # if row == 0:
+        #     trans = transforms.blended_transform_factory(
+        #         fig.transFigure, ax_stat.transAxes + offset)
+        #     l = matplotlib.lines.Line2D([1, 0], [1, 1],
+        #                                 transform=trans,
+        #                                 figure=fig, color='black',
+        #                                 linewidth=2,
+        #                                 zorder=0)
+        fig.lines.append(l)
         ax_ann = fig.add_subplot(gs[row, 0])
         ax_ann.axis('off')
         this_gain = gain.loc[(study, contrast)]
@@ -318,9 +340,9 @@ def plot_classifs_selection():
             ax_ann.annotate(col_labels[0], xy=(0.5, 0.9),
                             **label_props)
 
-    fig.savefig(join(output_dir, 'classifs.svg'),
-                transparent=True)
-    fig.savefig(join(output_dir, 'classifs.pdf'))
+    # fig.savefig(join(output_dir, 'classifs_%s.svg' % mode),
+    #             transparent=True)
+    fig.savefig(join(output_dir, 'classifs_%s.pdf' % mode))
 
 
 def get_imgs(output_dir, selected):
@@ -351,7 +373,8 @@ def get_bacc_gain():
     return bacc, gain
 
 
-plot_classifs_selection()
+plot_classifs_selection('direct')
+plot_classifs_selection('proj')
 # plot_projection_selection()
 
 # projections()

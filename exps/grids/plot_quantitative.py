@@ -20,7 +20,6 @@ from os.path import join
 from cogspaces.datasets.utils import get_output_dir
 from exps.grids.gather_quantitative import get_chance_subjects
 
-
 idx = pd.IndexSlice
 
 save_dir = '/home/arthur/work/papers/papers/thesis/figures/nature/quantitative'
@@ -30,12 +29,12 @@ pad_top = .02
 pad_right = .02
 pad_left = 2.49
 
-
+dadad
 def make_data():
     output_dir = get_output_dir()
 
     factored_output_dir = join(output_dir,
-                               'factored_refit_gm_normal_init_rest_positive_notune')
+                               'factored_refit_gm_rest_positive_notune')
     baseline_output_dir = join(output_dir, 'full_logistic')
 
     factored = pd.read_pickle(join(factored_output_dir, 'accuracies.pkl'))
@@ -66,7 +65,6 @@ def plot_joined(data):
     #     names = json.load(f)
     df = pd.read_csv('~/work/papers/papers/thesis/brainpedia.csv', index_col=0,
                      header=0)
-    print(df)
     gs = gridspec.GridSpec(1, 2,
                            width_ratios=[2.7, 1]
                            )
@@ -228,13 +226,22 @@ def plot_compare_methods(sort, ablation=None):
     df = pd.concat(dfs, axis=0, keys=exps, names=['method'])
 
     df_std = []
-    methods = []
-    for method, sub_df in df.groupby('method'):
-        methods.append(method)
+    df_mean = []
+    crossed_methods = []
+    methods = df.index.get_level_values('method').unique()
+    for i, method in enumerate(methods):
         df_std.append(
-            sub_df.loc[method] - df.loc[baseline].groupby('study').transform(
+            df.loc[method] - df.loc[baseline].groupby('study').transform(
                 'median'))
+        for method_ref in methods:
+            crossed_methods.append(method + '-' + method_ref)
+            diff = df.loc[method] - df.loc[method_ref]
+            df_mean.append(diff.agg(['mean', 'std', 'median',
+                                     lambda x: (x >= 0).mean()]))
     df_std = pd.concat(df_std, keys=methods, names=['method'])
+    df_mean = pd.concat(df_mean, keys=crossed_methods, names=['method'])
+    print(ablation)
+    print(df_mean)
 
     sort = pd.MultiIndex.from_product([methods, sort],
                                       names=['method', 'study'])
@@ -252,10 +259,10 @@ def plot_compare_methods(sort, ablation=None):
 
     fig, ax = plt.subplots(1, 1, figsize=(width, height))
     if ablation is None:
-        fig.subplots_adjust(left=.07 / width, right=1 - 1.65 / width,
+        fig.subplots_adjust(left=.07 / width, right=1 - 1.9 / width,
                             bottom=0.55 / height, top=1 - pad_top / height, )
     else:
-        fig.subplots_adjust(left=.11 / width, right=1 - 1.8 / width,
+        fig.subplots_adjust(left=.11 / width, right=1 - 1.9 / width,
                             bottom=0.55 / height, top=1 - pad_top / height, )
 
     params = dict(x="accuracy", y="method", hue="study",
@@ -311,7 +318,7 @@ def plot_compare_methods(sort, ablation=None):
         elif ablation == 'posthoc':
             y_labels['factored_refit_gm_rest_positive_notune'] = (
                 # 'Proposed model:\n'
-                'Resting-state init.\npost-hoc consensus.')
+                'Resting-state init.\nConsensus model')
         elif ablation == 'gm':
             y_labels['factored_refit_gm_rest_positive_notune'] = (
                 # 'Proposed model:\n'
@@ -322,19 +329,20 @@ def plot_compare_methods(sort, ablation=None):
             'Standard decoding:\nfrom voxels')
 
         y_labels['factored_refit_gm_normal_init_positive_notune'] = (
-            'Random init.\nfor second layer')
+            'Random init.\nConsensus model')
         y_labels['factored_refit_gm_normal_init_notune'] = (
             'Random init +\n'
             'DL with\nrandom init')
         y_labels['factored_gm_normal_init'] = (
-            'Random init. and\n'
-            'no post-hoc\nconsensus.')
+            'Random init.\n'
+            'No consensus')
         y_labels['factored_refit_gm_notune'] = (
-            'Rest init +\n'
+            'Resting-state init +\n'
             'DL with rest init')
         if ablation == 'posthoc':
             y_labels['factored_gm'] = (
-                'Training without\npost-hoc consensus')
+                'Resting-state init.\n'
+                'No consensus')
         elif ablation == 'gm':
             y_labels['factored_gm'] = (
                 # 'Proposed model:\n'
@@ -348,13 +356,13 @@ def plot_compare_methods(sort, ablation=None):
         elif ablation == 'dropout':
             y_labels['factored_gm'] = (
                 # 'Proposed model:\n'
-                'Adaptive dropout\n'
+                'Adaptive Dropout\n'
                 'and batch norm.')
         elif ablation == 'l2':
             y_labels['factored_gm'] = (
                 # 'Proposed model:\n'
                 'Transfer via\n'
-                'dropout +\n'
+                'Dropout +\n'
                 'hard rank constr.')
         y_labels['factored_transfer'] = (
             '2$^{nd}$ layer trained\non '
@@ -375,7 +383,7 @@ def plot_compare_methods(sort, ablation=None):
         y_labels['bn'] = (
             'No batch norm.')
         y_labels['adaptive_dropout'] = (
-            'Fixed dropout')
+            'Fixed Dropout')
         y_labels['logistic_gm'] = 'Rest compressed logistic'
 
         if ablation in ['gm', 'transfer']:
@@ -409,7 +417,7 @@ def plot_compare_methods(sort, ablation=None):
                          xycoords=('axes fraction', 'data'),
                          va='bottom', rotation=0,
                          ha='left',
-                         zorder=300,)
+                         zorder=300, )
 
             ax.annotate('Variant',
                         xy=(0., y_text + 0.4), **props)
@@ -590,7 +598,6 @@ def plot_weight_power():
     joined['diff'] = joined['factored'] - joined['baseline']
     data = joined['diff'].reset_index()
     data = data.dropna()
-    print(data)
     # sns.boxplot(x='weight_power', y='diff', data=data, ax=ax, whis=0, showfliers=False,
     #             color='grey')
     ax.set_ylim([-0.0, 0.07])
@@ -602,7 +609,7 @@ def plot_weight_power():
     ax.fill_between(np.linspace(0, 1, 10), res['25quart'], res['75quart'],
                     alpha=0.25)
     ax.yaxis.set_major_formatter(
-        ticker.PercentFormatter(xmax=1, decimals=0))
+        ticker.PercentFormatter(xmax=1, decimals=1))
     ax.yaxis.set_major_locator(ticker.MultipleLocator(0.025))
     ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.0125))
     ax.set_xlabel('$\\beta$ s.t. study weight $\\sim$ size$^\\beta$')
@@ -666,8 +673,9 @@ def plot_gain_vs_accuracy(sort):
         ax.yaxis.set_major_locator(ticker.MultipleLocator(0.05))
         ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.025))
         if score == 'bacc':
-            ax.set_xlabel('Baseline balanced accuracy',
+            ax.set_xlabel('Baseline balanced accuracy $\\star$',
                           fontsize=15)
+            ax.xaxis.set_label_coords(0.46, -0.17)
         else:
             ax.set_xlabel('Baseline F1 score (per contrast)')
         ax.set_ylabel('Multi-study b-acc. gain    ', fontsize=15)
@@ -675,7 +683,7 @@ def plot_gain_vs_accuracy(sort):
 
         ax.legend([clouds], ['Contrast'], frameon=True, scatterpoints=3,
                   fontsize=13,
-                  loc='lower right')
+                  loc='upper right')
 
         sns.despine(fig)
         fig.savefig(join(save_dir, 'gain_vs_accuracy_%s.pdf' % score))
@@ -684,13 +692,13 @@ def plot_gain_vs_accuracy(sort):
 if __name__ == '__main__':
     data, sort = make_data()
     # plot_joined(data)
-    # plot_compare_methods(sort)
-    # plot_gain_vs_accuracy(sort)
+    plot_gain_vs_accuracy(sort)
     # plot_gain_vs_size(sort)
-    #
+
+    # plot_compare_methods(sort)
     # plot_compare_methods(sort, ablation='posthoc')
     # plot_compare_methods(sort, ablation='gm')
-    plot_compare_methods(sort, ablation='transfer')
+    # plot_compare_methods(sort, ablation='transfer')
     # plot_compare_methods(sort, ablation='dropout')
     # plot_compare_methods(sort, ablation='l2')
     # plot_gain_vs_size_multi()
