@@ -178,11 +178,11 @@ def plot_classifs_selection(mode='direct'):
     #               "Complex vs simple music\nCauvet et al.$^{50}$",
     #               "Vertical checkerboard\nPapadopoulos O. et al.$^{65}$"
     #               ]
-    row_labels = ["Face vs house\nHaxby \\textit{et al.}\\textsuperscript{60}",
-                  "Pumps vs control\nSchonberg \\textit{et al.}\\textsuperscript{70}",
-                  "Language vs sound\nPinel \\textit{et al.}\\textsuperscript{66}",
-                  "Complex vs simple music\nCauvet \\textit{et al.}\\textsuperscript{50}",
-                  "Vertical checkerboard\nPapadopoulos O. \\textit{et al.}\\textsuperscript{65}"
+    row_labels = ["Face vs house\nHaxby \\textit{et al.}\\textsuperscript{63}",
+                  "Pumps vs control\nSchonberg \\textit{et al.}\\textsuperscript{25}",
+                  "Language vs sound\nPinel \\textit{et al.}\\textsuperscript{69}",
+                  "Complex vs simple music\nCauvet \\textit{et al.}\\textsuperscript{54}",
+                  "Vertical checkerboard\nPapadopoulos O. \\textit{et al.}\\textsuperscript{68}"
                   ]
 
     ann_offsets = [5, 0, 2, 4, 10]
@@ -327,7 +327,7 @@ def plot_classifs_selection(mode='direct'):
         this_gain = gain.loc[(study, contrast)]
         this_bacc = bacc.loc[(study, contrast)]
         ax_ann.annotate('%s\n'
-                        'B-accuracy: %.1f%%\nB-acc. gain: %+.1f%%'
+                        'B-accuracy: %.1f\%%\nB-acc. gain: %+.1f\%%'
                         % (row_labels[row], this_bacc * 100,
                            this_gain * 100),
                         xy=(1, .5),

@@ -45,7 +45,6 @@ def explained_variance(X, components, per_component=True):
         return np.maximum(0., 1. - res_var / full_var)
 
 
-
 class FactoredDL(BaseEstimator):
     def __init__(self, classifier, n_jobs=1, seed=None, n_runs=2,
                  alpha=1e-4, memory=Memory(cachedir=None),
