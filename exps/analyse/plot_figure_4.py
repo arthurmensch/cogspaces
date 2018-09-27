@@ -300,7 +300,7 @@ def plot_classifs_selection(mode='direct'):
                                       fontproperties=font,
                                       **label_props_wb)
 
-                ax_stat.annotate(col_labels[column], xy=(0.75, 0.91),
+                ax_stat.annotate(col_labels[column + 1], xy=(0.75, 0.91),
                                  **label_props)
                 lw = 2
                 offset = transforms.ScaledTranslation(-8 * lw / 72. / 2., 0,

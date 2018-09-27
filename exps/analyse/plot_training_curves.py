@@ -78,4 +78,4 @@ for i, (ax, (study, this_data)) in enumerate(
             ax.set_ylabel('Test accuracy')
 plt.subplots_adjust(left=0.07, right=0.98, top=0.97, bottom=0.27, wspace=0.18)
 plt.savefig(
-    expanduser('~/work/papers/papers/nature/figures/training_curves.pdf'))
+    expanduser('~/work/papers/papers/nature/figures/training_curves.svg'))
