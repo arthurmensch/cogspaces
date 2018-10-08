@@ -72,6 +72,7 @@ def upload(this_df, collection_id, cogatlas=None):
                 target_template_image='MNI152NLin2009cAsym',
                 contrast_definition=contrast,
                 task=task,
+                subject=subject,
                 map_type='Z',
                 **data
             )

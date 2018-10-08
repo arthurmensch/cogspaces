@@ -16,9 +16,7 @@ from cogspaces.datasets.utils import get_data_dir, get_output_dir
 from cogspaces.model_selection import train_test_split
 from cogspaces.models.factored import FactoredClassifier
 from cogspaces.models.factored_dl import FactoredDL
-from cogspaces.models.factored_ss import StudySelector
 from cogspaces.models.logistic import MultiLogisticClassifier
-from cogspaces.models.trace import TraceClassifier
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils.callbacks import ScoreCallback, MultiCallback
 from cogspaces.utils.sacred import OurFileStorageObserver
