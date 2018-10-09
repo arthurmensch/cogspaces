@@ -1,10 +1,8 @@
 import warnings
-from collections import defaultdict
 
-import numpy as np
+import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-import pandas as pd
 
 warnings.filterwarnings('ignore', category=DeprecationWarning,
                         module=r'sklearn.preprocessing.label.*')
@@ -52,16 +50,16 @@ class MultiTargetEncoder(BaseEstimator, TransformerMixin):
     def fit(self, targets):
         self.le_ = {}
 
-        all_contrasts = pd.concat([target['all_contrast']
+        study_contrasts = pd.concat([target['study_contrast']
                                    for target in targets.values()])
         studies = pd.concat([target['study'] for target in targets.values()])
-        le_all_contrast = LabelEncoder().fit(all_contrasts)
+        le_study_contrast = LabelEncoder().fit(study_contrasts)
         le_study = LabelEncoder().fit(studies)
         for study, target in targets.items():
             self.le_[study] = dict(
                 contrast=LabelEncoder().fit(target['contrast']),
                 subject=LabelEncoder().fit(target['subject']),
-                all_contrast=le_all_contrast,
+                study_contrast=le_study_contrast,
                 study=le_study,
                 )
         return self

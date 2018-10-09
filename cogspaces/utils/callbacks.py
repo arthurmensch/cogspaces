@@ -11,15 +11,15 @@ class ScoreCallback:
         preds = estimator.predict(self.X)
         scores = {}
         study_scores = {}
-        all_contrast_scores = {}
+        study_contrast_scores = {}
         for study in self.y:
             scores[study] = self.score_function(preds[study]['contrast'],
                                                 self.y[study]['contrast'])
             study_scores[study] = self.score_function(preds[study]['study'],
                                                       self.y[study]['study'])
-            all_contrast_scores[study] = self.score_function(
-                preds[study]['all_contrast'],
-                self.y[study]['all_contrast'])
+            study_contrast_scores[study] = self.score_function(
+                preds[study]['study_contrast'],
+                self.y[study]['study_contrast'])
         self.n_iter_.append(n_iter)
         self.scores_.append(scores)
         scores_str = ' '.join('%s: %.3f' % (study, score)

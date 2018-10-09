@@ -1,7 +1,6 @@
 from nilearn.input_data import NiftiMasker
 
-from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import fetch_mask
+from cogspaces.datasets import fetch_atlas_modl, fetch_mask
 
 
 def zip_data(data, target):

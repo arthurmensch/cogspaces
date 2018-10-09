@@ -1,20 +1,20 @@
 import math
+import tempfile
+import warnings
 from math import ceil, floor
 
 import numpy as np
 import pandas as pd
-import tempfile
 import torch
 import torch.nn.functional as F
-import warnings
 from joblib import load
 from sklearn.base import BaseEstimator
 from torch import nn
 from torch.optim import Adam
 from torch.utils.data import TensorDataset, DataLoader
 
-from cogspaces.data import MultiStudyLoader
-from cogspaces.datasets.dictionaries import fetch_atlas_modl
+from cogspaces.datasets import fetch_atlas_modl
+from cogspaces.input_data import MultiStudyLoader
 from cogspaces.modules.linear import DropoutLinear
 from cogspaces.modules.loss import MultiStudyLoss
 from cogspaces.modules.utils import Identity
@@ -607,7 +607,7 @@ class FactoredClassifier(BaseEstimator):
             pred = preds[study]
             dfs[study] = pd.DataFrame(
                 dict(contrast=pred, study=0,
-                     all_contrast=0,
+                     study_contrast=0,
                      subject=0))
         return dfs
 

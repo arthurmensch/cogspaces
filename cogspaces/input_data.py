@@ -1,12 +1,12 @@
 import itertools
+import os
+import re
+from os.path import join
 
 import numpy as np
-import os
 import pandas as pd
-import re
 import torch
 from joblib import load
-from os.path import join
 from sklearn.utils import check_random_state
 from torch.utils.data import Dataset, DataLoader
 
@@ -21,11 +21,11 @@ class NiftiTargetDataset(Dataset):
             assert data.shape[0] == targets.shape[0]
             self.study = targets['study'].values
             self.contrast = targets['contrast'].values
-            self.all_contrast = targets['all_contrast'].values
+            self.study_contrast = targets['study_contrast'].values
         else:
             self.study = None
             self.contrast = None
-            self.all_contrast = None
+            self.study_contrast = None
 
         self.data = data
 
@@ -37,21 +37,21 @@ class NiftiTargetDataset(Dataset):
             if single:
                 study = torch.LongTensor((1,)).fill_(0)
                 contrast = torch.LongTensor((1,)).fill_(0)
-                all_contrast = torch.LongTensor((1,)).fill_(0)
+                study_contrast = torch.LongTensor((1,)).fill_(0)
             else:
                 study = torch.LongTensor((data.shape[0], 1)).fill_(0)
                 contrast = torch.LongTensor((data.shape[0], 1)).fill_(0)
-                all_contrast = torch.LongTensor((1,)).fill_(0)
+                study_contrast = torch.LongTensor((1,)).fill_(0)
         else:
             contrast = self.contrast[index]
-            all_contrast = self.all_contrast[index]
+            study_contrast = self.study_contrast[index]
             study = self.study[index]
             if not single:
                 contrast = torch.from_numpy(contrast.values)
-                all_contrast = torch.from_numpy(all_contrast.values)
+                study_contrast = torch.from_numpy(study_contrast.values)
                 study = torch.from_numpy(study.values)
 
-        return data, study, contrast, all_contrast
+        return data, study, contrast, study_contrast
 
     def __len__(self):
         return self.data.shape[0]

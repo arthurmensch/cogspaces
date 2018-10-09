@@ -1,26 +1,17 @@
-import numpy as np
 import os
-import pandas as pd
-import re
-from joblib import Parallel, delayed, dump, load
-from nibabel import Nifti1Image
-from nilearn._utils import check_niimg
-from nilearn.datasets import fetch_icbm152_brain_gm_mask
-from nilearn.image import resample_img
-from nilearn.input_data import NiftiMasker, MultiNiftiMasker
 from os.path import join
+from typing import List, Union
+
+import numpy as np
+import pandas as pd
+from joblib import Parallel, delayed, dump, load
+from nilearn.input_data import NiftiMasker
 from sklearn.utils import gen_batches
 
-from cogspaces.datasets.contrasts import fetch_all
-from cogspaces.datasets.dictionaries import fetch_atlas_modl
-from cogspaces.datasets.utils import get_data_dir, fetch_mask
+from cogspaces.datasets import fetch_mask, fetch_atlas_modl, \
+    fetch_contrasts
 
 idx = pd.IndexSlice
-
-
-def init_fetch_mask() -> str:
-    """For mask bootstrapping"""
-    return join(get_data_dir(), 'mask', 'hcp_mask.nii.gz')
 
 
 def single_mask(masker, imgs):
@@ -35,13 +26,15 @@ def single_reduce(components, data, lstsq=False):
         return X.T
 
 
-def mask_all(output_dir: str or None, n_jobs: int=1, mask: str='icbm_gm'):
+def mask_contrasts(studies: Union[str, List[str]] ='all',
+                   output_dir: str = 'masked',
+                   n_jobs: int = 1):
     batch_size = 10
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    data = fetch_all()
-    mask = fetch_mask()[mask]
+    data = fetch_contrasts(studies)
+    mask = fetch_mask()
     masker = NiftiMasker(smoothing_fwhm=4, mask_img=mask,
                          verbose=0, memory_level=1, memory=None).fit()
 
@@ -56,86 +49,41 @@ def mask_all(output_dir: str or None, n_jobs: int=1, mask: str='icbm_gm'):
             delayed(single_mask)(masker, imgs[batch]) for batch in batches)
         this_data = np.concatenate(this_data, axis=0)
 
-        dump((this_data, targets), join(output_dir, 'data_%s.pt' % study))
+        dump((this_data, targets), join(output_dir, 'masked_%s.pt' % study))
 
 
-def reduce_all(masked_dir, output_dir, n_jobs=1, lstsq=False,
-               components: str = 'components512',
-               mask: str = 'hcp'):
+def reduce_contrasts(components: str = 'components_512_gm',
+                     studies: Union[str, List[str]] = 'all',
+                     masked_dir='unmasked', output_dir='reduced',
+                     n_jobs=1, lstsq=False, ):
     batch_size = 200
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
     modl_atlas = fetch_atlas_modl()
-    mask = fetch_mask()[mask]
+    mask = fetch_mask()
     dictionary = modl_atlas[components]
     masker = NiftiMasker(mask_img=mask).fit()
     components = masker.transform(dictionary)
-    # dictionary_sym = list(map(swap_img_hemispheres, iter_img(dictionary)))
-    # components_sym = masker.transform(dictionary_sym)
-    # components = np.concatenate([components, components_sym], axis=0)
+    for study in studies:
+        this_data, targets = load(join(masked_dir, 'masked_%s.pt' % study))
+        n_samples = this_data.shape[0]
+        batches = list(gen_batches(n_samples, batch_size))
+        this_data = Parallel(n_jobs=n_jobs, verbose=10,
+                             backend='multiprocessing', mmap_mode='r')(
+            delayed(single_reduce)(components,
+                                   this_data[batch], lstsq=lstsq)
+            for batch in batches)
+        this_data = np.concatenate(this_data, axis=0)
 
-    expr = re.compile("data_(.*).pt")
-
-    for file in os.listdir(masked_dir):
-        match = re.match(expr, file)
-        if match:
-            study = match.group(1)
-            this_data, targets = load(join(masked_dir, file))
-            n_samples = this_data.shape[0]
-            batches = list(gen_batches(n_samples, batch_size))
-            this_data = Parallel(n_jobs=n_jobs, verbose=10,
-                                 backend='multiprocessing', mmap_mode='r')(
-                delayed(single_reduce)(components,
-                                       this_data[batch], lstsq=lstsq)
-                for batch in batches)
-            this_data = np.concatenate(this_data, axis=0)
-
-            dump((this_data, targets), join(output_dir,
-                                            'data_%s.pt' % study))
+        dump((this_data, targets), join(output_dir,
+                                        'reduced_%s.pt' % study))
 
 
-def compute_contrast_mask(output_dir, n_jobs=1):
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    data = fetch_all()
-    mask = check_niimg(fetch_mask())
-    affine = mask.get_affine()
-    shape = mask.get_shape()
-    masker = MultiNiftiMasker(smoothing_fwhm=4, verbose=10,
-                              memory_level=1, memory=None,
-                              mask_strategy='epi',
-                              target_shape=shape,
-                              target_affine=affine,
-                              n_jobs=n_jobs).fit(data['z_map'].values)
-    mask_img = masker.mask_img_
-    mask_img.to_filename(join(output_dir, 'contrast_mask.nii.gz'))
+mask_contrasts(studies=['brainpedia'], output_dir='masked')
 
-
-def compute_icbm_mask(output_dir):
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    mask = check_niimg(fetch_icbm152_brain_gm_mask())
-    hcp_mask = check_niimg(init_fetch_mask())
-    mask = resample_img(mask, target_affine=hcp_mask.get_affine(),
-                        target_shape=hcp_mask.get_shape())
-    data = mask.get_data()  # type: np.ndarray
-    affine = mask.get_affine()
-    data[data < 1] = 0
-    data = data.astype(np.int8)
-    mask = Nifti1Image(data, affine)
-    mask.to_filename(join(output_dir, 'icbm_gm_mask.nii.gz'))
-
-
-def main():
-    masked_dir = join(get_data_dir(), 'masked')
-    reduced_dir = join(get_data_dir(), 'reduced_512_gm')
-    reduce_all(output_dir=reduced_dir,
-               components='components512_gm',
-               masked_dir=masked_dir, n_jobs=35, mask='hcp', lstsq=False)
-    # Data can now be loaded using `cogspaces.utils.data.load_masked_data`
-
-
-if __name__ == '__main__':
-    main()
+reduce_contrasts(studies=['brainpedia'],
+                 masked_dir='masked',
+                 output_dir='reduced',
+                 components='components_512_gm', n_jobs=2, lstsq=False)
