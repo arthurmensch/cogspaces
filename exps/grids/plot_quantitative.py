@@ -29,7 +29,7 @@ pad_top = .02
 pad_right = .02
 pad_left = 2.49
 
-dadad
+
 def make_data():
     output_dir = get_output_dir()
 
