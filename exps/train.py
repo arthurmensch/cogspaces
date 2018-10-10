@@ -1,5 +1,5 @@
 import os
-from os.path import join
+from os.path import join, expanduser
 
 from joblib import Memory
 from sklearn.metrics import accuracy_score
@@ -12,6 +12,10 @@ from cogspaces.model_selection import train_test_split
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.report import save
 from cogspaces.utils import compute_metrics, ScoreCallback, MultiCallback
+
+output_dir = expanduser(join('~', 'output', 'factored'))
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
 # Parameters
 system = dict(
@@ -55,10 +59,6 @@ if model['estimator'] == 'ensemble':
         alpha=1e-3,
         warmup=False)
     config['ensemble'] = ensemble
-
-output_dir = join('output', 'factored')
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
 info = {}
 
 # Load data

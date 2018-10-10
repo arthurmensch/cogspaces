@@ -1,4 +1,5 @@
-from os.path import join
+import os
+from os.path import join, expanduser
 
 import numpy as np
 from joblib import Memory, load
@@ -9,10 +10,13 @@ from sklearn.utils import check_random_state
 from cogspaces.plotting.volume import plot_4d_image
 from cogspaces.report import components_html, classifs_html
 
+output_dir = expanduser(join('~', 'output', 'factored'))
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
 mem = Memory(cachedir=get_cache_dir())
 
 n_jobs = 3
-output_dir = 'output'
 rng = check_random_state(1000)
 
 # Compute components

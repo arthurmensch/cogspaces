@@ -1,5 +1,5 @@
 import os
-from os.path import join
+from os.path import join, expanduser
 
 from cogspaces.classification.logistic import MultiLogisticClassifier
 from cogspaces.datasets import STUDY_LIST, load_reduced_loadings
@@ -9,6 +9,10 @@ from cogspaces.plotting.volume import plot_4d_image
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.report import save
 from cogspaces.utils import compute_metrics
+
+output_dir = expanduser(join('~', 'output', 'logistic'))
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
 # Parameters
 system = dict(
@@ -37,10 +41,6 @@ logistic = dict(
     )
 
 config = {'system': system, 'data': data, 'model': model, 'logistic': logistic}
-
-output_dir = join('output', 'baseline')
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
 info = {}
 
 # Load data

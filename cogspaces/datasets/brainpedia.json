@@ -1,0 +1,100 @@
+{"devauchelle2009sentence": {
+  "title": "Sentence/music complexity",
+  "href": "http://www.pnas.org/content/108/6/2522.short"},
+ "knops2009recruitment": {
+   "title": "Arithmetic & saccades",
+   "href": "http://www.sciencemag.org/content/324/5934/1583.short"},
+ "vagharchakian2012temporal": {
+   "title": "Compression",
+   "href": "http://www.jneurosci.org/content/32/26/9089.short"},
+ "archi": {
+   "title": "Localizer",
+   "href": "http://www.biomedcentral.com/1471-2202/8/91"},
+ "pinel2009twins": {
+   "title": "Twin localizer",
+   "href": "http://www.sciencedirect.com/science/article/pii/S1053811913004862"},
+ "ds001": {
+   "title": "Balloon Analog Risk-taking",
+   "href": "https://openfmri.org/dataset/ds000001"},
+ "ds002": {
+   "title": "Classification learning",
+   "href": "https://openfmri.org/dataset/ds000002"},
+ "ds003": {
+   "title": "Rhyme judgment",
+   "href": "https://openfmri.org/dataset/ds000003"},
+ "ds005": {
+   "title": "Mixed-gambles",
+   "href": "https://openfmri.org/dataset/ds000005"},
+ "ds006A": {
+   "title": "Plain or mirror-reversed text",
+   "longtitle": "Living-nonliving decision with plain or mirror-reversed text",
+   "href": "https://openfmri.org/dataset/ds000006a"},
+ "ds007": {
+   "title": "Stop-signal w/ spoken & manual resp.",
+   "href": "https://openfmri.org/dataset/ds000007"},
+ "ds008": {
+   "title": "Stop-signal",
+   "longtitle": "Stop-signal with unconditional & conditional stopping",
+   "href": "https://openfmri.org/dataset/ds000008"},
+ "ds011": {
+   "title": "Weather prediction",
+   "href": "https://openfmri.org/dataset/ds000011"},
+ "ds051": {
+   "title": "Cross-language repetition priming",
+   "href": "https://openfmri.org/dataset/ds000051"},
+ "ds052": {
+   "title": "Classif. learning & reversal",
+   "href": "https://openfmri.org/dataset/ds000052"},
+ "ds101": {"title": "Simon task", "href": "https://openfmri.org/dataset/ds000101"},
+ "ds102": {
+   "title": "Flanker task (event-related)",
+   "href": "https://openfmri.org/dataset/ds000102"},
+ "ds105": {
+   "title": "Visual object recognition",
+   "href": "https://openfmri.org/dataset/ds000105"},
+ "ds107": {
+   "title": "Word & object processing",
+   "href": "https://openfmri.org/dataset/ds000107"},
+ "ds108": {
+   "title": "Emotion regulation",
+   "longtitle": "Prefrontal-Subcortical Pathways Mediating Successful Emotion Regulation",
+   "href": "https://openfmri.org/dataset/ds000108"},
+ "ds109": {
+   "title": "False belief",
+   "href": "https://openfmri.org/dataset/ds000109"},
+ "ds110": {
+   "title": "Incidental encoding",
+   "longtitle": "Incidental encoding (Posner Cueing Paradigm)",
+   "href": "https://openfmri.org/dataset/ds000110"},
+  "hcp": {
+    "title": "The Human Connectome Project",
+    "href": "https://www.humanconnectome.org/"
+  },
+  "gauthier2009resonance": {
+    "title": "Spatio-temporal judgement",
+    "href": "www.jneurosci.org/content/32/41/14433"
+  },
+  "gauthier2010resonance": {
+    "title": "Spatio-temporal judgement (retake)",
+    "href": "www.jneurosci.org/content/32/41/14433"
+  },
+  "amalric2012mathematicians": {
+    "title": "High-level math",
+    "longtitle": "Cortical processing of high-level mathematical concepts",
+    "href": "www.jneurosci.org/content/32/41/14433"
+  },
+  "la5c": {"title": "UCLA LA5c"},
+  "camcan": {"title": "CamCan audio-visual"},
+  "brainomics": {"title": "Brainomics localizer"},
+  "cauvet2009muslang": {"title": "Constit. struct. of sent. & music"},
+  "ds114": {"title": "Motor task & word/verb generation"},
+  "ds116": {"title": "Auditory & Visual Oddball"},
+  "henson2010faces": {"title": "Face recognition"},
+  "ds017A": {"title": "Stop-signal & classification"},
+  "ds017B": {
+  "title": "Stop-signal & classification",
+  "longtitle": "Classification learning & stop-signal (1 year test-retest)",
+  "href": "https://openfmri.org/dataset/ds000017"},
+  "ds009": {"title": "BART, stop-signal, emotion"}
+
+}

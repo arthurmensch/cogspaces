@@ -1,23 +1,21 @@
 import os
+from os.path import join, expanduser
 
-import matplotlib as mpl
 import matplotlib.pyplot as plt
-
-mpl.rcParams['font.family'] = 'CMU Sans Serif'
-mpl.rcParams['font.size'] = 13
-
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import gridspec, ticker
-from os.path import join
 
-from exps.grids.gather_quantitative import get_chance_subjects
+from cogspaces.datasets.utils import get_chance_subjects
+
+output_dir = expanduser(join('~', 'output'))
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
 idx = pd.IndexSlice
 
-output_dir = 'output'
-save_dir = join('output', 'factored')
+save_dir = join(output_dir, 'compare')
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
@@ -32,8 +30,6 @@ def make_data():
     baseline_output_dir = join(output_dir, 'logistic')
 
     factored = pd.read_pickle(join(factored_output_dir, 'accuracies.pkl'))
-    factored = factored.loc[0.0001]
-
     baseline = pd.read_pickle(join(baseline_output_dir, 'accuracies.pkl'))
 
     chance_level, n_subjects = get_chance_subjects()
@@ -258,8 +254,6 @@ def plot_gain_vs_size(sort):
     baseline_output_dir = join(output_dir, 'logistic')
 
     factored = pd.read_pickle(join(factored_output_dir, 'accuracies.pkl'))
-    factored = factored.loc[0.0001]
-
     baseline = pd.read_pickle(join(baseline_output_dir, 'accuracies.pkl'))
 
     chance_level, n_subjects = get_chance_subjects()
