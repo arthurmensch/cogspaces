@@ -28,8 +28,6 @@ def get_data_dir(data_dir=None):
     -----
     This function retrieves the datasets directories using the following
     priority :
-    1. the keyword argument data_dir
-    4. /storage/store/data
     """
 
     # Check data_dir which force storage in a specific location
