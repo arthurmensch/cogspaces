@@ -1,5 +1,10 @@
 import os
 import re
+from math import ceil
+
+import pandas as pd
+
+from cogspaces.datasets import load_reduced_loadings
 
 
 def get_data_dir(data_dir=None):
@@ -35,6 +40,19 @@ def get_data_dir(data_dir=None):
         return os.environ['COGSPACES_DATA']
     else:
         return os.path.expanduser('~/cogspaces_data')
+
+
+def get_chance_subjects(data_dir=None):
+    data, target = load_reduced_loadings(data_dir)
+    chance_level = {}
+    n_subjects = {}
+    for study, this_target in target.items():
+        chance_level[study] = 1. / len(this_target['contrast'].unique())
+        n_subjects[study] = int(ceil(len(this_target['subject'].unique()) / 2))
+
+    chance_level = pd.Series(chance_level)
+    n_subjects = pd.Series(n_subjects)
+    return chance_level, n_subjects
 
 
 def filter_contrast(contrast):
