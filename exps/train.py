@@ -29,7 +29,7 @@ data = dict(
     data_dir=None,
 )
 model = dict(
-    estimator='factored',
+    estimator='logistic',
     normalize=False,
     seed=100,
     target_study=None,

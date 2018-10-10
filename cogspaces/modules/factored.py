@@ -7,12 +7,11 @@ from torch.nn import functional as F
 
 from cogspaces.datasets import fetch_atlas_modl
 from cogspaces.modules.linear import DropoutLinear
-from cogspaces.modules.utils import Identity
 
 
 class Embedder(nn.Module):
     def __init__(self, in_features, latent_size, var_penalty,
-                 activation='linear', dropout=0., adaptive=False,
+                 dropout=0., adaptive=False,
                  init='normal'):
         super().__init__()
 
@@ -25,14 +24,10 @@ class Embedder(nn.Module):
                                     init=init,
                                     level='additive' if adaptive else 'layer',
                                     p=dropout, bias=True)
-        if activation == 'linear':
-            self.activation = Identity()
-        elif activation == 'relu':
-            self.activation = nn.ReLU()
         self.reset_parameters()
 
     def forward(self, input):
-        return self.activation(self.linear(input))
+        return self.linear(input)
 
     def reset_parameters(self):
         if isinstance(self.init, str):
@@ -46,7 +41,7 @@ class Embedder(nn.Module):
                 assert self.linear.out_features == 128
                 assert self.linear.in_features == 453
                 dataset = fetch_atlas_modl()
-                weight = np.load(dataset['loadings_128'])
+                weight = np.load(dataset['loadings_128_gm'])
                 self.linear.weight.data = torch.from_numpy(np.array(weight))
             else:
                 raise ValueError('Wrong parameter for `init` %s' % self.init)
@@ -96,7 +91,6 @@ class VarMultiStudyModule(nn.Module):
                  latent_size,
                  target_sizes,
                  lengths,
-                 activation='linear',
                  input_dropout=0.,
                  regularization=1.,
                  latent_dropout=0.,
@@ -113,8 +107,7 @@ class VarMultiStudyModule(nn.Module):
                                  dropout=input_dropout,
                                  adaptive=embedder_adaptive,
                                  init=init,
-                                 var_penalty=regularization / total_length,
-                                 activation=activation)
+                                 var_penalty=regularization / total_length)
         classifier_adaptive = 'classifier' in adaptive
         self.classifiers = {study: LatentClassifier(
             latent_size, target_size, dropout=latent_dropout,

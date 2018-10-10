@@ -146,10 +146,8 @@ class FactoredClassifier(BaseEstimator):
                     epoch_batch = 0
                     if (report_every is not None
                             and epoch % report_every == 0):
-                        density = module.embedder.linear.density
-                        print('Epoch %.2f, train loss: %.4f, penalty: %.4f,'
-                              ' density: %.4f'
-                              % (epoch, epoch_loss, epoch_penalty, density))
+                        print('Epoch %.2f, train loss: %.4f, penalty: %.4f'
+                              % (epoch, epoch_loss, epoch_penalty))
                         dropout = {}
                         for study, classifier in self.module_.classifiers.items():
                             dropout[study] = classifier.linear.get_p().item()
