@@ -135,7 +135,7 @@ class MultiStudyLoaderIter:
 class MultiStudyLoader:
     def __init__(self, studies,
                  batch_size=128, sampling='cycle',
-                 study_weights=None, seed=None, device=-1):
+                 study_weights=None, seed=None, device=torch.device('cpu')):
         self.studies = studies
         self.batch_size = batch_size
         self.sampling = sampling

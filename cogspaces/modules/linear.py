@@ -133,7 +133,7 @@ class DropoutLinear(nn.Linear):
                                 dtype=torch.float)
         else:
             log_alpha = self.get_log_alpha()
-            var_penalty = - k1 * (F.sigmoid(k2 + k3 * log_alpha)
+            var_penalty = - k1 * (torch.sigmoid(k2 + k3 * log_alpha)
                                   - .5 * F.softplus(-log_alpha)
                                   - 1).expand(*self.weight.shape).sum()
             return var_penalty * self.var_penalty

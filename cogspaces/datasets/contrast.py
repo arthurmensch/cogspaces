@@ -1,7 +1,11 @@
+from os.path import join
 from typing import List
 
 import pandas as pd
+from joblib import load
 from nilearn.datasets import fetch_neurovault_ids
+
+from cogspaces.datasets.derivative import STUDY_LIST
 
 nv_ids = {'archi': 4339, 'hcp': 4337, 'brainomics': 4341, 'camcan': 4342,
           'la5c': 4343, 'brainpedia': 1952}
@@ -36,3 +40,11 @@ def fetch_contrasts(studies: str or List[str] = 'all', data_dir=None):
                                     mode='download_new')
         dfs.append(_assemble(data['images'], data['images_meta'], study))
     return pd.concat(dfs)
+
+
+def load_masked_contrasts(data_dir):
+    Xs, ys = {}, {}
+    for study in STUDY_LIST:
+        Xs[study], ys[study] = load(join(data_dir, 'masked',
+                                         'data_%s.npy'), mmap_mode='r')
+    return Xs, ys

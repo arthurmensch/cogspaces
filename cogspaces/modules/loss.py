@@ -1,7 +1,8 @@
+from typing import Dict, Tuple
+
 import torch
 from torch import nn
 from torch.nn import functional as F
-from typing import Dict, Tuple
 
 
 class MultiStudyLoss(nn.Module):
@@ -17,6 +18,6 @@ class MultiStudyLoss(nn.Module):
         for study in preds:
             pred = preds[study]
             target = targets[study]
-            this_loss = F.nll_loss(pred, target, size_average=True)
+            this_loss = F.nll_loss(pred, target, reduction='elementwise_mean')
             loss += this_loss * self.study_weights[study]
         return loss

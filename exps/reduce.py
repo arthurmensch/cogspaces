@@ -49,7 +49,7 @@ def mask_contrasts(studies: Union[str, List[str]] ='all',
             delayed(single_mask)(masker, imgs[batch]) for batch in batches)
         this_data = np.concatenate(this_data, axis=0)
 
-        dump((this_data, targets), join(output_dir, 'masked_%s.pt' % study))
+        dump((this_data, targets), join(output_dir, 'data_%s.pt' % study))
 
 
 def reduce_contrasts(components: str = 'components_512_gm',
@@ -78,7 +78,7 @@ def reduce_contrasts(components: str = 'components_512_gm',
         this_data = np.concatenate(this_data, axis=0)
 
         dump((this_data, targets), join(output_dir,
-                                        'reduced_%s.pt' % study))
+                                        'data_%s.pt' % study))
 
 
 mask_contrasts(studies=['brainpedia'], output_dir='masked')
