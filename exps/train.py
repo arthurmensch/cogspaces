@@ -1,9 +1,7 @@
-# Load data
-import json
 import os
 from os.path import join
 
-from joblib import dump, Memory
+from joblib import Memory
 from sklearn.metrics import accuracy_score
 
 from cogspaces.classification.factored import FactoredClassifier
@@ -13,11 +11,12 @@ from cogspaces.datasets import STUDY_LIST, load_reduced_loadings
 from cogspaces.datasets.contrast import load_masked_contrasts
 from cogspaces.model_selection import train_test_split
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
+from cogspaces.report import save, compute_nifti
 from cogspaces.utils import compute_metrics, ScoreCallback, MultiCallback
 
 # Parameters
 system = dict(
-    verbose=5,
+    verbose=1,
     n_jobs=3,
     seed=860
 )
@@ -29,11 +28,13 @@ data = dict(
     data_dir=None,
 )
 model = dict(
-    estimator='logistic',
+    estimator='factored',
     normalize=False,
     seed=100,
     target_study=None,
 )
+
+config = {'system': system, 'data': data, 'model': model}
 
 if model['estimator'] in ['factored', 'ensemble']:
     factored = dict(
@@ -45,20 +46,23 @@ if model['estimator'] in ['factored', 'ensemble']:
         input_dropout=0.25,
         seed=100,
         lr={'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3},
-        max_iter={'pretrain': 0, 'train': 200, 'finetune': 0},
+        max_iter={'pretrain': 0, 'train': 2, 'finetune': 0},
         )
+    config['factored'] = factored
     if model['estimator'] == 'ensemble':
         ensemble = dict(
             n_runs=45,
             n_splits=3,
             alpha=1e-3,
             warmup=False)
+        config['ensemble'] = ensemble
 else:
     logistic = dict(
         estimator='logistic',
         l2_penalty=[7e-5],
         max_iter=1000,
         refit_from=None,)
+    config['logistic'] = logistic
 
 output_dir = join('output')
 if not os.path.exists(output_dir):
@@ -91,6 +95,8 @@ train_data, test_data, train_targets, test_targets = \
                      test_size=data['test_size'],
                      train_size=data['train_size'])
 
+
+# Train
 if model['normalize']:
     standard_scaler = MultiStandardScaler().fit(train_data)
     train_data = standard_scaler.transform(train_data)
@@ -134,14 +140,10 @@ else:
 
 estimator.fit(train_data, train_targets, callback=callback)
 
+# Estimate
 test_preds = estimator.predict(test_data)
+metrics = compute_metrics(test_preds, test_targets, target_encoder)
 
-scores = compute_metrics(test_preds, test_targets, target_encoder)
-
-dump(target_encoder, join(output_dir, 'target_encoder.pkl'))
-dump(standard_scaler, join(output_dir, 'standard_scaler.pkl'))
-dump(estimator, join(output_dir, 'estimator.pkl'))
-with open(join(output_dir, 'metrics.json'), 'w+') as f:
-    json.dump(info, f)
-with open(join(output_dir, 'info.json'), 'w+') as f:
-    json.dump(info, f)
+# Save model for further analysis
+save(target_encoder, standard_scaler, estimator, metrics, info, config, output_dir)
+compute_nifti(output_dir)

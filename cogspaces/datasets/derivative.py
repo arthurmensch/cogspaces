@@ -33,12 +33,16 @@ def fetch_atlas_modl(data_dir=None,
 
     keys = ['components_64',
             'components_128',
-            'components_512',
             'components_453_gm',
             'loadings_128_gm'
             ]
 
-    paths = ['%s.nii.gz' % key for key in keys]
+    paths = [
+             'components_64.nii.gz',
+             'components_128.nii.gz',
+             'components_453_gm.nii.gz',
+             'loadings_128_gm.npy',
+             ]
     urls = [url + path for path in paths]
     files = [(path, url, {}) for path, url in zip(paths, urls)]
 

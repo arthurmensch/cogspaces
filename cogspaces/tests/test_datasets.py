@@ -11,8 +11,7 @@ def test_atlas_modl():
     atlas = fetch_atlas_modl()
     keys = ['components_64',
             'components_128',
-            'components_512',
-            'components_512_gm',
+            'components_453_gm',
             ]
 
     assert all(os.path.exists(atlas[key]) for key in keys)

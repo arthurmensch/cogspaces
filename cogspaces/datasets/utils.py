@@ -1,4 +1,5 @@
 import os
+import re
 
 
 def get_data_dir(data_dir=None):
@@ -34,3 +35,32 @@ def get_data_dir(data_dir=None):
         return os.environ['COGSPACES_DATA']
     else:
         return os.path.expanduser('~/cogspaces_data')
+
+
+def filter_contrast(contrast):
+    contrast = contrast.lower()
+    contrast = contrast.replace('lf', 'left foot')
+    contrast = contrast.replace('rf', 'right foot')
+    contrast = contrast.replace('lh', 'left hand')
+    contrast = contrast.replace('rh', 'right hand')
+    contrast = contrast.replace('clicgaudio', 'left audio click')
+    contrast = contrast.replace('clicgvideo', 'left video click')
+    contrast = contrast.replace('clicdvideo', 'left video click')
+    contrast = contrast.replace('clicdaudio', 'right audio click')
+    contrast = contrast.replace('calculvideo', 'video calculation')
+    contrast = contrast.replace('calculaudio', 'audio calculation')
+    contrast = contrast.replace('damier h', 'horizontal checkerboard')
+    contrast = contrast.replace('damier v', 'vertical checkerboard')
+
+    contrast = contrast.replace('audvid600', 'audio video 600ms')
+    contrast = contrast.replace('audvid1200', 'audio video 1200ms')
+    contrast = contrast.replace('audvid300', 'audio video 300ms')
+    contrast = contrast.replace('bk', 'back')
+    contrast = contrast.replace('realrt', 'real risk-taking')
+    contrast = contrast.replace('reapp', 'reappraise')
+    contrast = re.sub(r'\b(rt)\b', 'risk-taking', contrast)
+    contrast = re.sub(r'\b(ons)\b', '', contrast)
+    contrast = re.sub(r'\b(neu)\b', 'neutral', contrast)
+    contrast = re.sub(r'\b(neg)\b', 'negative', contrast)
+    contrast = re.sub(r'\b(ant)\b', 'anticipated', contrast)
+    return contrast

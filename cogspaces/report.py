@@ -1,20 +1,24 @@
+import json
 from os.path import join
 
 import numpy as np
 import torch
-from cogspaces.plotting import plot_word_clouds, plot_all
-from jinja2 import Template
-from joblib import load, Memory, dump
-from matplotlib.testing.compare import get_cache_dir
-from nilearn.datasets import fetch_surf_fsaverage5
+from joblib import dump, load
 from nilearn.input_data import NiftiMasker
-from seaborn import hls_palette
-from sklearn.utils import check_random_state
 
-from cogspaces.datasets import load_reduced_loadings, fetch_atlas_modl, \
-    fetch_mask
+from cogspaces.datasets import fetch_atlas_modl, fetch_mask, \
+    load_reduced_loadings
 
-mem = Memory(cachedir=get_cache_dir())
+
+def save(target_encoder, standard_scaler, estimator, metrics, info, config, output_dir):
+    dump(target_encoder, join(output_dir, 'target_encoder.pkl'))
+    dump(standard_scaler, join(output_dir, 'standard_scaler.pkl'))
+    dump(estimator, join(output_dir, 'estimator.pkl'))
+    dump(metrics, join(output_dir, 'metrics.pkl'))
+    with open(join(output_dir, 'info.json'), 'w+') as f:
+        json.dump(info, f)
+    with open(join(output_dir, 'config.json'), 'w+') as f:
+        json.dump(config, f)
 
 
 def get_components(output_dir, dl=False, return_type='img'):
@@ -28,7 +32,7 @@ def get_components(output_dir, dl=False, return_type='img'):
     if return_type in ['img', 'arrays_full']:
         modl_atlas = fetch_atlas_modl()
         mask = fetch_mask()
-        dictionary = modl_atlas[components]
+        dictionary = modl_atlas['components_453_gm']
         masker = NiftiMasker(mask_img=mask).fit()
         components = masker.transform(dictionary)
         components_full = components.dot(dictionary)
@@ -72,11 +76,14 @@ def get_classifs(output_dir, return_type='img'):
     classifs = {study: classif.numpy().T
                 for study, classif in classifs.items()}
     if return_type in ['img', 'arrays_full']:
-        dictionary = get_dictionary()
+        modl_atlas = fetch_atlas_modl()
+        mask = fetch_mask()
+        dictionary = modl_atlas['components_453_gm']
+        masker = NiftiMasker(mask_img=mask).fit()
+        dictionary = masker.transform(dictionary)
         classifs_full = {study: classif.dot(dictionary)
                          for study, classif in classifs.items()}
         if return_type == 'img':
-            masker = get_masker()
             classifs_img = masker.inverse_transform(
                 np.concatenate(list(classifs_full.values()), axis=0))
             return classifs_img
@@ -102,7 +109,7 @@ def get_module(output_dir):
     return module
 
 
-def get_grades(output_dir, grade_type='data_z_score'):
+def compute_grades(output_dir, grade_type='data_z_score'):
     grades = {}
     if grade_type == 'data_z_score':
         module = get_module(output_dir)
@@ -212,6 +219,7 @@ def components_html(output_dir, components_dir):
 
 
 def classifs_html(output_dir, classifs_dir):
+    from jinja2 import Template
     with open('plot_maps.html', 'r') as f:
         template = f.read()
     names, full_names = get_names(output_dir)
@@ -232,71 +240,8 @@ def classifs_html(output_dir, classifs_dir):
 
 
 def compute_nifti(output_dir):
-    fetch_surf_fsaverage5()
-
     components_imgs = get_components(output_dir)
     components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
     classifs_imgs = get_classifs(output_dir)
     classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
-
-
-def compute_grades(output_dir):
-    for grade_type in ['cosine_similarities', 'loadings']:
-        grades = get_grades(output_dir, grade_type=grade_type)
-        dump(grades, join(output_dir, 'grades_%s.pkl' % grade_type))
-
-
-def plot_grades(output_dir, n_jobs):
-    colors = np.load(join(output_dir, 'colors_2d.npy'))
-    for grade_type in ['cosine_similarities', 'loadings']:
-        grades = load(join(output_dir, 'grades_%s.pkl' % grade_type))
-        plot_word_clouds(join(output_dir, 'wc_%s' % grade_type),
-                         grades, n_jobs=n_jobs,
-                         colors=colors)
-
-
-def plot_2d(output_dir, n_jobs=40):
-    view_types = ['stat_map', 'glass_brain',
-                  ]
-
-    names, full_names = get_names(output_dir)
-
-    plot_all(join(output_dir, 'c1assifs.nii.gz'),
-             output_dir=join(output_dir, 'classifs'),
-             names=full_names,
-             view_types=view_types, threshold=0,
-             n_jobs=n_jobs)
-
-    colors = np.load(join(output_dir, 'colors_2d.npy'))
-
-    plot_all(join(output_dir, 'components.nii.gz'),
-             output_dir=join(output_dir, 'components'),
-             names='components',
-             colors=colors,
-             view_types=view_types,
-             n_jobs=n_jobs)
-
-
-def make_report(output_dir):
-    components_html(output_dir, 'components')
-    classifs_html(output_dir, 'classifs')
-
-
-n_jobs = 3
-output_dir = 'train'
-rng = check_random_state(1000)
-
-colors = np.arange(128)
-colors_2d = np.array(hls_palette(128, s=1, l=.4))
-colors_word_cl = np.array(hls_palette(128, s=.7, l=.4))
-colors_3d = np.array(hls_palette(128, s=1, l=.5))
-
-np.save(join(output_dir, 'colors_2d.npy'), colors_2d)
-np.save(join(output_dir, 'colors_3d.npy'), colors_3d)
-
-compute_nifti(output_dir)
-plot_3d(output_dir)
-plot_2d(output_dir, n_jobs=n_jobs)
-compute_grades(output_dir)
-plot_grades(output_dir, n_jobs=n_jobs)
-make_report(output_dir)
+    return classifs_imgs, components_imgs

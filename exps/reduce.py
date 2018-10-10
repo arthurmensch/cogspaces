@@ -52,7 +52,7 @@ def mask_contrasts(studies: Union[str, List[str]] ='all',
         dump((this_data, targets), join(output_dir, 'data_%s.pt' % study))
 
 
-def reduce_contrasts(components: str = 'components_512_gm',
+def reduce_contrasts(components: str = 'components_453_gm',
                      studies: Union[str, List[str]] = 'all',
                      masked_dir='unmasked', output_dir='reduced',
                      n_jobs=1, lstsq=False, ):
@@ -81,9 +81,9 @@ def reduce_contrasts(components: str = 'components_512_gm',
                                         'data_%s.pt' % study))
 
 
-mask_contrasts(studies=['brainpedia'], output_dir='masked')
+mask_contrasts(studies=['archi'], output_dir='masked')
 
-reduce_contrasts(studies=['brainpedia'],
+reduce_contrasts(studies=['archi'],
                  masked_dir='masked',
                  output_dir='reduced',
-                 components='components_512_gm', n_jobs=2, lstsq=False)
+                 components='components_453_gm', n_jobs=2, lstsq=False)
