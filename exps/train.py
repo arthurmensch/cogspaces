@@ -11,7 +11,7 @@ from cogspaces.datasets import STUDY_LIST, load_reduced_loadings
 from cogspaces.datasets.contrast import load_masked_contrasts
 from cogspaces.model_selection import train_test_split
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
-from cogspaces.report import save, compute_nifti
+from cogspaces.report import save
 from cogspaces.utils import compute_metrics, ScoreCallback, MultiCallback
 
 # Parameters
@@ -145,5 +145,7 @@ test_preds = estimator.predict(test_data)
 metrics = compute_metrics(test_preds, test_targets, target_encoder)
 
 # Save model for further analysis
-save(target_encoder, standard_scaler, estimator, metrics, info, config, output_dir)
-compute_nifti(output_dir)
+if model['estimator'] in ['factored', 'ensemble']:
+    save(target_encoder, standard_scaler, estimator, metrics, info, config, output_dir)
+else:
+    save_logistic(target_encoder, standard_scaler, estimator, metrics, info, config, output_dir)

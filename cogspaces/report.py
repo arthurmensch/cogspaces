@@ -1,3 +1,6 @@
+"""
+    Analyse a model trained on data provided by load_reduced_loadings().
+"""
 import json
 from os.path import join
 
@@ -10,6 +13,8 @@ from cogspaces.datasets import fetch_atlas_modl, fetch_mask, \
     load_reduced_loadings
 
 
+# Note that 'components_453_gm' is currently hard-coded there
+
 def save(target_encoder, standard_scaler, estimator, metrics, info, config, output_dir):
     dump(target_encoder, join(output_dir, 'target_encoder.pkl'))
     dump(standard_scaler, join(output_dir, 'standard_scaler.pkl'))
@@ -19,6 +24,8 @@ def save(target_encoder, standard_scaler, estimator, metrics, info, config, outp
         json.dump(info, f)
     with open(join(output_dir, 'config.json'), 'w+') as f:
         json.dump(config, f)
+    compute_nifti(output_dir)
+    compute_names(output_dir)
 
 
 def get_components(output_dir, dl=False, return_type='img'):
@@ -30,11 +37,11 @@ def get_components(output_dir, dl=False, return_type='img'):
         components = module.embedder.linear.weight.detach().numpy()
 
     if return_type in ['img', 'arrays_full']:
-        modl_atlas = fetch_atlas_modl()
         mask = fetch_mask()
-        dictionary = modl_atlas['components_453_gm']
         masker = NiftiMasker(mask_img=mask).fit()
-        components = masker.transform(dictionary)
+        modl_atlas = fetch_atlas_modl()
+        dictionary = modl_atlas['components_453_gm']
+        dictionary = masker.transform(dictionary)
         components_full = components.dot(dictionary)
         if return_type == 'img':
             components_img = masker.inverse_transform(components_full)
@@ -44,16 +51,6 @@ def get_components(output_dir, dl=False, return_type='img'):
             return components_full
     elif return_type == 'arrays':
         return components
-
-
-def get_names(output_dir):
-    target_encoder = load(join(output_dir, 'target_encoder.pkl'))
-    names = {study: le['contrast'].classes_.tolist()
-             for study, le in target_encoder.le_.items()}
-    full_names = ['%s::%s' % (study, contrast)
-                  for study, contrasts in names.items()
-                  for contrast in contrasts]
-    return names, full_names
 
 
 def get_classifs(output_dir, return_type='img'):
@@ -76,10 +73,10 @@ def get_classifs(output_dir, return_type='img'):
     classifs = {study: classif.numpy().T
                 for study, classif in classifs.items()}
     if return_type in ['img', 'arrays_full']:
-        modl_atlas = fetch_atlas_modl()
         mask = fetch_mask()
-        dictionary = modl_atlas['components_453_gm']
         masker = NiftiMasker(mask_img=mask).fit()
+        modl_atlas = fetch_atlas_modl()
+        dictionary = modl_atlas['components_453_gm']
         dictionary = masker.transform(dictionary)
         classifs_full = {study: classif.dot(dictionary)
                          for study, classif in classifs.items()}
@@ -173,7 +170,7 @@ def compute_grades(output_dir, grade_type='data_z_score'):
         raise ValueError
     full_grades = np.concatenate(list(grades.values()), axis=0)
 
-    names, full_names = get_names(output_dir)
+    names, full_names = compute_names(output_dir)
     sorted_grades = []
     sorted_full_grades = []
     for i in range(full_grades.shape[1]):
@@ -193,8 +190,20 @@ def compute_grades(output_dir, grade_type='data_z_score'):
               'full': sorted_full_grades}
     return grades
 
+def compute_names(output_dir):
+    target_encoder = load(join(output_dir, 'target_encoder.pkl'))
+    names = {study: le['contrast'].classes_.tolist()
+             for study, le in target_encoder.le_.items()}
+    full_names = ['%s::%s' % (study, contrast)
+                  for study, contrasts in names.items()
+                  for contrast in contrasts]
+    dump(names, join(output_dir, 'names.pkl'))
+    dump(full_names, join(output_dir, 'full_names.pkl'))
+    return names, full_names
+
 
 def components_html(output_dir, components_dir):
+    from jinja2 import Template
     with open('plot_maps.html', 'r') as f:
         template = f.read()
     template = Template(template)
@@ -222,7 +231,7 @@ def classifs_html(output_dir, classifs_dir):
     from jinja2 import Template
     with open('plot_maps.html', 'r') as f:
         template = f.read()
-    names, full_names = get_names(output_dir)
+    names, full_names = compute_names(output_dir)
     template = Template(template)
     imgs = []
     for name in full_names:

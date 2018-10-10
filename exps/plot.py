@@ -1,14 +1,13 @@
 from os.path import join
 
 import numpy as np
-from joblib import Memory
+from joblib import Memory, load
 from matplotlib.testing.compare import get_cache_dir
 from seaborn import hls_palette
 from sklearn.utils import check_random_state
 
 from cogspaces.plotting.volume import plot_4d_image
-from cogspaces.report import get_names, components_html, \
-    classifs_html, compute_nifti
+from cogspaces.report import components_html, classifs_html
 
 mem = Memory(cachedir=get_cache_dir())
 
@@ -17,8 +16,8 @@ output_dir = 'output'
 rng = check_random_state(1000)
 
 # Compute components
-classifs_imgs, components_imgs = compute_nifti(output_dir)
-names, full_names = get_names(output_dir)
+classifs_imgs, components_imgs = join(output_dir, 'classifs.nii.gz'), join(output_dir, 'components.nii.gz')
+names, full_names = load(join(output_dir, 'names.pkl')), load(join(output_dir, 'full_names.pkl'))
 
 # Colors
 colors = np.arange(128)

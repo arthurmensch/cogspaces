@@ -5,7 +5,6 @@ from os.path import join
 import numpy as np
 from joblib import Parallel, delayed
 from matplotlib.colors import LinearSegmentedColormap, rgb_to_hsv, hsv_to_rgb
-from nilearn import surface
 from nilearn._utils import check_niimg
 from nilearn.datasets import fetch_surf_fsaverage5
 from nilearn.image import iter_img
@@ -53,10 +52,7 @@ def make_cmap(color, rotation=.5, white=False, transparent_zero=False):
 
 def plot_single(img, name, output_dir, view_types=['stat_map'], color=None,
                 threshold=0):
-    import matplotlib
-    matplotlib.use('agg')
-    from nilearn.plotting import plot_stat_map, find_xyz_cut_coords, \
-        plot_glass_brain, plot_surf_stat_map
+    from nilearn.plotting import plot_stat_map, find_xyz_cut_coords, plot_glass_brain
 
     if color is not None:
         cmap = make_cmap(color, rotation=.5)
@@ -70,69 +66,24 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None,
     threshold = vmax / 8
 
     for view_type in view_types:
-        src = join(output_dir, '%s_%s.png' % (name, view_type))
-        if view_type in ['surf_stat_map_lateral_right',
-                         'surf_stat_map_lateral_left',
-                         'surf_stat_map_medial_right',
-                         'surf_stat_map_medial_left']:
-            fsaverage = fetch_surf_fsaverage5()
-            view = 'lateral' if 'lateral' in view_type else 'medial'
-
-            if 'right' in view_type:
-                surf_mesh = fsaverage.infl_right
-                bg_map = fsaverage.sulc_right
-                texture_surf_mesh = fsaverage.pial_right
-                texture = surface.vol_to_surf(img, texture_surf_mesh)
-                hemi = 'right'
-            else:
-                surf_mesh = fsaverage.infl_left
-                bg_map = fsaverage.sulc_left
-                texture_surf_mesh = fsaverage.pial_left
-                texture = surface.vol_to_surf(img, texture_surf_mesh)
-                hemi = 'left'
-            plot_surf_stat_map(surf_mesh, texture, hemi=hemi,
-                               bg_map=bg_map,
-                               vmax=vmax,
-                               threshold=threshold,
-                               view=view,
-                               output_file=src,
-                               cmap=cmap)
-
-        elif view_type in ['stat_map', 'glass_brain']:
-            cut_coords = find_xyz_cut_coords(img,
-                                             activation_threshold=vmax / 3)
-            if view_type == 'stat_map':
-                plot_stat_map(img, threshold=threshold,
-                              cut_coords=cut_coords,
-                              vmax=vmax,
-                              colorbar=False,
-                              output_file=src,
-                              # cmap=cmap
-                              )
-                plot_stat_map(img, threshold=threshold,
-                              cut_coords=cut_coords,
-                              vmax=vmax,
-                              display_mode='ortho',
-                              colorbar=True,
-                              output_file=src.replace('.png', '_z.svg'),
-                              # cmap=cmap
-                              )
-            else:
-                plot_glass_brain(img, threshold=threshold,
-                                 vmax=vmax,
-                                 plot_abs=False,
-                                 output_file=src,
-                                 colorbar=False,
-                                 # cmap=cmap_white
-                                 )
-                plot_glass_brain(img, threshold=threshold,
-                                 vmax=vmax,
-                                 display_mode='ortho',
-                                 plot_abs=False,
-                                 output_file=src.replace('.png', '_xz.svg'),
-                                 colorbar=True,
-                                 # cmap=cmap_white
-                                 )
+        src = join(output_dir, '%s_%s.svg' % (name, view_type))
+        cut_coords = find_xyz_cut_coords(img, activation_threshold=vmax / 3)
+        if view_type == 'stat_map':
+            plot_stat_map(img, threshold=threshold,
+                          cut_coords=cut_coords,
+                          vmax=vmax,
+                          colorbar=True,
+                          output_file=src,
+                          # cmap=cmap
+                          )
+        elif view_type == 'glass_brain':
+            plot_glass_brain(img, threshold=threshold,
+                             vmax=vmax,
+                             plot_abs=False,
+                             output_file=src,
+                             colorbar=True,
+                             # cmap=cmap_white
+                             )
         else:
             raise ValueError('Wrong view type in `view_types`: got %s' %
                              view_type)
