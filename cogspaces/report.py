@@ -14,8 +14,10 @@ from cogspaces.datasets import fetch_atlas_modl, fetch_mask, \
 
 
 # Note that 'components_453_gm' is currently hard-coded there
+# Note that this module only works without standard_scaling
 
-def save(target_encoder, standard_scaler, estimator, metrics, info, config, output_dir):
+def save(target_encoder, standard_scaler, estimator, metrics, info, config, output_dir,
+         estimator_type='factored'):
     dump(target_encoder, join(output_dir, 'target_encoder.pkl'))
     dump(standard_scaler, join(output_dir, 'standard_scaler.pkl'))
     dump(estimator, join(output_dir, 'estimator.pkl'))
@@ -24,7 +26,7 @@ def save(target_encoder, standard_scaler, estimator, metrics, info, config, outp
         json.dump(info, f)
     with open(join(output_dir, 'config.json'), 'w+') as f:
         json.dump(config, f)
-    compute_nifti(output_dir)
+    compute_nifti(output_dir, estimator_type=estimator_type)
     compute_names(output_dir)
 
 
@@ -53,25 +55,29 @@ def get_components(output_dir, dl=False, return_type='img'):
         return components
 
 
-def get_classifs(output_dir, return_type='img'):
-    module = get_module(output_dir)
+def get_classifs(output_dir, return_type='img', estimator_type='factored'):
+    if estimator_type == 'factored':
+        module = get_module(output_dir)
+        module.eval()
 
-    module.eval()
+        studies = module.classifiers.keys()
+        in_features = module.embedder.linear.in_features
 
-    studies = module.classifiers.keys()
-    in_features = module.embedder.linear.in_features
-
-    with torch.no_grad():
-        classifs = module({study: torch.eye(in_features)
-                           for study in studies}, logits=True)
-        biases = module({study: torch.zeros((1, in_features))
-                         for study in studies}, logits=True)
-        classifs = {study: classifs[study] - biases[study]
-                    for study in studies}
-        classifs = {study: classif - classif.mean(dim=0, keepdim=True)
+        with torch.no_grad():
+            classifs = module({study: torch.eye(in_features)
+                               for study in studies}, logits=True)
+            biases = module({study: torch.zeros((1, in_features))
+                             for study in studies}, logits=True)
+            classifs = {study: classifs[study] - biases[study]
+                        for study in studies}
+            classifs = {study: classif - classif.mean(dim=0, keepdim=True)
+                        for study, classif in classifs.items()}
+        classifs = {study: classif.numpy().T
                     for study, classif in classifs.items()}
-    classifs = {study: classif.numpy().T
-                for study, classif in classifs.items()}
+
+    else:
+        estimator = load(join(output_dir, 'estimator.pkl'))
+        classifs = estimator.coef_
     if return_type in ['img', 'arrays_full']:
         mask = fetch_mask()
         masker = NiftiMasker(mask_img=mask).fit()
@@ -190,6 +196,7 @@ def compute_grades(output_dir, grade_type='data_z_score'):
               'full': sorted_full_grades}
     return grades
 
+
 def compute_names(output_dir):
     target_encoder = load(join(output_dir, 'target_encoder.pkl'))
     names = {study: le['contrast'].classes_.tolist()
@@ -248,9 +255,12 @@ def classifs_html(output_dir, classifs_dir):
         f.write(html)
 
 
-def compute_nifti(output_dir):
-    components_imgs = get_components(output_dir)
-    components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
-    classifs_imgs = get_classifs(output_dir)
+def compute_nifti(output_dir, estimator_type='factored'):
+    if estimator_type == 'factored':
+        components_imgs = get_components(output_dir)
+        components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
+    else:
+        components_imgs = None
+    classifs_imgs = get_classifs(output_dir, estimator_type=estimator_type)
     classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
     return classifs_imgs, components_imgs

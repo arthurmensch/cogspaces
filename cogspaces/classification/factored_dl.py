@@ -78,7 +78,6 @@ class FactoredDL(BaseEstimator):
 
         self.classifier_.max_iter = {'train': 0,
                                      'pretrain': 0,
-                                     'sparsify': 0,
                                      'finetune': 0}
         self.classifier_.fit(X, y)
         dict_init = self.classifier_.module_.embedder.linear.weight.detach().numpy()
