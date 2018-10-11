@@ -8,7 +8,7 @@ import seaborn as sns
 from cogspaces.datasets.derivative import get_chance_subjects
 from matplotlib import gridspec, ticker
 
-output_dir = expanduser(join('~', 'output'))
+output_dir = expanduser(join('~', 'output', 'cogspaces'))
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 

@@ -30,8 +30,12 @@ def compute_metrics(preds, targets, target_encoder):
                              zip(contrasts, recalls)}
         all_f1[study] = {contrast: f1 for contrast, f1 in
                          zip(contrasts, f1s)}
-        all_confusion[study] = confusion_matrix(these_preds, these_targets)
-    return all_confusion, all_prec, all_recall, all_f1, all_accuracies
+        all_confusion[study] = confusion_matrix(these_preds, these_targets).tolist()
+    return {'confusion': all_confusion,
+            'prec': all_prec,
+            'recall': all_recall,
+            'f1': all_f1,
+            'accuracies': all_accuracies}
 
 
 class ScoreCallback:

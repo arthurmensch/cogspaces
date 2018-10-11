@@ -1,26 +1,25 @@
 """
-Utility function for train.py
+Plot functions for train.py
 """
-import json
+
 from os.path import join
 
 import numpy as np
 from cogspaces.plotting.volume import plot_4d_image
-from cogspaces.report import compute_names, compute_nifti, compute_grades
-from joblib import load, dump
+from joblib import load
 from seaborn import hls_palette
 
 
 # HTML report
-def components_html(output_dir, components_dir, plot_wordclouds=True):
+def components_html(components_dir, output_dir, plot_wordclouds=True):
     from jinja2 import Template
-    with open('plot_maps.html', 'r') as f:
+    with open(join('assets', 'maps.html'), 'r') as f:
         template = f.read()
     template = Template(template)
     imgs = []
     for i in range(128):
         title = 'components_%i' % i
-        view_types = ['stat_map', 'glass_brain',]
+        view_types = ['stat_map', 'glass_brain', ]
         srcs = []
         for view_type in view_types:
             src = join(components_dir, '%s_%s.png' % (title, view_type))
@@ -37,11 +36,10 @@ def components_html(output_dir, components_dir, plot_wordclouds=True):
         f.write(html)
 
 
-def classifs_html(output_dir, classifs_dir):
+def classifs_html(full_names, classifs_dir, output_dir):
     from jinja2 import Template
-    with open('plot_maps.html', 'r') as f:
+    with open(join('assets', 'maps.html'), 'r') as f:
         template = f.read()
-    names, full_names = compute_names(output_dir)
     template = Template(template)
     imgs = []
     for name in full_names:
@@ -58,11 +56,11 @@ def classifs_html(output_dir, classifs_dir):
         f.write(html)
 
 
-def plot(output_dir, plot_components=True,
-         plot_classifs=True,
-         plot_surface=True, plot_wordclouds=True,
-         n_jobs=1):
-
+def plot(output_dir, plot_components=True, plot_classifs=True,
+         plot_surface=True, plot_wordclouds=True, n_jobs=1):
+    """Plot all qualitative figures from model record.
+    """
+    names = load(join(output_dir, 'names.pkl'))
     full_names = load(join(output_dir, 'full_names.pkl'))
 
     # Colors
@@ -81,7 +79,7 @@ def plot(output_dir, plot_components=True,
                       names=full_names,
                       view_types=view_types, threshold=0,
                       n_jobs=n_jobs)
-        classifs_html(output_dir, 'classifs')
+        classifs_html(full_names, 'classifs', output_dir)
     if plot_components:
         components_imgs = join(output_dir, 'components.nii.gz')
         plot_4d_image(components_imgs,
@@ -106,30 +104,3 @@ def plot(output_dir, plot_components=True,
     components_html(output_dir, 'components', plot_wordclouds=plot_wordclouds)
 
 
-def save(estimator, standard_scaler, target_encoder, metrics, info, config,
-         output_dir, save_grades=True):
-    dump(target_encoder, join(output_dir, 'target_encoder.pkl'))
-    dump(standard_scaler, join(output_dir, 'standard_scaler.pkl'))
-    dump(estimator, join(output_dir, 'estimator.pkl'))
-    dump(metrics, join(output_dir, 'metrics.pkl'))
-    with open(join(output_dir, 'info.json'), 'w+') as f:
-        json.dump(info, f)
-    with open(join(output_dir, 'config.json'), 'w+') as f:
-        json.dump(config, f)
-    niftis = compute_nifti(estimator, standard_scaler, config)
-
-    if config['model']['estimator'] in ['factored', 'ensemble']:
-        classifs_img, components_imgs = niftis
-        classifs_img.to_filename(output_dir, 'classifs.nii.gz')
-        components_imgs.to_filename(output_dir, 'components_imgs.nii.gz')
-        if save_grades:
-            grades = compute_grades(output_dir,
-                                    grade_type='cosine_similarities')
-            dump(grades, join(output_dir, 'grades.pkl'))
-    else:
-        classifs_img = niftis
-        classifs_img.to_filename(output_dir, 'classifs.nii.gz')
-
-    names, full_names = compute_names(target_encoder)
-    dump(names, join(output_dir, 'names.pkl'))
-    dump(full_names, join(output_dir, 'full_names.pkl'))

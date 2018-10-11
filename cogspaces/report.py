@@ -13,8 +13,10 @@ from nilearn.input_data import NiftiMasker
 
 
 def compute_components(estimator, config, return_type='img'):
+    """Compute components from a FactoredClassifier estimator"""
     module = curate_module(estimator)
     components = module.embedder.linear.weight.detach().numpy()
+
     if config['data']['reduced']:
         mask = fetch_mask()
         masker = NiftiMasker(mask_img=mask).fit()
@@ -27,6 +29,8 @@ def compute_components(estimator, config, return_type='img'):
         return components_img
     elif return_type == 'arrays':
         return components
+    else:
+        raise ValueError
 
 
 def compute_classifs(estimator, standard_scaler, config, return_type='img'):
@@ -52,7 +56,12 @@ def compute_classifs(estimator, standard_scaler, config, return_type='img'):
     elif config['model']['estimator'] == 'logistic':
         classifs = estimator.coef_
     else:
-        raise NotImplementedError
+        raise ValueError('Wrong config file')
+
+    if standard_scaler is not None:
+        for study, classif in classifs.items():
+            sc = standard_scaler.scs_[study]
+            classifs[study] = classif / sc.scale_[None, :]
 
     if config['data']['reduced']:
         mask = fetch_mask()
@@ -66,8 +75,10 @@ def compute_classifs(estimator, standard_scaler, config, return_type='img'):
         classifs_img = masker.inverse_transform(
             np.concatenate(list(classifs.values()), axis=0))
         return classifs_img
-    else:
+    elif return_type == 'arrays':
         return classifs
+    else:
+        raise ValueError
 
 
 def curate_module(estimator):
@@ -102,7 +113,7 @@ def compute_grades(estimator, standard_scaler, target_encoder,
     elif grade_type == 'cosine_similarities':
         classifs = compute_classifs(estimator, standard_scaler, config,
                                     return_type='arrays')
-        components = compute_components(estimator, standard_scaler, config,
+        components = compute_components(estimator, config,
                                         return_type='arrays')
         threshold = np.percentile(np.abs(components),
                                   100. * (1 - 1. / len(components)))
@@ -111,7 +122,7 @@ def compute_grades(estimator, standard_scaler, target_encoder,
             classif -= classif.mean(axis=0, keepdims=True)
             grades[study] = (
                     classif.dot(components.T)
-                    / np.sqrt(np.sum(classifs ** 2, axis=1)[:, None])
+                    / np.sqrt(np.sum(classif ** 2, axis=1)[:, None])
                     / np.sqrt(np.sum(components ** 2, axis=1)[None, :])
             )
     else:
@@ -151,10 +162,8 @@ def compute_names(target_encoder):
 def compute_nifti(estimator, standard_scaler, config):
     classifs_imgs = compute_classifs(estimator, standard_scaler, config,
                                      return_type='img')
-    if config['model']['estimator'] == 'factored':
-        if not config['data']['reduced']:
-            raise NotImplementedError
-        components_imgs = compute_components(estimator, config, standard_scaler)
+    if config['model']['estimator'] in ['factored', 'ensemble']:
+        components_imgs = compute_components(estimator, config, return_type='img')
         return classifs_imgs, components_imgs
     else:
         return classifs_imgs

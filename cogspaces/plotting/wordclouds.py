@@ -62,6 +62,7 @@ def plot_word_cloud_single(output_dir, grades, index,
     else:
         colormap = None
 
+    # Scrap non-interesting contrasts
     contrasts = list(filter(
         lambda x: 'effects_of_interest' not in x and 'gauthier' not in x,
         grades))[:15]
@@ -73,7 +74,6 @@ def plot_word_cloud_single(output_dir, grades, index,
         study, contrast = contrast.split('::')
         contrast = contrast.replace('_', ' ').replace('&', ' ').replace('-',
                                                                         ' ')
-        # contrast = filter_contrast(contrast)
         terms = contrast.split(' ')
         cat_terms = []
         for term in terms:

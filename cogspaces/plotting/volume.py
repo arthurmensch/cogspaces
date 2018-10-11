@@ -3,14 +3,13 @@ from itertools import repeat
 from os.path import join
 
 import numpy as np
+from cogspaces.datasets import fetch_mask
 from joblib import Parallel, delayed
 from matplotlib.colors import LinearSegmentedColormap, rgb_to_hsv, hsv_to_rgb
 from nilearn._utils import check_niimg
 from nilearn.datasets import fetch_surf_fsaverage5
 from nilearn.image import iter_img
 from nilearn.input_data import NiftiMasker
-
-from cogspaces.datasets import fetch_mask
 
 
 def make_cmap(color, rotation=.5, white=False, transparent_zero=False):
@@ -66,7 +65,7 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None,
     threshold = vmax / 8
 
     for view_type in view_types:
-        src = join(output_dir, '%s_%s.svg' % (name, view_type))
+        src = join(output_dir, '%s_%s.png' % (name, view_type))
         cut_coords = find_xyz_cut_coords(img, activation_threshold=vmax / 3)
         if view_type == 'stat_map':
             plot_stat_map(img, threshold=threshold,

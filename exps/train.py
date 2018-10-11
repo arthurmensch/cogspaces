@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 from os.path import join, expanduser
 
@@ -9,16 +10,50 @@ from cogspaces.datasets import STUDY_LIST, load_reduced_loadings
 from cogspaces.datasets.contrast import load_masked_contrasts
 from cogspaces.model_selection import train_test_split
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
+from cogspaces.report import compute_nifti, compute_grades, compute_names
 from cogspaces.utils import compute_metrics, ScoreCallback, MultiCallback
-from joblib import Memory
+from joblib import Memory, dump
+from plotting import plot
 from sklearn.metrics import accuracy_score
 
-from .analyse import save, plot
+
+def save(estimator, standard_scaler, target_encoder, metrics, info, config,
+         output_dir, save_grades=True):
+    dump(target_encoder, join(output_dir, 'target_encoder.pkl'))
+    dump(standard_scaler, join(output_dir, 'standard_scaler.pkl'))
+    dump(estimator, join(output_dir, 'estimator.pkl'))
+    with open(join(output_dir, 'metrics.json'), 'w+') as f:
+        json.dump(metrics, f)
+    with open(join(output_dir, 'info.json'), 'w+') as f:
+        json.dump(info, f)
+    with open(join(output_dir, 'config.json'), 'w+') as f:
+        json.dump(config, f)
+    niftis = compute_nifti(estimator, standard_scaler, config)
+
+    if config['model']['estimator'] in ['factored', 'ensemble']:
+        classifs_img, components_imgs = niftis
+        classifs_img.to_filename(join(output_dir, 'classifs.nii.gz'))
+        components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
+        if save_grades:
+            grades = compute_grades(estimator, standard_scaler, target_encoder,
+                                    config, grade_type='cosine_similarities', )
+            dump(grades, join(output_dir, 'grades.pkl'))
+    else:
+        classifs_img = niftis
+        classifs_img.to_filename(join(output_dir, 'classifs.nii.gz'))
+
+    names, full_names = compute_names(target_encoder)
+    dump(names, join(output_dir, 'names.pkl'))
+    dump(full_names, join(output_dir, 'full_names.pkl'))
+
 
 parser = argparse.ArgumentParser(description='Train function')
 parser.add_argument('-e', '--estimator', type=str,
                     choices=['ensemble', 'logistic', 'factored'],
                     default='factored',
+                    help='estimator type')
+parser.add_argument('-s', '--seed', type=int,
+                    default=0,
                     help='estimator type')
 args = parser.parse_args()
 
@@ -27,7 +62,7 @@ args = parser.parse_args()
 system = dict(
     verbose=1,
     n_jobs=3,
-    seed=860
+    seed=args.seed
 )
 data = dict(
     studies=['archi', 'hcp'],
@@ -69,7 +104,9 @@ else:
     logistic = dict(l2_penalty=[7e-5], max_iter=1000,)
     config['logistic'] = logistic
 
-output_dir = expanduser(join('~', 'output', config['model']['estimator']))
+output_dir = expanduser(join('~', 'output', 'cogspaces',
+                             config['model']['estimator'],
+                             str(config['system']['seed'])))
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
@@ -137,20 +174,21 @@ if model['estimator'] in ['factored', 'ensemble']:
         info['test_scores'] = test_callback.scores_
 elif model['estimator'] == 'logistic':
     estimator = MultiLogisticClassifier(verbose=system['verbose'], **logistic)
+    callback = None
 
 print("Training model")
 estimator.fit(train_data, train_targets, callback=callback)
 
-# Estimate
 print("Evaluating model")
 test_preds = estimator.predict(test_data)
 metrics = compute_metrics(test_preds, test_targets, target_encoder)
-
+#
 print("Saving model")
 # Save model for further analysis
 save(estimator, standard_scaler, target_encoder, metrics, info, config, output_dir)
 
-# Plot model
+print("Plotting model")
 plot_components = config['model']['estimator'] in ['factored', 'ensemble']
 plot(output_dir, plot_classifs=True, plot_components=plot_components,
-     plot_surface=False, plot_wordclouds=False, n_jobs=config['system']['n_jobs'])
+     plot_surface=False, plot_wordclouds=False,
+     n_jobs=config['system']['n_jobs'])
