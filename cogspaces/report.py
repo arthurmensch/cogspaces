@@ -4,14 +4,12 @@
 
 import numpy as np
 import torch
-from cogspaces.datasets import fetch_atlas_modl, fetch_mask
 from nilearn.input_data import NiftiMasker
+
+from cogspaces.datasets import fetch_atlas_modl, fetch_mask
 
 
 # Note that 'components_453_gm' is currently hard-coded there
-# Note that this module only works without standard_scaling
-
-
 def compute_components(estimator, config, return_type='img'):
     """Compute components from a FactoredClassifier estimator"""
     module = curate_module(estimator)

@@ -4,8 +4,7 @@ from sklearn.model_selection import GroupShuffleSplit
 from cogspaces.utils import zip_data, unzip_data
 
 
-def train_test_split(data, target, test_size=.5,
-                     train_size=.5,
+def train_test_split(data, target, test_size=.5, train_size=.5,
                      random_state=0):
     data = zip_data(data, target)
     datasets = {'train': {}, 'test': {}}

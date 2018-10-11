@@ -58,7 +58,7 @@ def classifs_html(full_names, classifs_dir, output_dir):
         f.write(html)
 
 
-def plot(output_dir, plot_components=True, plot_classifs=True,
+def make_plots(output_dir, plot_components=True, plot_classifs=True,
          plot_surface=True, plot_wordclouds=True, n_jobs=1):
     """Plot all qualitative figures from model record.
     """
@@ -106,7 +106,7 @@ def plot(output_dir, plot_components=True, plot_classifs=True,
     components_html('components', output_dir, plot_wordclouds=plot_wordclouds)
 
 
-def prepare_plots(output_dir):
+def prepare_plots(output_dir, make_grades=True):
     target_encoder = load(join(output_dir, 'target_encoder.pkl'))
     estimator = load(join(output_dir, 'estimator.pkl'))
     with open(join(output_dir, 'config.json'), 'r') as f:
@@ -122,9 +122,10 @@ def prepare_plots(output_dir):
         classifs_img, components_imgs = niftis
         classifs_img.to_filename(join(output_dir, 'classifs.nii.gz'))
         components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
-        grades = compute_grades(estimator, standard_scaler, target_encoder,
-                                config, grade_type='cosine_similarities', )
-        dump(grades, join(output_dir, 'grades.pkl'))
+        if make_grades:
+            grades = compute_grades(estimator, standard_scaler, target_encoder,
+                                    config, grade_type='cosine_similarities', )
+            dump(grades, join(output_dir, 'grades.pkl'))
     else:
         classifs_img = niftis
         classifs_img.to_filename(join(output_dir, 'classifs.nii.gz'))

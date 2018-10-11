@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from cogspaces.datasets.derivative import get_chance_subjects
 from matplotlib import gridspec, ticker
+
+from cogspaces.datasets.derivative import get_chance_subjects
 
 output_dir = expanduser(join('~', 'output', 'cogspaces'))
 if not os.path.exists(output_dir):
@@ -24,7 +25,7 @@ pad_right = .02
 pad_left = 2.49
 
 
-def make_data():
+def crawl_metrics():
     factored_output_dir = join(output_dir, 'factored')
     baseline_output_dir = join(output_dir, 'logistic')
 
