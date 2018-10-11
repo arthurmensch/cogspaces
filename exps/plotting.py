@@ -1,13 +1,15 @@
 """
 Plot functions for train.py
 """
-
+import json
 from os.path import join
 
 import numpy as np
-from cogspaces.plotting.volume import plot_4d_image
-from joblib import load
+from joblib import load, dump
 from seaborn import hls_palette
+
+from cogspaces.plotting.volume import plot_4d_image
+from cogspaces.report import compute_nifti, compute_grades, compute_names
 
 
 # HTML report
@@ -101,6 +103,32 @@ def plot(output_dir, plot_components=True, plot_classifs=True,
         plot_word_clouds(join(output_dir, 'wc'), grades, n_jobs=n_jobs,
                          colors=colors)
 
-    components_html(output_dir, 'components', plot_wordclouds=plot_wordclouds)
+    components_html('components', output_dir, plot_wordclouds=plot_wordclouds)
 
 
+def prepare_plots(output_dir):
+    target_encoder = load(join(output_dir, 'target_encoder.pkl'))
+    estimator = load(join(output_dir, 'estimator.pkl'))
+    with open(join(output_dir, 'config.json'), 'r') as f:
+        config = json.load(f)
+    if config['model']['normalize']:
+        standard_scaler = load(join(output_dir, 'standard_scaler.pkl'))
+    else:
+        standard_scaler = None
+
+    niftis = compute_nifti(estimator, standard_scaler, config)
+
+    if config['model']['estimator'] in ['factored', 'ensemble']:
+        classifs_img, components_imgs = niftis
+        classifs_img.to_filename(join(output_dir, 'classifs.nii.gz'))
+        components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
+        grades = compute_grades(estimator, standard_scaler, target_encoder,
+                                config, grade_type='cosine_similarities', )
+        dump(grades, join(output_dir, 'grades.pkl'))
+    else:
+        classifs_img = niftis
+        classifs_img.to_filename(join(output_dir, 'classifs.nii.gz'))
+
+    names, full_names = compute_names(target_encoder)
+    dump(names, join(output_dir, 'names.pkl'))
+    dump(full_names, join(output_dir, 'full_names.pkl'))
