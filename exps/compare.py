@@ -5,9 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from cogspaces.datasets.derivative import get_chance_subjects
 from matplotlib import gridspec, ticker
-
-from cogspaces.datasets.utils import get_chance_subjects
 
 output_dir = expanduser(join('~', 'output'))
 if not os.path.exists(output_dir):

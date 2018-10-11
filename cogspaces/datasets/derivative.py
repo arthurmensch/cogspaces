@@ -1,9 +1,10 @@
 import warnings
+from math import ceil
 
+import pandas as pd
+from cogspaces.datasets.utils import get_data_dir
 from joblib import load
 from sklearn.datasets.base import Bunch
-
-from cogspaces.datasets.utils import get_data_dir
 
 warnings.filterwarnings('ignore', category=FutureWarning, module='h5py')
 from nilearn.datasets.utils import _fetch_files, _get_dataset_dir
@@ -125,3 +126,16 @@ def fetch_mask(data_dir=None, url=None, resume=True, verbose=1):
     files = _fetch_files(dataset_dir, files, resume=resume,
                          verbose=verbose)
     return files[0]
+
+
+def get_chance_subjects(data_dir=None):
+    data, target = load_reduced_loadings(data_dir)
+    chance_level = {}
+    n_subjects = {}
+    for study, this_target in target.items():
+        chance_level[study] = 1. / len(this_target['contrast'].unique())
+        n_subjects[study] = int(ceil(len(this_target['subject'].unique()) / 2))
+
+    chance_level = pd.Series(chance_level)
+    n_subjects = pd.Series(n_subjects)
+    return chance_level, n_subjects

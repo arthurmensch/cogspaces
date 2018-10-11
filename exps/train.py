@@ -1,21 +1,27 @@
+import argparse
 import os
 from os.path import join, expanduser
 
-from joblib import Memory
-from sklearn.metrics import accuracy_score
-
 from cogspaces.classification.factored import FactoredClassifier
 from cogspaces.classification.factored_dl import FactoredDL
+from cogspaces.classification.logistic import MultiLogisticClassifier
 from cogspaces.datasets import STUDY_LIST, load_reduced_loadings
 from cogspaces.datasets.contrast import load_masked_contrasts
 from cogspaces.model_selection import train_test_split
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
-from cogspaces.report import save
 from cogspaces.utils import compute_metrics, ScoreCallback, MultiCallback
+from joblib import Memory
+from sklearn.metrics import accuracy_score
 
-output_dir = expanduser(join('~', 'output', 'factored'))
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
+from .analyse import save, plot
+
+parser = argparse.ArgumentParser(description='Train function')
+parser.add_argument('-e', '--estimator', type=str,
+                    choices=['ensemble', 'logistic', 'factored'],
+                    default='factored',
+                    help='estimator type')
+args = parser.parse_args()
+
 
 # Parameters
 system = dict(
@@ -31,37 +37,45 @@ data = dict(
     data_dir=None,
 )
 model = dict(
-    estimator='factored',
+    estimator=args.estimator,
     normalize=False,
     seed=100,
     target_study=None,
 )
 
+config = {'system': system, 'data': data, 'model': model}
 
-factored = dict(
-    latent_size=128,
-    weight_power=0.6,
-    batch_size=128,
-    init='normal',
-    dropout=0.5,
-    input_dropout=0.25,
-    seed=100,
-    lr={'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3},
-    max_iter={'pretrain': 0, 'train': 2, 'finetune': 0},
-    )
+if model['estimator'] in ['factored', 'ensemble']:
+    factored = dict(
+        latent_size=128,
+        weight_power=0.6,
+        batch_size=128,
+        init='normal',
+        dropout=0.5,
+        input_dropout=0.25,
+        seed=100,
+        lr={'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3},
+        max_iter={'pretrain': 0, 'train': 2, 'finetune': 0},
+        )
+    config['factored'] = factored
+    if model['estimator'] == 'ensemble':
+        ensemble = dict(
+            n_runs=45,
+            n_splits=3,
+            alpha=1e-3,
+            warmup=False)
+        config['ensemble'] = ensemble
+else:
+    logistic = dict(l2_penalty=[7e-5], max_iter=1000,)
+    config['logistic'] = logistic
 
-config = {'system': system, 'data': data, 'model': model, 'factored': factored}
+output_dir = expanduser(join('~', 'output', config['model']['estimator']))
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
-if model['estimator'] == 'ensemble':
-    ensemble = dict(
-        n_runs=45,
-        n_splits=3,
-        alpha=1e-3,
-        warmup=False)
-    config['ensemble'] = ensemble
 info = {}
 
-# Load data
+print("Loading data")
 if data['studies'] == 'all':
     studies = STUDY_LIST
 elif isinstance(data['studies'], str):
@@ -88,7 +102,7 @@ train_data, test_data, train_targets, test_targets = \
                      train_size=data['train_size'])
 
 
-# Train
+print("Setting up model")
 if model['normalize']:
     standard_scaler = MultiStandardScaler().fit(train_data)
     train_data = standard_scaler.transform(train_data)
@@ -96,37 +110,47 @@ if model['normalize']:
 else:
     standard_scaler = None
 
-estimator = FactoredClassifier(verbose=system['verbose'],
+if model['estimator'] in ['factored', 'ensemble']:
+    estimator = FactoredClassifier(verbose=system['verbose'],
+                                   n_jobs=system['n_jobs'],
+                                   **factored)
+    if model['estimator'] == 'ensemble':
+        memory = Memory(cachedir='cache')
+        estimator = FactoredDL(estimator,
                                n_jobs=system['n_jobs'],
-                               **factored)
-if model == 'ensemble':
-    memory = Memory(cachedir='cache')
-    estimator = FactoredDL(estimator,
-                           n_jobs=system['n_jobs'],
-                           n_runs=ensemble['n_runs'],
-                           alpha=ensemble['alpha'],
-                           warmup=ensemble['warmup'],
-                           seed=factored['seed'],
-                           memory=memory,
-                           )
-else:
-    # Set some callback to obtain useful verbosity
-    test_callback = ScoreCallback(Xs=test_data, ys=test_targets,
-                                  score_function=accuracy_score)
-    train_callback = ScoreCallback(Xs=train_data, ys=train_targets,
-                                   score_function=accuracy_score)
-    callback = MultiCallback({'train': train_callback,
-                              'test': test_callback})
-    info['n_iter'] = train_callback.n_iter_
-    info['train_scores'] = train_callback.scores_
-    info['test_scores'] = test_callback.scores_
+                               n_runs=ensemble['n_runs'],
+                               alpha=ensemble['alpha'],
+                               warmup=ensemble['warmup'],
+                               seed=factored['seed'],
+                               memory=memory,
+                               )
+    else:
+        # Set some callback to obtain useful verbosity
+        test_callback = ScoreCallback(Xs=test_data, ys=test_targets,
+                                      score_function=accuracy_score)
+        train_callback = ScoreCallback(Xs=train_data, ys=train_targets,
+                                       score_function=accuracy_score)
+        callback = MultiCallback({'train': train_callback,
+                                  'test': test_callback})
+        info['n_iter'] = train_callback.n_iter_
+        info['train_scores'] = train_callback.scores_
+        info['test_scores'] = test_callback.scores_
+elif model['estimator'] == 'logistic':
+    estimator = MultiLogisticClassifier(verbose=system['verbose'], **logistic)
 
-
+print("Training model")
 estimator.fit(train_data, train_targets, callback=callback)
 
 # Estimate
+print("Evaluating model")
 test_preds = estimator.predict(test_data)
 metrics = compute_metrics(test_preds, test_targets, target_encoder)
 
+print("Saving model")
 # Save model for further analysis
-save(target_encoder, standard_scaler, estimator, metrics, info, config, output_dir)
+save(estimator, standard_scaler, target_encoder, metrics, info, config, output_dir)
+
+# Plot model
+plot_components = config['model']['estimator'] in ['factored', 'ensemble']
+plot(output_dir, plot_classifs=True, plot_components=plot_components,
+     plot_surface=False, plot_wordclouds=False, n_jobs=config['system']['n_jobs'])

@@ -1,63 +1,37 @@
 """
     Analyse a model trained on data provided by load_reduced_loadings().
 """
-import json
-from os.path import join
 
 import numpy as np
 import torch
-from joblib import dump, load
+from cogspaces.datasets import fetch_atlas_modl, fetch_mask
 from nilearn.input_data import NiftiMasker
-
-from cogspaces.datasets import fetch_atlas_modl, fetch_mask, \
-    load_reduced_loadings
 
 
 # Note that 'components_453_gm' is currently hard-coded there
 # Note that this module only works without standard_scaling
 
-def save(target_encoder, standard_scaler, estimator, metrics, info, config, output_dir,
-         estimator_type='factored'):
-    dump(target_encoder, join(output_dir, 'target_encoder.pkl'))
-    dump(standard_scaler, join(output_dir, 'standard_scaler.pkl'))
-    dump(estimator, join(output_dir, 'estimator.pkl'))
-    dump(metrics, join(output_dir, 'metrics.pkl'))
-    with open(join(output_dir, 'info.json'), 'w+') as f:
-        json.dump(info, f)
-    with open(join(output_dir, 'config.json'), 'w+') as f:
-        json.dump(config, f)
-    compute_nifti(output_dir, estimator_type=estimator_type)
-    compute_names(output_dir)
 
-
-def get_components(output_dir, dl=False, return_type='img'):
-    if dl:
-        estimator = load(join(output_dir, 'estimator.pkl'))
-        components = estimator.components_dl_
-    else:
-        module = get_module(output_dir)
-        components = module.embedder.linear.weight.detach().numpy()
-
-    if return_type in ['img', 'arrays_full']:
+def compute_components(estimator, config, return_type='img'):
+    module = curate_module(estimator)
+    components = module.embedder.linear.weight.detach().numpy()
+    if config['data']['reduced']:
         mask = fetch_mask()
         masker = NiftiMasker(mask_img=mask).fit()
         modl_atlas = fetch_atlas_modl()
         dictionary = modl_atlas['components_453_gm']
         dictionary = masker.transform(dictionary)
-        components_full = components.dot(dictionary)
-        if return_type == 'img':
-            components_img = masker.inverse_transform(components_full)
-            return components_img
-        elif return_type == 'arrays_full':
-            components_full = components.dot(dictionary)
-            return components_full
+        components = components.dot(dictionary)
+    if return_type == 'img':
+        components_img = masker.inverse_transform(components)
+        return components_img
     elif return_type == 'arrays':
         return components
 
 
-def get_classifs(output_dir, return_type='img', estimator_type='factored'):
-    if estimator_type == 'factored':
-        module = get_module(output_dir)
+def compute_classifs(estimator, standard_scaler, config, return_type='img'):
+    if config['model']['estimator'] in ['factored', 'ensemble']:
+        module = curate_module(estimator)
         module.eval()
 
         studies = module.classifiers.keys()
@@ -75,33 +49,29 @@ def get_classifs(output_dir, return_type='img', estimator_type='factored'):
         classifs = {study: classif.numpy().T
                     for study, classif in classifs.items()}
 
-    else:
-        estimator = load(join(output_dir, 'estimator.pkl'))
+    elif config['model']['estimator'] == 'logistic':
         classifs = estimator.coef_
-    if return_type in ['img', 'arrays_full']:
+    else:
+        raise NotImplementedError
+
+    if config['data']['reduced']:
         mask = fetch_mask()
         masker = NiftiMasker(mask_img=mask).fit()
         modl_atlas = fetch_atlas_modl()
         dictionary = modl_atlas['components_453_gm']
         dictionary = masker.transform(dictionary)
-        classifs_full = {study: classif.dot(dictionary)
-                         for study, classif in classifs.items()}
-        if return_type == 'img':
-            classifs_img = masker.inverse_transform(
-                np.concatenate(list(classifs_full.values()), axis=0))
-            return classifs_img
-        else:
-            return classifs_full
-    elif return_type == 'arrays':
+        classifs = {study: classif.dot(dictionary)
+                    for study, classif in classifs.items()}
+    if return_type == 'img':
+        classifs_img = masker.inverse_transform(
+            np.concatenate(list(classifs.values()), axis=0))
+        return classifs_img
+    else:
         return classifs
 
 
-def get_module(output_dir):
-    estimator = load(join(output_dir, 'estimator.pkl'))
-    if hasattr(estimator, 'classifier_'):
-        module = estimator.classifier_.module_
-    else:
-        module = estimator.module_
+def curate_module(estimator):
+    module = estimator.module_
     revert = torch.sum(module.embedder.linear.weight.detach(), dim=1) < 0
     module.embedder.linear.weight.data[revert] *= - 1
     module.embedder.linear.bias.data[revert] *= - 1
@@ -112,40 +82,12 @@ def get_module(output_dir):
     return module
 
 
-def compute_grades(output_dir, grade_type='data_z_score'):
+def compute_grades(estimator, standard_scaler, target_encoder,
+                   config, grade_type='cosine_similarities',
+                   ):
     grades = {}
-    if grade_type == 'data_z_score':
-        module = get_module(output_dir)
-        target_encoder = load(join(output_dir, 'target_encoder.pkl'))
-        data, target = load_reduced_loadings()
-        data = {study: torch.from_numpy(this_data).float() for study, this_data
-                in
-                data.items()}
-        target = target_encoder.transform(target)
-        target = {study: torch.from_numpy(this_target['contrast'].values)
-                  for study, this_target in target.items()}
-
-        for study, this_data in data.items():
-            this_target = target[study]
-            n_contrasts = len(target_encoder.le_[study]['contrast'].classes_)
-            preds = []
-            z_scores = []
-            for contrast in range(n_contrasts):
-                data_contrast = this_data[this_target == contrast]
-                with torch.no_grad():
-                    module.eval()
-                    pred = module.embedder(data_contrast)
-                    z_scores.append(pred.mean(dim=0, keepdim=True))
-                preds.append(pred)
-            z_scores = torch.cat(z_scores, dim=0)
-            preds = torch.cat(preds, dim=0)
-            preds -= torch.mean(preds, dim=0, keepdim=True)
-            std = torch.sqrt(torch.sum(preds ** 2, dim=0) /
-                             (preds.shape[0] - 1))
-            z_scores /= std[None, :]
-            grades[study] = z_scores.numpy()
-    elif grade_type == 'loadings':
-        module = get_module(output_dir)
+    if grade_type == 'loadings':
+        module = curate_module(estimator)
         for study, classifier in module.classifiers.items():
             in_features = classifier.linear.in_features
             classifier.eval()
@@ -158,25 +100,25 @@ def compute_grades(output_dir, grade_type='data_z_score'):
                 grades[study] = loadings
 
     elif grade_type == 'cosine_similarities':
-        classifs_full = get_classifs(output_dir,
-                                     return_type='arrays_full')
-        components_full = get_components(output_dir,
-                                         return_type='arrays_full')
-        threshold = np.percentile(np.abs(components_full),
-                                  100. * (1 - 1. / len(components_full)))
-        components_full[components_full < threshold] = 0
-        for study, classif_full in classifs_full.items():
-            classif_full -= classif_full.mean(axis=0, keepdims=True)
+        classifs = compute_classifs(estimator, standard_scaler, config,
+                                    return_type='arrays')
+        components = compute_components(estimator, standard_scaler, config,
+                                        return_type='arrays')
+        threshold = np.percentile(np.abs(components),
+                                  100. * (1 - 1. / len(components)))
+        components[components < threshold] = 0
+        for study, classif in classifs.items():
+            classif -= classif.mean(axis=0, keepdims=True)
             grades[study] = (
-                    classif_full.dot(components_full.T)
-                    / np.sqrt(np.sum(classif_full ** 2, axis=1)[:, None])
-                    / np.sqrt(np.sum(components_full ** 2, axis=1)[None, :])
+                    classif.dot(components.T)
+                    / np.sqrt(np.sum(classifs ** 2, axis=1)[:, None])
+                    / np.sqrt(np.sum(components ** 2, axis=1)[None, :])
             )
     else:
         raise ValueError
     full_grades = np.concatenate(list(grades.values()), axis=0)
 
-    names, full_names = compute_names(output_dir)
+    names, full_names = compute_names(target_encoder)
     sorted_grades = []
     sorted_full_grades = []
     for i in range(full_grades.shape[1]):
@@ -197,70 +139,22 @@ def compute_grades(output_dir, grade_type='data_z_score'):
     return grades
 
 
-def compute_names(output_dir):
-    target_encoder = load(join(output_dir, 'target_encoder.pkl'))
+def compute_names(target_encoder):
     names = {study: le['contrast'].classes_.tolist()
              for study, le in target_encoder.le_.items()}
     full_names = ['%s::%s' % (study, contrast)
                   for study, contrasts in names.items()
                   for contrast in contrasts]
-    dump(names, join(output_dir, 'names.pkl'))
-    dump(full_names, join(output_dir, 'full_names.pkl'))
     return names, full_names
 
 
-def components_html(output_dir, components_dir):
-    from jinja2 import Template
-    with open('plot_maps.html', 'r') as f:
-        template = f.read()
-    template = Template(template)
-    imgs = []
-    for i in range(128):
-        title = 'components_%i' % i
-        view_types = ['stat_map', 'glass_brain',
-                      ]
-        srcs = []
-        for view_type in view_types:
-            src = join(components_dir, '%s_%s.png' % (title, view_type))
-            srcs.append(src)
-        for grade_type in ['cosine_similarities', 'loadings']:
-            wc_dir = 'wc_%s' % grade_type
-            srcs.append(join(wc_dir, 'wc_single_%i.png' % i))
-            srcs.append(join(wc_dir, 'wc_cat_%i.png' % i))
-        imgs.append((srcs, title))
-    html = template.render(imgs=imgs)
-    output_file = join(output_dir, 'components.html')
-    with open(output_file, 'w+') as f:
-        f.write(html)
-
-
-def classifs_html(output_dir, classifs_dir):
-    from jinja2 import Template
-    with open('plot_maps.html', 'r') as f:
-        template = f.read()
-    names, full_names = compute_names(output_dir)
-    template = Template(template)
-    imgs = []
-    for name in full_names:
-        view_types = ['stat_map', 'glass_brain',
-                      ]
-        srcs = []
-        for view_type in view_types:
-            src = join(classifs_dir, '%s_%s.png' % (name, view_type))
-            srcs.append(src)
-        imgs.append((srcs, name))
-    html = template.render(imgs=imgs)
-    output_file = join(output_dir, 'classifs.html')
-    with open(output_file, 'w+') as f:
-        f.write(html)
-
-
-def compute_nifti(output_dir, estimator_type='factored'):
-    if estimator_type == 'factored':
-        components_imgs = get_components(output_dir)
-        components_imgs.to_filename(join(output_dir, 'components.nii.gz'))
+def compute_nifti(estimator, standard_scaler, config):
+    classifs_imgs = compute_classifs(estimator, standard_scaler, config,
+                                     return_type='img')
+    if config['model']['estimator'] == 'factored':
+        if not config['data']['reduced']:
+            raise NotImplementedError
+        components_imgs = compute_components(estimator, config, standard_scaler)
+        return classifs_imgs, components_imgs
     else:
-        components_imgs = None
-    classifs_imgs = get_classifs(output_dir, estimator_type=estimator_type)
-    classifs_imgs.to_filename(join(output_dir, 'classifs.nii.gz'))
-    return classifs_imgs, components_imgs
+        return classifs_imgs
