@@ -1,3 +1,4 @@
+import numpy as np
 from sklearn.metrics import confusion_matrix, precision_recall_fscore_support, \
     accuracy_score
 
@@ -12,30 +13,54 @@ def unzip_data(data):
 
 
 def compute_metrics(preds, targets, target_encoder):
-    all_f1 = {}
-    all_prec = {}
-    all_recall = {}
-    all_confusion = {}
-    all_accuracies = {}
+    f1_dict = {}
+    prec_dict = {}
+    recall_dict = {}
+    confusion_dict = {}
+    accuracy_dict = {}
+    bacc_dict = {}
     for study in preds:
         these_preds = preds[study]['contrast']
         these_targets = targets[study]['contrast']
-        all_accuracies[study] = accuracy_score(these_preds, these_targets)
+        accuracy_dict[study] = accuracy_score(these_preds, these_targets)
         precs, recalls, f1s, support = precision_recall_fscore_support(
             these_preds, these_targets, warn_for=())
         contrasts = target_encoder.le_[study]['contrast'].classes_
-        all_prec[study] = {contrast: prec for contrast, prec in
+        prec_dict[study] = {contrast: prec for contrast, prec in
                            zip(contrasts, precs)}
-        all_recall[study] = {contrast: recall for contrast, recall in
+        recall_dict[study] = {contrast: recall for contrast, recall in
                              zip(contrasts, recalls)}
-        all_f1[study] = {contrast: f1 for contrast, f1 in
+        f1_dict[study] = {contrast: f1 for contrast, f1 in
                          zip(contrasts, f1s)}
-        all_confusion[study] = confusion_matrix(these_preds, these_targets).tolist()
-    return {'confusion': all_confusion,
-            'prec': all_prec,
-            'recall': all_recall,
-            'f1': all_f1,
-            'accuracies': all_accuracies}
+        confusion = confusion_matrix(these_preds, these_targets)
+        confusion_dict[study] = confusion.tolist()
+
+        baccs = baccs_from_confusion(confusion)
+        bacc_dict[study] = {contrast: bacc for contrast, bacc in
+                           zip(contrasts, baccs)}
+
+    return {'confusion': confusion_dict,
+            'prec': prec_dict,
+            'recall': recall_dict,
+            'f1': f1_dict,
+            'bacc': bacc_dict,
+            'accuracy': accuracy_dict,
+            }
+
+
+def baccs_from_confusion(C):
+    baccs = []
+    total = np.sum(C)
+    for i in range(len(C)):
+        t = np.sum(C[i])
+        p = np.sum(C[:, i])
+        n = total - p
+        tp = C[i, i]
+        fp = p - tp
+        fn = t - tp
+        tn = total - fp - fn - tp
+        baccs.append(.5 * (tp / p + tn / n))
+    return baccs
 
 
 class ScoreCallback:

@@ -1,4 +1,5 @@
 import os
+import re
 from os.path import join, expanduser
 
 import matplotlib.pyplot as plt
@@ -45,6 +46,65 @@ def crawl_metrics():
     data = data.sort_values(('diff', 'mean'), ascending=True)
     sort = data.index.values.tolist()[::-1]
     return data, sort
+
+
+def gather_metrics(output_dir):
+    regex = re.compile(r'[0-9]+$')
+    accuracies = []
+    contrasts_metrics = []
+    for root, dirs, files in os.walk(output_dir):
+        for this_dir in filter(regex.match, dirs):
+            this_exp_dir = join(root, this_dir)
+            this_dir = int(this_dir)
+            try:
+                import json
+                config = json.load(
+                    open(join(this_exp_dir, 'config.json'), 'r'))
+                metrics = json.load(
+                    open(join(this_exp_dir, 'metrics.json'), 'r'))
+            except (FileNotFoundError, json.decoder.JSONDecodeError):
+                print('Skipping exp %i' % this_dir)
+                continue
+            seed = config['system']['seed']
+            estimator = config['model']['estimator']
+            prec, recall, f1, bacc, accuracy = (metrics['prec'],
+                                                metrics['recall'],
+                                                metrics['f1'],
+                                                metrics['bacc'],
+                                                metrics['accuracy'])
+            for study, study_accuracy in accuracy.items():
+                accuracies.append({'study': study, 'accuracy': study_accuracy,
+                                   'seed': seed, 'estimator': estimator})
+                for contrast in prec[study]:
+                    contrasts_metrics.append(
+                        dict(study=study, recall=recall[study][contrast],
+                             prec=prec[study][contrast],
+                             f1=f1[study][contrast],
+                             bacc=bacc[study][contrast], seed=seed,
+                             estimator=estimator))
+    accuracies = pd.DataFrame(accuracies)
+    contrasts_metrics = pd.DataFrame(contrasts_metrics)
+
+    baseline = 'logistic'
+    accuracies.set_index(['estimator', 'study', 'seed'], inplace=True)
+    accuracies.sort_index(inplace=True)
+    median = accuracies['accuracy'].loc[baseline].groupby(level='study').median()
+    diffs = []
+    baseline_accuracy = accuracies['accuracy'].loc[baseline]
+    estimators = accuracies.index.get_level_values('estimator').unique()
+    baseline_accuracy = pd.concat([baseline_accuracy] * len(estimators),
+                                  keys=estimators, names=['estimator'])
+    accuracies['baseline'] = baseline_accuracy
+    accuracies['diff_with_baseline'] = accuracies['accuracy'] - accuracies['baseline']
+    accuracies['diff_with_baseline_median'] = accuracies['accuracy'].groupby(level='study').transform(lambda x: x - median)
+
+    mean_accuracies = accuracies.groupby(
+        level=['estimator', 'study']).aggregate(['mean', 'std'])
+    mean_accuracies = mean_accuracies.sort_values(by=('diff_with_baseline', 'mean'))
+
+    accuracies.to_pickle(join(output_dir, 'accuracies.pkl'))
+    mean_accuracies.to_pickle(join(output_dir, 'mean_accuracies.pkl'))
+    contrasts_metrics.to_pickle(join(output_dir, 'contrasts_metrics.pkl'))
 
 
 def plot_joined(data):
@@ -371,8 +431,10 @@ def plot_gain_vs_accuracy(sort):
         fig.savefig(join(save_dir, 'gain_vs_accuracy_%s.pdf' % score))
 
 
-data, sort = make_data()
-plot_joined(data)
-plot_gain_vs_accuracy(sort)
-plot_gain_vs_size(sort)
-plot_compare_methods(sort)
+gather_metrics(expanduser(join('~', 'output', 'cogspaces')))
+
+# data, sort = make_data()
+# plot_joined(data)
+# plot_gain_vs_accuracy(sort)
+# plot_gain_vs_size(sort)
+# plot_compare_methods(sort)
