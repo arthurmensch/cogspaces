@@ -1,20 +1,25 @@
+"""Perform traininig of a multi-study model using the fetchers provided by cogspaces.
+
+Hyperparameters can be edited in the file."""
+
 import argparse
 import json
 import os
-from os.path import join, expanduser
+from os.path import join
 
 from joblib import Memory, dump
 from sklearn.metrics import accuracy_score
+from utils.plotting import make_plots, prepare_plots
 
 from cogspaces.classification.factored import FactoredClassifier
 from cogspaces.classification.factored_dl import FactoredDL
 from cogspaces.classification.logistic import MultiLogisticClassifier
 from cogspaces.datasets import STUDY_LIST, load_reduced_loadings
 from cogspaces.datasets.contrast import load_masked_contrasts
+from cogspaces.datasets.utils import get_output_dir
 from cogspaces.model_selection import train_test_split
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils import compute_metrics, ScoreCallback, MultiCallback
-from exps.plotting import make_plots, prepare_plots
 
 
 def run(estimator='factored', seed=0, plot=False):
@@ -23,10 +28,11 @@ def run(estimator='factored', seed=0, plot=False):
         verbose=1,
         n_jobs=1,
         plot=plot,
-        seed=seed
+        seed=seed,
+        output_dir=None
     )
     data = dict(
-        studies=['archi', 'hcp'],
+        studies='all',
         test_size=0.5,
         train_size=0.5,
         reduced=True,
@@ -51,8 +57,8 @@ def run(estimator='factored', seed=0, plot=False):
             input_dropout=0.25,
             seed=100,
             lr={'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3},
-            max_iter={'pretrain': 0, 'train': 2, 'finetune': 0},
-            )
+            max_iter={'pretrain': 0, 'train': 200, 'finetune': 0},
+        )
         config['factored'] = factored
         if model['estimator'] == 'ensemble':
             ensemble = dict(
@@ -62,12 +68,12 @@ def run(estimator='factored', seed=0, plot=False):
                 warmup=False)
             config['ensemble'] = ensemble
     else:
-        logistic = dict(l2_penalty=[7e-5], max_iter=1000,)
+        logistic = dict(l2_penalty=[7e-5], max_iter=1000, )
         config['logistic'] = logistic
 
-    output_dir = expanduser(join('~', 'output', 'cogspaces',
-                                 config['model']['estimator'],
-                                 str(config['system']['seed'])))
+    output_dir = join(get_output_dir(config['system']['output_dir']),
+                      config['model']['estimator'],
+                      str(config['system']['seed']))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -98,7 +104,6 @@ def run(estimator='factored', seed=0, plot=False):
         train_test_split(input_data, target, random_state=system['seed'],
                          test_size=data['test_size'],
                          train_size=data['train_size'])
-
 
     print("Setting up model")
     if model['normalize']:
@@ -134,7 +139,8 @@ def run(estimator='factored', seed=0, plot=False):
             info['train_scores'] = train_callback.scores_
             info['test_scores'] = test_callback.scores_
     elif model['estimator'] == 'logistic':
-        estimator = MultiLogisticClassifier(verbose=system['verbose'], **logistic)
+        estimator = MultiLogisticClassifier(verbose=system['verbose'],
+                                            **logistic)
         callback = None
 
     print("Training model")
@@ -161,22 +167,25 @@ def run(estimator='factored', seed=0, plot=False):
         print('Preparing plots')
         prepare_plots(output_dir)
         print("Plotting model")
-        plot_components = config['model']['estimator'] in ['factored', 'ensemble']
-        make_plots(output_dir, plot_classifs=True, plot_components=plot_components,
-             plot_surface=False, plot_wordclouds=True,
-             n_jobs=config['system']['n_jobs'])
+        plot_components = config['model']['estimator'] in ['factored',
+                                                           'ensemble']
+        make_plots(output_dir, plot_classifs=True,
+                   plot_components=plot_components,
+                   plot_surface=False, plot_wordclouds=True,
+                   n_jobs=config['system']['n_jobs'])
 
 
-parser = argparse.ArgumentParser(description='Train function')
-parser.add_argument('-e', '--estimator', type=str,
-                    choices=['ensemble', 'logistic', 'factored'],
-                    default='factored',
-                    help='estimator type')
-parser.add_argument('-s', '--seed', type=int,
-                    default=0,
-                    help='estimator type')
-parser.add_argument('-p', '--plot', action="store_true",
-                    help='estimator type')
-args = parser.parse_args()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-e', '--estimator', type=str,
+                        choices=['ensemble', 'logistic', 'factored'],
+                        default='factored',
+                        help='estimator type')
+    parser.add_argument('-s', '--seed', type=int,
+                        default=0,
+                        help='Integer to use to seed the model and half-split cross-validation')
+    parser.add_argument('-p', '--plot', action="store_true",
+                        help='Plot the results (classification maps, cognitive components)')
+    args = parser.parse_args()
 
-run(args.estimator, args.seed, args.plot)
+    run(args.estimator, args.seed, args.plot)

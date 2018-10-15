@@ -1,0 +1,37 @@
+Name,Description,Cite
+amalric2012mathematicians,High-level math,\citet{amalric2016origins}
+archi,Localizer,\citet{pinel2007}
+brainomics,Brainomics localizer,\citet{papadopoulos_brainomics_2017}
+camcan,CamCan audio-visual,\citet{shafto_cambridge_2014}
+cauvet2009muslang,Constit. struct. of sent. & music,"\citet{cauvet2012traitement,hara2009neural}"
+devauchelle2009sentence,Sentence/music complexity,\citet{devauchelle2009sentence}
+ds001,Balloon Analog Risk-taking,\citet{schonberg2012decreasing}
+ds002,Classification learning,\citet{aron2006long}
+ds003,Rhyme judgment,"\citet{ds003,xue2007neural}"
+ds005,Mixed-gambles,\citet{tom_neural_2007}
+ds006A,Plain or mirror-reversed text,\citet{jimura_neural_2014}
+ds007,Stop-signal w/ spoken & manual resp.,\citet{xue2008common}
+ds008,Stop-signal,\citet{aron2007triangulating}
+ds009,"BART, stop-signal, emotion",\citet{cohen2009generality}
+ds011,Weather prediction,\citet{foerde2006modulation}
+ds017A,Stop-signal & classification,\citet{ds017}
+ds017B,Stop-signal & classification (retake),\citet{ds017}
+ds051,Cross-language repetition priming,"\citet{ds051,alvarez2002}"
+ds052,Classif. learning & reversal,\citet{poldrack2001interactive}
+ds101,Simon task,\citet{ds101}
+ds102,Flanker task (event-related),\citet{kelly2008competition}
+ds105,Visual object recognition,\citet{haxby2001}
+ds107,Word & object processing,\citet{duncan2009consistency}
+ds108,Emotion regulation,\citet{wager2008prefrontal}
+ds109,False belief,\citet{moran2012social}
+ds110,Incidental encoding,\citet{uncapher_dissociable_2011}
+ds114,Motor task & word/verb generation,\citet{gorgolewski2013test}
+ds116,Auditory & Visual Oddball,\citet{collier_comparison_2014}
+gauthier2009resonance,Spatio-temporal judgement,\citet{gauthier2012temporal}
+gauthier2010resonance,Spatio-temporal judgement (retake),\citet{gauthier2012temporal}
+hcp,The Human Connectome Project,\citet{barch2013}
+henson2010faces,Face recognition,\citet{henson_parametric_2011}
+knops2009recruitment,Arithmetic & saccades,\citet{knops2009}
+la5c,UCLA LA5C,\citet{poldrack_phenome-wide_2016}
+pinel2009twins,Twin localizer,\citet{pinel2013}
+vagharchakian2012temporal,Compression,\citet{vagharchakian2012temporal}

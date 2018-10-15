@@ -8,7 +8,8 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import gridspec, ticker
 
-from cogspaces.datasets.derivative import get_chance_subjects
+from cogspaces.datasets.derivative import get_chance_subjects, \
+    get_brainpedia_descr
 
 output_dir = expanduser(join('~', 'output', 'cogspaces'))
 if not os.path.exists(output_dir):
@@ -24,28 +25,6 @@ pad_bottom = .51
 pad_top = .02
 pad_right = .02
 pad_left = 2.49
-
-
-def crawl_metrics():
-    factored_output_dir = join(output_dir, 'factored')
-    baseline_output_dir = join(output_dir, 'logistic')
-
-    factored = pd.read_pickle(join(factored_output_dir, 'accuracies.pkl'))
-    baseline = pd.read_pickle(join(baseline_output_dir, 'accuracies.pkl'))
-
-    chance_level, n_subjects = get_chance_subjects()
-
-    joined = pd.concat([factored, baseline, chance_level, n_subjects],
-                       keys=['factored', 'baseline'], axis=1)
-    joined['diff'] = joined['factored'] - joined['baseline']
-    joined_mean = joined.groupby('study').aggregate(['mean', 'std'])
-    joined_mean['chance'] = chance_level
-    joined_mean['n_subjects'] = n_subjects
-
-    data = joined_mean
-    data = data.sort_values(('diff', 'mean'), ascending=True)
-    sort = data.index.values.tolist()[::-1]
-    return data, sort
 
 
 def gather_metrics(output_dir):
@@ -84,6 +63,7 @@ def gather_metrics(output_dir):
                              estimator=estimator))
     accuracies = pd.DataFrame(accuracies)
     contrasts_metrics = pd.DataFrame(contrasts_metrics)
+    contrasts_metrics.to_pickle(join(output_dir, 'contrasts_metrics.pkl'))
 
     baseline = 'logistic'
     accuracies.set_index(['estimator', 'study', 'seed'], inplace=True)
@@ -98,30 +78,28 @@ def gather_metrics(output_dir):
     accuracies['diff_with_baseline'] = accuracies['accuracy'] - accuracies['baseline']
     accuracies['diff_with_baseline_median'] = accuracies['accuracy'].groupby(level='study').transform(lambda x: x - median)
 
-    mean_accuracies = accuracies.groupby(
-        level=['estimator', 'study']).aggregate(['mean', 'std'])
+
+    mean_accuracies = accuracies.groupby(level=['estimator', 'study']).aggregate(['mean', 'std'])
+    mean_accuracies = mean_accuracies.loc['factored']
     mean_accuracies = mean_accuracies.sort_values(by=('diff_with_baseline', 'mean'))
 
     accuracies.to_pickle(join(output_dir, 'accuracies.pkl'))
     mean_accuracies.to_pickle(join(output_dir, 'mean_accuracies.pkl'))
-    contrasts_metrics.to_pickle(join(output_dir, 'contrasts_metrics.pkl'))
+    chance, subjects = get_chance_subjects()
+    mean_accuracies['chance'] = chance
+    return accuracies, mean_accuracies, contrasts_metrics
 
 
-def plot_joined(data):
+def plot_mean_accuracies(data):
     width, height = 8.5, 5.6
-    df = pd.read_csv('~/work/papers/papers/thesis/brainpedia.csv', index_col=0,
-                     header=0)
-    gs = gridspec.GridSpec(1, 2,
-                           width_ratios=[2.7, 1]
-                           )
+    brainpedia = get_brainpedia_descr()
+    gs = gridspec.GridSpec(1, 2, width_ratios=[2.7, 1])
     fig = plt.figure(figsize=(width, height))
-    gs.update(left=2 / width, right=1 - .2 / width,
-              bottom=pad_bottom / height, top=1 - pad_top / height,
-              wspace=1.2 / width
+    gs.update(left=0.25, right=0.96, bottom=0.2, top=0.95, wspace=1.2 / width
               )
     ax2 = fig.add_subplot(gs[0, 0])
     ax1 = fig.add_subplot(gs[0, 1], sharey=ax2)
-    n_study = data.shape[0]
+    n_study = len(data)
 
     ind = np.arange(n_study) * 2 + .5
     width = 1.2
@@ -133,20 +111,20 @@ def plot_joined(data):
     baseline_color_err = '0.65'
     transfer_color = '0.1'
     transfer_color_err = '0.'
-    ax1.barh(ind, data[('diff', 'mean')], width,
+    ax1.barh(ind, data[('diff_with_baseline', 'mean')], width,
              color=diff_color)
-    for this_x, this_y, this_xerr, this_color in zip(data[('diff', 'mean')],
+    for this_x, this_y, this_xerr, this_color in zip(data[('diff_with_baseline', 'mean')],
                                                      ind,
-                                                     data[('diff', 'std')],
+                                                     data[('diff_with_baseline', 'std')],
                                                      diff_color_err):
         ax1.errorbar(this_x, this_y, xerr=this_xerr, elinewidth=1.5,
                      capsize=2, linewidth=0, ecolor=this_color,
                      alpha=.5)
-    ax1.set_xlabel('Multi-study acc. gain', fontsize=15)
+    ax1.set_xlabel('Multi-study acc. gain', fontsize=12)
     ax1.spines['left'].set_position('zero')
     plt.setp(ax1.get_yticklabels(), visible=False)
 
-    ax1.set_xlim([-0.06, 0.19])
+    # ax1.set_xlim([-0.06, 0.19])
     ax1.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
     ax1.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
     ax1.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1, decimals=0))
@@ -161,10 +139,10 @@ def plot_joined(data):
                  elinewidth=1.5,
                  capsize=2, linewidth=0, ecolor=baseline_color_err,
                  alpha=.5)
-    rects2 = ax2.barh(ind + width, data[('factored', 'mean')], width,
+    rects2 = ax2.barh(ind + width, data[('accuracy', 'mean')], width,
                       color=transfer_color)
-    ax2.errorbar(data[('factored', 'mean')], ind + width,
-                 xerr=data[('factored', 'std')],
+    ax2.errorbar(data[('accuracy', 'mean')], ind + width,
+                 xerr=data[('accuracy', 'std')],
                  elinewidth=1.5,
                  capsize=2, linewidth=0, ecolor=transfer_color_err,
                  alpha=.5)
@@ -175,46 +153,42 @@ def plot_joined(data):
 
     ax2.set_ylim([-1, 2 * data.shape[0]])
     plt.setp(ax2.yaxis.get_ticklabels(), fontsize=10)
-    ax2.set_xlim([0., 0.95])
+    # ax2.set_xlim([0., 0.95])
     ax2.xaxis.set_major_locator(ticker.MultipleLocator(0.2))
     ax2.xaxis.set_minor_locator(ticker.MultipleLocator(0.05))
     ax2.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1))
-    ax2.set_xlabel('Decoding accuracy on test set', fontsize=15)
+    ax2.set_xlabel('Decoding accuracy on test set', fontsize=12)
 
     handles = [rects1, rects2, lines]
     labels = ['Decoding from\nvoxels',
               'Decoding from\nmulti-study\nnetworks',
               'Chance level']
-    ax2.legend(handles, labels, loc='lower right', frameon=False,
-               fontsize=13,
-               bbox_to_anchor=(1.16, .64))
+    ax2.legend(handles, labels, loc='upper left', frameon=False, ncol=3,
+               bbox_to_anchor=(0, -.1))
 
     ax2.set_yticks(ind + width / 2)
-    ax2.annotate('Task fMRI study', xy=(-.4, -.09), xycoords='axes fraction',
-                 fontsize=15)
+    ax2.annotate('Task fMRI study', xy=(-.5, -.1), xycoords='axes fraction',
+                 fontsize=12)
     labels = [
-        '%s' % df.loc[label]['Description'] for label in data.index.values]
+        '%s' % brainpedia.loc[label]['Description'] for label in data.index.values]
     ax2.set_yticklabels(labels, ha='right', va='center', fontsize=8.5)
     sns.despine(fig)
-
-    plt.savefig(join(save_dir, 'joined_mean.pdf'), facecolor=None,
-                edgecolor=None,
-                transparent=True)
+    plt.show()
     plt.close(fig)
 
-    return sort
 
-
-def plot_compare_methods(sort, ablation=None):
+def plot_accuracies(accuracies):
     width, height = 6.2, 3
+
+    mean_accuracies = accuracies.groupby(level=['estimator', 'study']).aggregate(['mean', 'std'])
+    mean_accuracies = mean_accuracies.loc['factored']
+    mean_accuracies = mean_accuracies.sort_values(by=('diff_with_baseline', 'mean'))
+    sort = mean_accuracies.index.get_level_values('index')
 
     exps = ['logistic', 'factored']
     baseline = 'logistic'
 
     dfs = []
-    for exp in exps:
-        df = pd.read_pickle(join(output_dir, exp, 'accuracies.pkl'))
-        dfs.append(df)
 
     df = pd.concat(dfs, axis=0, keys=exps, names=['method'])
 
@@ -431,7 +405,10 @@ def plot_gain_vs_accuracy(sort):
         fig.savefig(join(save_dir, 'gain_vs_accuracy_%s.pdf' % score))
 
 
-gather_metrics(expanduser(join('~', 'output', 'cogspaces')))
+accuracies, mean_accuracies, contrasts_metrics = \
+    gather_metrics(expanduser(join('~', 'output', 'cogspaces_new')))
+plot_mean_accuracies(mean_accuracies)
+plot_accuracies(accuracies)
 
 # data, sort = make_data()
 # plot_joined(data)

@@ -1,10 +1,13 @@
+import os
 import warnings
 from math import ceil
+from os.path import join
 
 import pandas as pd
-from cogspaces.datasets.utils import get_data_dir
 from joblib import load
 from sklearn.datasets.base import Bunch
+
+from cogspaces.datasets.utils import get_data_dir
 
 warnings.filterwarnings('ignore', category=FutureWarning, module='h5py')
 from nilearn.datasets.utils import _fetch_files, _get_dataset_dir
@@ -39,11 +42,11 @@ def fetch_atlas_modl(data_dir=None,
             ]
 
     paths = [
-             'components_64.nii.gz',
-             'components_128.nii.gz',
-             'components_453_gm.nii.gz',
-             'loadings_128_gm.npy',
-             ]
+        'components_64.nii.gz',
+        'components_128.nii.gz',
+        'components_453_gm.nii.gz',
+        'loadings_128_gm.npy',
+    ]
     urls = [url + path for path in paths]
     files = [(path, url, {}) for path, url in zip(paths, urls)]
 
@@ -110,7 +113,8 @@ def load_reduced_loadings(data_dir=None, url=None, verbose=False, resume=True):
     Xs, ys = {}, {}
     for study, loading in loadings.items():
         Xs[study], ys[study] = load(loading)
-        ys[study]['study_contrast'] = ys[study]['study'] + '_' + ys[study]['contrast']
+        ys[study]['study_contrast'] = ys[study]['study'] + '_' + ys[study][
+            'contrast']
     return Xs, ys
 
 
@@ -139,3 +143,10 @@ def get_chance_subjects(data_dir=None):
     chance_level = pd.Series(chance_level)
     n_subjects = pd.Series(n_subjects)
     return chance_level, n_subjects
+
+
+def get_brainpedia_descr():
+    dirname, filename = os.path.split(os.path.abspath(__file__))
+    df = pd.read_csv(join(dirname, 'brainpedia.csv'), index_col=0,
+                     header=0)
+    return df
