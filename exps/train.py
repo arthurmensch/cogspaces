@@ -21,6 +21,8 @@ from cogspaces.model_selection import train_test_split
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils import compute_metrics, ScoreCallback, MultiCallback
 
+import numpy as np
+
 
 def run(estimator='factored', seed=0, plot=False):
     # Parameters
@@ -52,7 +54,7 @@ def run(estimator='factored', seed=0, plot=False):
             latent_size=128,
             weight_power=0.6,
             batch_size=128,
-            init='normal',
+            init='rest',
             dropout=0.5,
             input_dropout=0.25,
             seed=100,
@@ -68,7 +70,7 @@ def run(estimator='factored', seed=0, plot=False):
                 warmup=False)
             config['ensemble'] = ensemble
     else:
-        logistic = dict(l2_penalty=[7e-5], max_iter=1000, )
+        logistic = dict(l2_penalty=np.logspace(-7, 0, 8), max_iter=1000, )
         config['logistic'] = logistic
 
     output_dir = join(get_output_dir(config['system']['output_dir']),

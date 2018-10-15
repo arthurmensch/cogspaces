@@ -10,24 +10,12 @@ from matplotlib import gridspec, ticker
 
 from cogspaces.datasets.derivative import get_chance_subjects, \
     get_brainpedia_descr
-
-output_dir = expanduser(join('~', 'output', 'cogspaces'))
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
+from cogspaces.datasets.utils import get_output_dir
 
 idx = pd.IndexSlice
 
-save_dir = join(output_dir, 'compare')
-if not os.path.exists(save_dir):
-    os.makedirs(save_dir)
 
-pad_bottom = .51
-pad_top = .02
-pad_right = .02
-pad_left = 2.49
-
-
-def gather_metrics(output_dir):
+def gather_metrics(output_dir, save_dir):
     regex = re.compile(r'[0-9]+$')
     accuracies = []
     contrasts_metrics = []
@@ -63,7 +51,7 @@ def gather_metrics(output_dir):
                              estimator=estimator))
     accuracies = pd.DataFrame(accuracies)
     contrasts_metrics = pd.DataFrame(contrasts_metrics)
-    contrasts_metrics.to_pickle(join(output_dir, 'contrasts_metrics.pkl'))
+    contrasts_metrics.to_pickle(join(save_dir, 'contrasts_metrics.pkl'))
 
     baseline = 'logistic'
     accuracies.set_index(['estimator', 'study', 'seed'], inplace=True)
@@ -78,25 +66,26 @@ def gather_metrics(output_dir):
     accuracies['diff_with_baseline'] = accuracies['accuracy'] - accuracies['baseline']
     accuracies['diff_with_baseline_median'] = accuracies['accuracy'].groupby(level='study').transform(lambda x: x - median)
 
+    accuracies.to_pickle(join(save_dir, 'accuracies.pkl'))
+    return accuracies, contrasts_metrics
 
-    mean_accuracies = accuracies.groupby(level=['estimator', 'study']).aggregate(['mean', 'std'])
-    mean_accuracies = mean_accuracies.loc['factored']
-    mean_accuracies = mean_accuracies.sort_values(by=('diff_with_baseline', 'mean'))
 
-    accuracies.to_pickle(join(output_dir, 'accuracies.pkl'))
-    mean_accuracies.to_pickle(join(output_dir, 'mean_accuracies.pkl'))
+def plot_mean_accuracies(save_dir):
+    accuracies = pd.read_pickle(join(save_dir, 'accuracies.pkl'))
+
+    data = accuracies.groupby(level=['estimator', 'study']).aggregate(['mean', 'std'])
+    data = data.loc['factored']
+    data = data.sort_values(by=('diff_with_baseline', 'mean'))
+
     chance, subjects = get_chance_subjects()
-    mean_accuracies['chance'] = chance
-    return accuracies, mean_accuracies, contrasts_metrics
+    data['chance'] = chance
+    print(data)
 
-
-def plot_mean_accuracies(data):
     width, height = 8.5, 5.6
     brainpedia = get_brainpedia_descr()
     gs = gridspec.GridSpec(1, 2, width_ratios=[2.7, 1])
     fig = plt.figure(figsize=(width, height))
-    gs.update(left=0.25, right=0.96, bottom=0.2, top=0.95, wspace=1.2 / width
-              )
+    gs.update(left=0.25, right=0.96, bottom=0.2, top=0.95, wspace=1.2 / width)
     ax2 = fig.add_subplot(gs[0, 0])
     ax1 = fig.add_subplot(gs[0, 1], sharey=ax2)
     n_study = len(data)
@@ -173,12 +162,15 @@ def plot_mean_accuracies(data):
         '%s' % brainpedia.loc[label]['Description'] for label in data.index.values]
     ax2.set_yticklabels(labels, ha='right', va='center', fontsize=8.5)
     sns.despine(fig)
-    plt.show()
+    # plt.show()
+    plt.savefig(join(save_dir, 'mean_accuracies.pdf'))
     plt.close(fig)
 
 
-def plot_accuracies(accuracies):
+def plot_accuracies(output_dir, save_dir):
     width, height = 6.2, 3
+
+    accuracies = pd.read_pickle(join(output_dir, 'accuracies.pkl'))
 
     mean_accuracies = accuracies.groupby(level=['estimator', 'study']).aggregate(['mean', 'std'])
     mean_accuracies = mean_accuracies.loc['factored']
@@ -188,47 +180,16 @@ def plot_accuracies(accuracies):
     exps = ['logistic', 'factored']
     baseline = 'logistic'
 
-    dfs = []
-
-    df = pd.concat(dfs, axis=0, keys=exps, names=['method'])
-
-    df_std = []
-    df_mean = []
-    crossed_methods = []
-    methods = df.index.get_level_values('method').unique()
-    for i, method in enumerate(methods):
-        df_std.append(
-            df.loc[method] - df.loc[baseline].groupby('study').transform(
-                'median'))
-        for method_ref in methods:
-            crossed_methods.append(method + '-' + method_ref)
-            diff = df.loc[method] - df.loc[method_ref]
-            df_mean.append(diff.agg(['mean', 'std', 'median',
-                                     lambda x: (x >= 0).mean()]))
-    df_std = pd.concat(df_std, keys=methods, names=['method'])
-    df_mean = pd.concat(df_mean, keys=crossed_methods, names=['method'])
-
     sort = pd.MultiIndex.from_product([methods, sort],
                                       names=['method', 'study'])
-    df_sort = df_std.reset_index('seed').loc[sort]
-
     df_sort = df_sort.reset_index()
 
     n_studies = len(df_sort['study'].unique())
 
     diff_color = sns.color_palette("husl", n_studies)
-    if ablation is not None:
-        height = height * len(exps) / 3
-        if ablation == 'transfer':
-            height *= 1.1
-
     fig, ax = plt.subplots(1, 1, figsize=(width, height))
-    if ablation is None:
-        fig.subplots_adjust(left=.07 / width, right=1 - 1.9 / width,
-                            bottom=0.55 / height, top=1 - pad_top / height, )
-    else:
-        fig.subplots_adjust(left=.11 / width, right=1 - 1.9 / width,
-                            bottom=0.55 / height, top=1 - pad_top / height, )
+    fig.subplots_adjust(left=.11 / width, right=1 - 1.9 / width,
+                        bottom=0.55 / height, top=1 - pad_top / height, )
 
     params = dict(x="accuracy", y="method", hue="study",
                   data=df_sort, dodge=True, ax=ax,
@@ -405,10 +366,18 @@ def plot_gain_vs_accuracy(sort):
         fig.savefig(join(save_dir, 'gain_vs_accuracy_%s.pdf' % score))
 
 
-accuracies, mean_accuracies, contrasts_metrics = \
-    gather_metrics(expanduser(join('~', 'output', 'cogspaces_new')))
-plot_mean_accuracies(mean_accuracies)
-plot_accuracies(accuracies)
+output_dir = get_output_dir(output_dir=None)
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+save_dir = join(output_dir, 'compare')
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
+
+
+gather_metrics(output_dir=output_dir, save_dir=save_dir)
+plot_mean_accuracies(save_dir=save_dir)
+# plot_accuracies(save_dir=save_dir)
 
 # data, sort = make_data()
 # plot_joined(data)
