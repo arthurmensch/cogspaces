@@ -178,6 +178,7 @@ def plot_accuracies(save_dir):
     sort = mean_accuracies.index.get_level_values('study')
 
     accuracies = accuracies.reindex(index=sort, level='study')
+    accuracies = accuracies.reindex(index=['logistic', 'factored'], level='estimator')
     accuracies = accuracies.reset_index()
     n_studies = len(sort)
 
@@ -210,8 +211,10 @@ def plot_accuracies(save_dir):
     estimators = accuracies['estimator'].unique()
 
     y_labels = {}
-    y_labels['factored'] = ('Factored decoder')
-    y_labels['logistic'] = ('Standard decoding\nfrom voxels')
+    y_labels['factored'] = ('Decoding from\nmulti-study\ntask-optimized\n'
+                            'networks')
+    y_labels['logistic'] = ('Standard decoding\nfrom resting-state\n'
+                            'loadings')
 
     for i, estimator in enumerate(estimators):
         if i == len(estimators) - 1:

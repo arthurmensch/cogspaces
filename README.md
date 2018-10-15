@@ -1,3 +1,9 @@
+<!--
+Copied from cogspaces.github.io 
+
+See github.com/cogspaces/cogspaces.github.io
+-->
+
 # Cogspaces
 
 Multi-study decoding models for task functional MRI data. [Website](https://cogspaces.github.io)
@@ -134,9 +140,3 @@ If the model or data proved useful, please consider to cite the following paper
 - Mensch, A., Mairal, J., Thirion, B., & Varoquaux, G. (2018). 
 Extracting Universal Representations of Cognition across Brain-Imaging Studies.
 arXiv: 1809.06035
-
-You may consider citing this proof-of-concept paper as well:
-
-- Mensch, A., Mairal, J., Bzdok, D., Thirion, B., & Varoquaux, G. (2017).
-Learning Neural Representations of Human Cognition across Many fMRI Studies.
-In Advances in Neural Information Processing Systems (pp. 5883-5893).

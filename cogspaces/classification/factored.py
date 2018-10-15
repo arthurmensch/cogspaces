@@ -15,6 +15,9 @@ from cogspaces.modules.loss import MultiStudyLoss
 
 
 class FactoredClassifier(BaseEstimator):
+    """
+
+    """
     def __init__(self,
                  latent_size=30,
                  batch_size=128,
@@ -28,6 +31,21 @@ class FactoredClassifier(BaseEstimator):
                  n_jobs=1,
                  patience=200,
                  seed=None):
+        """
+
+        :param latent_size:
+        :param batch_size:
+        :param lr:
+        :param dropout:
+        :param input_dropout:
+        :param max_iter:
+        :param verbose:
+        :param weight_power:
+        :param init:
+        :param n_jobs:
+        :param patience:
+        :param seed:
+        """
 
         if lr is None:
             lr = {'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3}
