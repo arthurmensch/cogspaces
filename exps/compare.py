@@ -1,6 +1,6 @@
 import os
 import re
-from os.path import join, expanduser
+from os.path import join
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -81,11 +81,11 @@ def plot_mean_accuracies(save_dir):
     data['chance'] = chance
     print(data)
 
-    width, height = 8.5, 5.6
+    width, height = 8.5, 7
     brainpedia = get_brainpedia_descr()
     gs = gridspec.GridSpec(1, 2, width_ratios=[2.7, 1])
     fig = plt.figure(figsize=(width, height))
-    gs.update(left=0.25, right=0.96, bottom=0.2, top=0.95, wspace=1.2 / width)
+    gs.update(left=0.3, right=0.96, bottom=0.2, top=0.95, wspace=1.2 / width)
     ax2 = fig.add_subplot(gs[0, 0])
     ax1 = fig.add_subplot(gs[0, 1], sharey=ax2)
     n_study = len(data)
@@ -114,7 +114,7 @@ def plot_mean_accuracies(save_dir):
     plt.setp(ax1.get_yticklabels(), visible=False)
 
     # ax1.set_xlim([-0.06, 0.19])
-    ax1.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
+    ax1.xaxis.set_major_locator(ticker.MultipleLocator(0.1))
     ax1.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
     ax1.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1, decimals=0))
 
@@ -156,7 +156,7 @@ def plot_mean_accuracies(save_dir):
                bbox_to_anchor=(0, -.1))
 
     ax2.set_yticks(ind + width / 2)
-    ax2.annotate('Task fMRI study', xy=(-.5, -.1), xycoords='axes fraction',
+    ax2.annotate('Task fMRI study', xy=(-.5, -.08), xycoords='axes fraction',
                  fontsize=12)
     labels = [
         '%s' % brainpedia.loc[label]['Description'] for label in data.index.values]
@@ -167,44 +167,39 @@ def plot_mean_accuracies(save_dir):
     plt.close(fig)
 
 
-def plot_accuracies(output_dir, save_dir):
-    width, height = 6.2, 3
+def plot_accuracies(save_dir):
+    width, height = 6.2, 2
 
-    accuracies = pd.read_pickle(join(output_dir, 'accuracies.pkl'))
+    accuracies = pd.read_pickle(join(save_dir, 'accuracies.pkl'))
 
     mean_accuracies = accuracies.groupby(level=['estimator', 'study']).aggregate(['mean', 'std'])
     mean_accuracies = mean_accuracies.loc['factored']
     mean_accuracies = mean_accuracies.sort_values(by=('diff_with_baseline', 'mean'))
-    sort = mean_accuracies.index.get_level_values('index')
+    sort = mean_accuracies.index.get_level_values('study')
 
-    exps = ['logistic', 'factored']
-    baseline = 'logistic'
-
-    sort = pd.MultiIndex.from_product([methods, sort],
-                                      names=['method', 'study'])
-    df_sort = df_sort.reset_index()
-
-    n_studies = len(df_sort['study'].unique())
+    accuracies = accuracies.reindex(index=sort, level='study')
+    accuracies = accuracies.reset_index()
+    n_studies = len(sort)
 
     diff_color = sns.color_palette("husl", n_studies)
     fig, ax = plt.subplots(1, 1, figsize=(width, height))
-    fig.subplots_adjust(left=.11 / width, right=1 - 1.9 / width,
-                        bottom=0.55 / height, top=1 - pad_top / height, )
+    fig.subplots_adjust(left=.05, right=0.7,
+                        bottom=0.25, top=1)
 
-    params = dict(x="accuracy", y="method", hue="study",
-                  data=df_sort, dodge=True, ax=ax,
+    params = dict(x="diff_with_baseline_median", y="estimator", hue="study",
+                  data=accuracies, dodge=True, ax=ax,
                   palette=diff_color
                   )
     sns.stripplot(alpha=1, zorder=200, size=3.5, linewidth=0, jitter=True,
                   **params)
-    sns.boxplot(x="accuracy", y="method", color='0.75', showfliers=False,
+    sns.boxplot(x="diff_with_baseline_median", y="estimator", color='0.75', showfliers=False,
                 whis=1.5,
-                data=df_sort, ax=ax, zorder=100)
+                data=accuracies, ax=ax, zorder=100)
     ax.set_xlim([-0.14, 0.175])
     ax.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
     ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.025))
     ax.xaxis.set_major_formatter(ticker.PercentFormatter(xmax=1))
-    ax.set_xlabel('Accuracy gain compared to baseline median', fontsize=15)
+    ax.set_xlabel('Accuracy gain compared to baseline median')
 
     ax.set_ylabel('')
     ax.spines['left'].set_position('zero')
@@ -212,20 +207,19 @@ def plot_accuracies(output_dir, save_dir):
     ax.set_yticklabels([])
     ax.set_yticks([])
 
-    methods = df_sort['method'].unique()
+    estimators = accuracies['estimator'].unique()
 
     y_labels = {}
     y_labels['factored'] = ('Factored decoder')
     y_labels['logistic'] = ('Standard decoding\nfrom voxels')
 
-    for i, method in enumerate(methods):
-        if i == len(methods) - 1:
+    for i, estimator in enumerate(estimators):
+        if i == len(estimators) - 1:
             fontweight = 'bold'
         else:
             fontweight = 'normal'
-        ax.annotate(y_labels[method], xy=(1, i), xytext=(10, 0),
+        ax.annotate(y_labels[estimator], xy=(1, i), xytext=(10, 0),
                     textcoords="offset points",
-                    fontsize=15 if method != 'factored_transfer' else 13,
                     fontweight=fontweight,
                     xycoords=('axes fraction', 'data'),
                     va='center',
@@ -234,137 +228,8 @@ def plot_accuracies(output_dir, save_dir):
     sns.despine(fig)
 
     plt.setp(ax.legend(), visible=False)
-    plt.savefig(join(save_dir, 'comparison_method%s.pdf' % (
-        '_%s' % ablation if ablation is not None else '')))
+    plt.savefig(join(save_dir, 'accuracies.pdf'))
     plt.close(fig)
-
-
-def plot_gain_vs_size(sort):
-    width, height = 3, 2.3
-
-    colors = sns.color_palette('husl', len(sort))
-    colors = {study: color for study, color in zip(sort, colors)}
-
-    factored_output_dir = join(output_dir, 'factored')
-    baseline_output_dir = join(output_dir, 'logistic')
-
-    factored = pd.read_pickle(join(factored_output_dir, 'accuracies.pkl'))
-    baseline = pd.read_pickle(join(baseline_output_dir, 'accuracies.pkl'))
-
-    chance_level, n_subjects = get_chance_subjects()
-    joined = pd.concat([factored, baseline],
-                       keys=['factored', 'baseline', ], axis=1)
-    joined['diff'] = joined['factored'] - joined['baseline']
-    joined = joined.reset_index('study')
-    joined = joined.assign(chance=lambda x:
-    list(map(lambda y: chance_level.loc[y], x.study)),
-                           n_subjects=lambda x:
-                           list(map(lambda y: n_subjects.loc[y], x.study)))
-    joined = joined.set_index(['study'])
-    joined_mean = joined.groupby('study').aggregate(['mean', 'std'])
-
-    fig, ax = plt.subplots(1, 1, figsize=(width, height), )
-
-    sns.regplot(joined_mean['n_subjects', 'mean'], joined_mean['diff', 'mean'],
-                n_boot=10000, ax=ax, color='black', logx=True,
-                order=1, truncate=True, lowess=True,
-                scatter=False)
-    clouds = ax.scatter(joined_mean['n_subjects', 'mean'],
-                        joined_mean['diff', 'mean'],
-                        c=list(map(lambda x: colors[x],
-                                   joined_mean.index.get_level_values(
-                                       'study'))),
-                        s=8, )
-    ax.set_xscale('log')
-    ax.set_ylabel('Multi study acc. gain', fontsize=15)
-    ax.set_xlabel('Number of train subjects', fontsize=15, zorder=400)
-    ax.set_xlim([3, 420])
-    ax.set_xticks([4, 16, 32, 100, 300, 400])
-    ax.set_xticklabels([4, 16, 32, 100, 400])
-
-    ax.legend([clouds], ['Study'], frameon=True, scatterpoints=3, fontsize=13)
-
-    ax.yaxis.set_major_locator(ticker.MultipleLocator(0.05))
-    ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.025))
-    ax.yaxis.set_major_formatter(ticker.PercentFormatter(xmax=1, decimals=0))
-    ax.spines['bottom'].set_position('zero')
-
-    fig.subplots_adjust(left=.7 / width, right=1 - pad_right / width,
-                        bottom=0.35 / height, top=1 - .08 / height, )
-
-    sns.despine(fig)
-    fig.savefig(join(save_dir, 'gain_vs_size.pdf'))
-
-
-def plot_gain_vs_accuracy(sort):
-    width, height = 3, 2.3
-
-    metrics = pd.read_pickle(join(output_dir, 'factored',
-                                  'metrics.pkl'))
-    metrics = metrics.loc[0.0001]
-    ref_metrics = pd.read_pickle(join(output_dir, 'logistic',
-                                      'metrics.pkl'))
-    joined = pd.concat([metrics, ref_metrics], axis=1,
-                       keys=['factored', 'baseline'], join='inner')
-    diff = joined['factored'] - joined['baseline']
-    for v in diff.columns:
-        joined['diff', v] = diff[v]
-
-    mean = joined.groupby(by=['study', 'contrast']).aggregate(['mean', 'std'])
-    mean = mean.reset_index()
-
-    colors = sns.color_palette('husl', len(sort))
-    colors = {study: color for study, color in zip(sort, colors)}
-
-    for score in ['bacc']:
-
-        fig, ax = plt.subplots(1, 1, figsize=(width, height), )
-        fig.subplots_adjust(left=.7 / width, right=1 - .2 / width,
-                            bottom=.5 / height, top=1 - .08 / height, )
-
-        sns.regplot(mean['baseline', score, 'mean'],
-                    mean['diff', score, 'mean'],
-                    n_boot=10, ax=ax, lowess=True, color='black',
-                    scatter=False)
-
-        clouds = ax.scatter(mean['baseline', score, 'mean'],
-                            mean['diff', score, 'mean'],
-                            s=4,
-                            c=list(map(lambda x: colors[x], mean['study'])),
-                            marker='o')
-        if score == 'bacc':
-            ax.set_xlim([.49, 1.01])
-            ax.set_ylim([-0.05, 0.1])
-
-            ax.yaxis.set_major_formatter(
-                ticker.PercentFormatter(xmax=1, decimals=0))
-            ax.xaxis.set_major_formatter(
-                ticker.PercentFormatter(xmax=1, decimals=0))
-            ax.xaxis.set_major_locator(ticker.MultipleLocator(0.1))
-            ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.05))
-        else:
-            ax.set_xlim([-0.01, 1.01])
-            ax.set_ylim([-0.05, 0.15])
-            ax.xaxis.set_major_locator(ticker.MultipleLocator(0.2))
-            ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.1))
-        ax.yaxis.set_major_locator(ticker.MultipleLocator(0.05))
-        ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.025))
-        if score == 'bacc':
-            ax.set_xlabel('Baseline balanced accuracy $\\star$',
-                          fontsize=15)
-            ax.xaxis.set_label_coords(0.46, -0.17)
-        else:
-            ax.set_xlabel('Baseline F1 score (per contrast)')
-        ax.set_ylabel('Multi-study b-acc. gain    ', fontsize=15)
-        ax.hlines(0, 0, 1, linestyle=(0, [2, 4]))
-
-        ax.legend([clouds], ['Contrast'], frameon=True, scatterpoints=3,
-                  fontsize=13,
-                  loc='upper right')
-
-        sns.despine(fig)
-        fig.savefig(join(save_dir, 'gain_vs_accuracy_%s.pdf' % score))
-
 
 output_dir = get_output_dir(output_dir=None)
 if not os.path.exists(output_dir):
@@ -377,10 +242,4 @@ if not os.path.exists(save_dir):
 
 gather_metrics(output_dir=output_dir, save_dir=save_dir)
 plot_mean_accuracies(save_dir=save_dir)
-# plot_accuracies(save_dir=save_dir)
-
-# data, sort = make_data()
-# plot_joined(data)
-# plot_gain_vs_accuracy(sort)
-# plot_gain_vs_size(sort)
-# plot_compare_methods(sort)
+plot_accuracies(save_dir)
