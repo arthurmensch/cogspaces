@@ -69,7 +69,7 @@ def run(estimator='factored', seed=0, plot=False):
                 warmup=False)
             config['ensemble'] = ensemble
     else:
-        logistic = dict(l2_penalty=np.logspace(-7, 0, 8), max_iter=1000, )
+        logistic = dict(l2_penalty=np.logspace(-7, 0, 8).tolist(), max_iter=1000, )
         config['logistic'] = logistic
 
     output_dir = join(get_output_dir(config['system']['output_dir']),
