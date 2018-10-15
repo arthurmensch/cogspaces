@@ -8,7 +8,7 @@ The cogspace package allows to reproduce and reuse the multi-study task function
 
 Our multi-study decoding model decodes mental states from statistical maps using a three-layer linear model that finds successive representations of brain maps that carry cognitive information. It finds task-optimized networks from which decoding generalize well across subjects.
 
-![Three-layer decoding model](assets/imgs/abstract_simple.jpg?s=200)
+<img title="Three-layer decoding model" src="assets/imgs/abstract_simple.jpg?raw=true" width=200 />
 
 This approach allows to transfer cognitive information from one task fMRI study to another, and significantly increases decoding accuracy for many studies.
 
