@@ -1,0 +1,6 @@
+[
+  "tests/test_datasets.py::test_atlas_modl",
+  "tests/test_datasets.py::test_fetch_mask",
+  "tests/test_datasets.py::test_reduced_loadings",
+  "tests/test_datasets.py::test_statistics"
+]
