@@ -68,10 +68,8 @@ class FactoredClassifier(BaseEstimator):
 
         study_weights = np.float_power(lengths_arr, self.weight_power)
         study_weights /= np.sum(study_weights)
-
         study_weights = {study: study_weight for study, study_weight
                          in zip(lengths, study_weights)}
-
         eff_lengths = {study: total_length * study_weight for
                        study, study_weight
                        in study_weights.items()}
@@ -123,9 +121,8 @@ class FactoredClassifier(BaseEstimator):
 
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         module.parameters()),
-                                 weight_decay=self.l2_penalty,
                                  lr=self.lr[phase], amsgrad=True)
-            else: # if phase == 'train':
+            else:  # if phase == 'train':
                 module.embedder.linear.weight.requires_grad = True
                 module.embedder.linear.bias.requires_grad = True
                 for classifier in module.classifiers.values():
@@ -252,9 +249,9 @@ class FactoredClassifier(BaseEstimator):
                     if (report_every is not None
                             and epoch % report_every == 0):
                         print('Epoch %.2f, train loss: %.4f,'
-                            ' penalty: %.4f, p: %.2f'
-                            % (epoch, epoch_loss, epoch_penalty,
-                               this_module.linear.get_p().item()))
+                              ' penalty: %.4f, p: %.2f'
+                              % (epoch, epoch_loss, epoch_penalty,
+                                 this_module.linear.get_p().item()))
 
                     if epoch_loss > best_loss:
                         no_improvement += 1

@@ -53,7 +53,7 @@ def run(estimator='factored', seed=0, plot=False):
             latent_size=128,
             weight_power=0.6,
             batch_size=128,
-            init='rest',
+            init='resting-state',
             dropout=0.75,
             input_dropout=0.25,
             seed=100,
