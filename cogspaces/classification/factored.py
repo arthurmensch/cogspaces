@@ -24,7 +24,7 @@ class FactoredClassifier(BaseEstimator):
                  max_iter=None,
                  verbose=0,
                  weight_power=0.5,
-                 init='rest',
+                 init='normal',
                  n_jobs=1,
                  patience=200,
                  seed=None):
@@ -32,7 +32,7 @@ class FactoredClassifier(BaseEstimator):
         if lr is None:
             lr = {'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3}
         if max_iter is None:
-            max_iter = {'pretrain': 0, 'train': 200, 'finetune': 0}
+            max_iter = {'pretrain': 200, 'train': 300, 'finetune': 200}
 
         self.latent_size = latent_size
         self.input_dropout = input_dropout

@@ -7,6 +7,7 @@ import json
 import os
 from os.path import join
 
+import numpy as np
 from joblib import Memory, dump
 from sklearn.metrics import accuracy_score
 from utils.plotting import make_plots, prepare_plots
@@ -20,8 +21,6 @@ from cogspaces.datasets.utils import get_output_dir
 from cogspaces.model_selection import train_test_split
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils import compute_metrics, ScoreCallback, MultiCallback
-
-import numpy as np
 
 
 def run(estimator='factored', seed=0, plot=False):
@@ -55,11 +54,11 @@ def run(estimator='factored', seed=0, plot=False):
             weight_power=0.6,
             batch_size=128,
             init='rest',
-            dropout=0.5,
+            dropout=0.75,
             input_dropout=0.25,
             seed=100,
             lr={'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3},
-            max_iter={'pretrain': 0, 'train': 200, 'finetune': 0},
+            max_iter={'pretrain': 200, 'train': 300, 'finetune': 200},
         )
         config['factored'] = factored
         if model['estimator'] == 'ensemble':
