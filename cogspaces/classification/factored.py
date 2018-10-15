@@ -64,15 +64,19 @@ class FactoredClassifier(BaseEstimator):
         lengths = {study: len(this_data)
                    for study, this_data in data.items()}
         lengths_arr = np.array(list(lengths.values()))
+        total_length = np.sum(lengths_arr)
+
         study_weights = np.float_power(lengths_arr, self.weight_power)
         study_weights /= np.sum(study_weights)
 
         study_weights = {study: study_weight for study, study_weight
                          in zip(lengths, study_weights)}
 
-        eff_lengths = lengths
+        eff_lengths = {study: total_length * study_weight for
+                       study, study_weight
+                       in study_weights.items()}
 
-        data_loader = MultiStudyLoader(data, sampling='cycle',
+        data_loader = MultiStudyLoader(data, sampling='random',
                                        batch_size=self.batch_size,
                                        seed=self.seed,
                                        study_weights=study_weights,
@@ -88,7 +92,7 @@ class FactoredClassifier(BaseEstimator):
             latent_size = self.latent_size
 
         # Loss
-        loss_study_weights = study_weights
+        loss_study_weights = {study: 1. for study in data}
         loss_function = MultiStudyLoss(loss_study_weights, )
 
         module = self.module_ = VarMultiStudyModule(
