@@ -178,11 +178,11 @@ def plot_classifs_selection(mode='direct'):
     #               "Complex vs simple music\nCauvet et al.$^{50}$",
     #               "Vertical checkerboard\nPapadopoulos O. et al.$^{65}$"
     #               ]
-    row_labels = ["Face vs house\nHaxby \\textit{et al.}\\textsuperscript{63}",
+    row_labels = ["Face vs house\nHaxby \\textit{et al.}\\textsuperscript{65}",
                   "Pumps vs control\nSchonberg \\textit{et al.}\\textsuperscript{25}",
-                  "Language vs sound\nPinel \\textit{et al.}\\textsuperscript{69}",
-                  "Complex vs simple music\nCauvet \\textit{et al.}\\textsuperscript{54}",
-                  "Vertical checkerboard\nPapadopoulos O. \\textit{et al.}\\textsuperscript{68}"
+                  "Language vs sound\nPinel \\textit{et al.}\\textsuperscript{71}",
+                  "Complex vs simple music\nCauvet \\textit{et al.}\\textsuperscript{56}",
+                  "Vertical checkerboard\nPapadopoulos O. \\textit{et al.}\\textsuperscript{70}"
                   ]
 
     ann_offsets = [5, 0, 2, 4, 10]
@@ -233,7 +233,7 @@ def plot_classifs_selection(mode='direct'):
         imgs_list = [classifs_full, classifs_factored]
         col_labels = ['Contrast label',
                       'Voxelwise decoder',
-                      'Task-network decoder',
+                      'Task-optimized network decoder',
                       ]
     else:
         imgs_list = [proj_full, proj_factored]

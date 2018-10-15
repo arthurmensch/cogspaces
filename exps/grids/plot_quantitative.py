@@ -262,7 +262,7 @@ def plot_compare_methods(sort, ablation=None):
         fig.subplots_adjust(left=.07 / width, right=1 - 1.9 / width,
                             bottom=0.55 / height, top=1 - pad_top / height, )
     else:
-        fig.subplots_adjust(left=.11 / width, right=1 - 1.9 / width,
+        fig.subplots_adjust(left=.2 / width, right=1 - 1.9 / width,
                             bottom=0.55 / height, top=1 - pad_top / height, )
 
     params = dict(x="accuracy", y="method", hue="study",
@@ -692,14 +692,14 @@ def plot_gain_vs_accuracy(sort):
 if __name__ == '__main__':
     data, sort = make_data()
     # plot_joined(data)
-    plot_gain_vs_accuracy(sort)
+    # plot_gain_vs_accuracy(sort)
     # plot_gain_vs_size(sort)
 
     # plot_compare_methods(sort)
-    # plot_compare_methods(sort, ablation='posthoc')
-    # plot_compare_methods(sort, ablation='gm')
-    # plot_compare_methods(sort, ablation='transfer')
-    # plot_compare_methods(sort, ablation='dropout')
-    # plot_compare_methods(sort, ablation='l2')
+    plot_compare_methods(sort, ablation='posthoc')
+    plot_compare_methods(sort, ablation='gm')
+    plot_compare_methods(sort, ablation='transfer')
+    plot_compare_methods(sort, ablation='dropout')
+    plot_compare_methods(sort, ablation='l2')
     # plot_gain_vs_size_multi()
     # plot_weight_power()

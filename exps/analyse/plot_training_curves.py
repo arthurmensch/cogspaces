@@ -2,8 +2,14 @@ from os.path import join, expanduser
 
 import matplotlib as mpl
 
-mpl.rcParams['font.family'] = 'CMU Sans Serif'
-mpl.rcParams['font.size'] = 13
+mpl.use('pgf')
+mplparams = {
+    "font.family": "sans-serif",
+    "text.usetex": True,
+    "pgf.texsystem": "pdflatex",
+    "pgf.rcfonts": False,
+}
+mpl.rcParams.update(mplparams)
 
 import matplotlib.pyplot as plt
 
@@ -35,17 +41,19 @@ data = data.drop('henson2010faces', axis=0, level='study')
 subjects = get_full_subjects()
 print(subjects)
 
-fig, axes = plt.subplots(1, 4, figsize=(10, 2))
+fig, axes = plt.subplots(1, 4, figsize=(9, 1.6))
 axes = axes.ravel()
 
-names = {'archi': "Pinel et al. '07", 'brainomics': "Papadopoulos-\nOrfanos '12",
-         'camcan': "CamCan AV\n(Shafto et al. '14)",
-         'ds009': "Cohen '09",
-         'henson2010faces': "Henson et al. '10"}
+names = {'archi': "Localizer\nPinel \\textit{et al.}\\textsuperscript{71}", 'brainomics': "Brainomics localizer\nPapadopoulos O. \\textit{et al.}\\textsuperscript{70}",
+         'camcan': "CamCan audio-visual\nShafto \\textit{et al.}\\textsuperscript{75}",
+         'ds009': "BART, stop-signal,\n emotion -- Cohen\\textsuperscript{57}",
+         'henson2010faces': "Face recognition\nHenson \\textit{et al.}\\textsuperscript{66}"}
+
+offsets = {'archi': 0, 'brainomics': 0.05, 'camcan': .1, 'ds009': .2}
 
 for i, (ax, (study, this_data)) in enumerate(
         zip(axes, data.groupby(level='study'))):
-    ax.annotate(names[study], xy=(0.5, 0.04), xytext=(0, 5),
+    ax.annotate(names[study], xy=(0.5 + offsets[study], 0.04), xytext=(0, 5),
                 textcoords='offset points',
                 xycoords='axes fraction', va='bottom',
                 ha='center')
@@ -62,20 +70,23 @@ for i, (ax, (study, this_data)) in enumerate(
         ax.fill_between(x, y + std, y - std, alpha=0.5, zorder=5)
         sns.despine(fig, ax)
         if i == 0:
-            ax.set_xlabel('                                '
-                          '# training subjects in target study')
+            ax.set_xlabel('\# training subjects in target study')
+            ax.xaxis.set_label_coords(1, -0.24)
         if i == 2:
             l = ax.legend(handles,
-                          ['Standard decoding', 'Multi-study decoder'], bbox_to_anchor=(0, -0.1), loc='upper left', ncol=2, frameon=False)
+                          ['Standard decoding', 'Multi-study decoder'], bbox_to_anchor=(0, -0.12), loc='upper left', ncol=2, frameon=False)
             l.set_zorder(20)
+        if study == 'brainomics':
+            ax.set_ylim([.71, .94])
         ax.set_xticks(x)
         ax.yaxis.set_major_locator(ticker.MultipleLocator(ticks[study]))
         ax.yaxis.set_minor_locator(ticker.MultipleLocator(ticks[study] / 2))
         ax.yaxis.set_major_formatter(
             ticker.PercentFormatter(xmax=1, decimals=0))
         plt.setp(ax.yaxis.get_ticklabels(), fontsize=10)
+        ax.xaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.0f}"))
         if i == 0:
             ax.set_ylabel('Test accuracy')
 plt.subplots_adjust(left=0.07, right=0.98, top=0.97, bottom=0.27, wspace=0.18)
 plt.savefig(
-    expanduser('~/work/papers/papers/nature/figures/training_curves.svg'))
+    expanduser('~/work/papers/papers/nature/figures/training_curves.pdf'))
