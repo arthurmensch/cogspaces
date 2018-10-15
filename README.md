@@ -6,7 +6,7 @@ See github.com/cogspaces/cogspaces.github.io
 
 # Cogspaces
 
-Multi-study decoding models for task functional MRI data. [Website](https://cogspaces.github.io)
+Multi-study decoding models for task functional MRI data. [Website](https://cogspaces.github.io).
 
 The cogspace package allows to reproduce and reuse the multi-study task functional MRI decoding models presented in this [preprint paper](https://arxiv.org/abs/1809.06035).
 
