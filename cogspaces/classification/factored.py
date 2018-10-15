@@ -1,3 +1,7 @@
+"""
+Multi-study decoder.
+"""
+
 import tempfile
 from math import ceil, floor
 
@@ -16,37 +20,68 @@ from cogspaces.modules.loss import MultiStudyLoss
 
 class FactoredClassifier(BaseEstimator):
     """
+    Estimator that performs decoding from multiple fMRI study data.
 
+    Parameters:
+        latent_size : int
+            Size of the the second-layer in the factored representation.
+
+        batch_size : int
+            Size of the batches used for training.
+
+        lr : Dict[str, float] or None
+            Learning rates for the the various phase of training.
+            Phases are "pre-training" (dropout and second layer is blocked),
+            "training" (dropout and second-layer are adapted),
+            "fine-tune" (dropout and second layer are blocked).
+
+        max_iter : Dict[str, int] or None
+            Length of the training phases.
+            Phases are "pre-training" (dropout and second layer is blocked),
+            "training" (dropout and second-layer are adapted),
+            "fine-tune" (dropout and second layer are blocked).
+
+        dropout : float
+            Dropout rate applied in between the second and third layer.
+
+        input_dropout : float
+            Dropout rate applied in between the first and second layer.
+
+        verbose : int, default=0
+            Verbosity of the fit process.
+
+        weight_power : float
+            Parameter that regulates the importance of small datasets.
+            Between 0 and 1. 0: all datasets have the same importance,
+             1: datasets have an importance proportional to the number
+              of samples they provide.
+
+        init : str, {"normal", "orthogonal", "resting-state"}
+            How to initialize the second layer. If "resting-state",
+            `latent_size` must be set to 128.
+
+        n_jobs : int, default = 1
+            Number of CPUs to use during training.
+
+        patience : int
+            Patience for stopping criterion.
+
+        seed : int or None
+            Seed the optimization loop.
     """
     def __init__(self,
                  latent_size=30,
                  batch_size=128,
                  lr=None,
                  dropout=0.5,
-                 input_dropout=0.25,
                  max_iter=None,
+                 input_dropout=0.25,
                  verbose=0,
                  weight_power=0.5,
                  init='normal',
                  n_jobs=1,
                  patience=200,
                  seed=None):
-        """
-
-        :param latent_size:
-        :param batch_size:
-        :param lr:
-        :param dropout:
-        :param input_dropout:
-        :param max_iter:
-        :param verbose:
-        :param weight_power:
-        :param init:
-        :param n_jobs:
-        :param patience:
-        :param seed:
-        """
-
         if lr is None:
             lr = {'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3}
         if max_iter is None:
@@ -69,6 +104,26 @@ class FactoredClassifier(BaseEstimator):
         self.n_jobs = n_jobs
 
     def fit(self, X, y, callback=None):
+        """
+        Fit the multi-study estimator.
+
+        Parameters
+        ----------
+        X : Dict[str, np.ndarray]
+            Dictionary of input data (one array per study)
+
+        y: Dict[str, pd.Dataframe]
+            Label dictionary. Must be normalized using
+            `cogspaces.preprocessing.MultiTargetEncoder`
+
+        callback: Callable
+            Callback function, used during the training loop for verbosity.
+
+        Returns
+        -------
+        self: FactoredClassifier
+            Fitted estimator
+        """
         torch.set_num_threads(self.n_jobs)
 
         torch.manual_seed(self.seed)
@@ -291,6 +346,20 @@ class FactoredClassifier(BaseEstimator):
         return self
 
     def predict_log_proba(self, X):
+        """
+        Predict the log probabilities for input data (dictionary of study, data)
+
+        Parameters
+        ----------
+        X : Dict[str, np.ndarray]
+            Dictionary of input data (one array per study).
+
+        Returns
+        -------
+        y: Dict[str, np.ndarray]
+            Predicted label log probabilities.
+        """
+
         self.module_.eval()
         X_ = {}
         for study, this_X in X.items():
@@ -301,31 +370,22 @@ class FactoredClassifier(BaseEstimator):
         return {study: pred.data.numpy() for study, pred in
                 preds.items()}
 
-    def predict_latent(self, X):
-        self.module_.eval()
-        latents = {}
-        for study, this_X in X.items():
-            this_X = torch.from_numpy(this_X).float()
-            with torch.no_grad():
-                latent = self.module_.embedder(this_X)
-            latents[study] = latent.data.numpy()
-        return latents
-
-    def predict_rec(self, X):
-        self.module_.eval()
-        recs = {}
-        W = self.module_.embedder.linear.weight
-        Ginv = torch.inverse(torch.matmul(W, W.transpose(0, 1)))
-        back_proj = torch.matmul(Ginv, W)
-        for study, this_X in X.items():
-            this_X = torch.from_numpy(this_X).float()
-            with torch.no_grad():
-                latent = self.module_.embedder(this_X)
-                rec = torch.matmul(latent, back_proj)
-            recs[study] = rec.numpy()
-        return recs
 
     def predict(self, X):
+        """
+        Predict the labels for input data (dictionary of study, data)
+
+        Parameters
+        ----------
+        X : Dict[str, np.ndarray]
+            Dictionary of input data (one array per study).
+
+        Returns
+        -------
+        y: Dict[str, pd.Dataframe]
+            Predicted label. Must be processed through
+             `cogspaces.preprocessing.MultiTargetEncoder`.
+        """
         preds = self.predict_log_proba(X)
         preds = {study: np.argmax(pred, axis=1)
                  for study, pred in preds.items()}
@@ -339,6 +399,14 @@ class FactoredClassifier(BaseEstimator):
         return dfs
 
     def __getstate__(self):
+        """
+        Override serialization for pytorch components.
+
+        Returns
+        -------
+        state: Dict,
+            Serialized state
+        """
         state = self.__dict__.copy()
         for key in ['module_']:
             if key in state:
@@ -351,6 +419,17 @@ class FactoredClassifier(BaseEstimator):
         return state
 
     def __setstate__(self, state):
+        """
+
+        Parameters
+        ----------
+        state : Dict,
+            Serialized state.
+
+        Returns
+        -------
+
+        """
         for key in ['module_']:
             if key not in state:
                 continue

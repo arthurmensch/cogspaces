@@ -1,8 +1,14 @@
+"""
+Preprocessing helpers for multi-study input.
+"""
+
+
 import warnings
 
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import StandardScaler, LabelEncoder
+from traitlets import Dict
 
 warnings.filterwarnings('ignore', category=DeprecationWarning,
                         module=r'sklearn.preprocessing.label.*')
@@ -47,7 +53,27 @@ class MultiStandardScaler(BaseEstimator, TransformerMixin):
 
 
 class MultiTargetEncoder(BaseEstimator, TransformerMixin):
-    def fit(self, targets):
+    """"
+    Transformer that numericalize task fMRI data.
+
+    """
+
+    def fit(self, targets: Dict[str, pd.DataFrame]) -> 'MultiTargetEncoder':
+        """
+        Fit the target encoders necessary for dataframe numericalization.
+
+        Parameters
+        ----------
+        targets : Dict[str, pd.DataFrame]
+            Dictionary of dataframes associated to single studies. Each
+            dataframe must contain
+            the columns ['study', 'subject', 'contrast', 'study_contrast']
+
+        Returns
+        -------
+        self: MultiTargetEncoder
+
+        """
         self.le_ = {}
 
         study_contrasts = pd.concat([target['study_contrast']
@@ -65,6 +91,23 @@ class MultiTargetEncoder(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, targets):
+        """
+        Transform named targets into numericalized targets.
+
+        Parameters
+        ----------
+        targets : Dict[str, pd.DataFrame]
+            Dictionary of dataframes associated to single studies. Each
+            dataframe must contain
+            the columns ['study', 'subject', 'contrast', 'study_contrast']
+
+        Returns
+        -------
+        numericalized_targets: Dict[str, pd.DataFrame]
+            Dictionary of dataframes associated to single studies,
+             where each column is numericalized.
+
+        """
         res = {}
         for study, target in targets.items():
             d = self.le_[study]
@@ -72,6 +115,24 @@ class MultiTargetEncoder(BaseEstimator, TransformerMixin):
         return res
 
     def inverse_transform(self, targets):
+        """
+        Transform numericalized targets into named targets.
+
+        Parameters
+        ----------
+        targets: Dict[str, pd.DataFrame]
+            Dictionary of dataframes associated to single studies,
+            where each column is numericalized. Each dataframe must contain
+            the columns ['study', 'subject', 'contrast', 'study_contrast']
+
+        Returns
+        -------
+        named_targets : Dict[str, pd.DataFrame]
+            Dictionary of dataframes associated to single studies. Each
+            dataframe must contain
+            the columns ['study', 'subject', 'contrast', 'study_contrast']
+
+        """
         res = {}
         for study, target in targets.items():
             d = self.le_[study]
@@ -80,5 +141,12 @@ class MultiTargetEncoder(BaseEstimator, TransformerMixin):
 
     @property
     def classes_(self):
+        """
+
+        Returns
+        -------
+        classes_: Dict[List[str]]
+            Dictionary of classes list for the contrast `target_encoder`.
+        """
         return {study: le['contrast'].classes_ for study, le in
                 self.le_.items()}
