@@ -66,6 +66,8 @@ optional arguments:
 
 ```
 
+The estimators `'ensemble'` and `'multi-study'` use the models of the paper. The `'ensemble'` estimator yields interpretable intermediary representations but is more costly to estimate.
+
 A comparison grid between the factored model and decoding models from resting-state loadings can be run and analyzed with the following command:
 
 ```bash
@@ -84,7 +86,11 @@ cd exps
 python reduce.py
 ```
 
-Once obtained, a voxelwise decoder can be trained by changing the parameter `config['data']['reduced'] = True` in `train.py`. 
+Once obtained, a voxelwise decoder can be trained by changing the parameter `config['data']['reduced'] = True` in `train.py`.
+
+## API
+
+Please check the docstrings in the package for a description of the API. In particular, the core scikit-learn like estimators are located in `cogspaces.classification`. Feel free to raise any issue on [github]{{ site.github.repository_url }}. 
 
 # Data
 

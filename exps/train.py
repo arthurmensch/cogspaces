@@ -5,7 +5,7 @@ Hyperparameters can be edited in the file."""
 import argparse
 import json
 import os
-from os.path import join, expanduser
+from os.path import join
 
 import numpy as np
 from joblib import Memory, dump
@@ -63,8 +63,8 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1):
         if model['estimator'] == 'ensemble':
             ensemble = dict(
                 seed=100,
-                n_runs=40,
-                alpha=1e-4, )
+                n_runs=120,
+                alpha=1e-5, )
             config['ensemble'] = ensemble
     else:
         logistic = dict(l2_penalty=np.logspace(-7, 0, 8).tolist(),
@@ -121,7 +121,7 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1):
                                          n_jobs=system['n_jobs'],
                                          **multi_study)
         if model['estimator'] == 'ensemble':
-            memory = Memory(cachedir=expanduser('~/cache_pd'))
+            memory = Memory(cachedir=None)
             estimator = EnsembleClassifier(estimator,
                                            n_jobs=system['n_jobs'],
                                            memory=memory,
