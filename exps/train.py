@@ -42,7 +42,7 @@ def run(estimator='factored', seed=0, plot=False):
     model = dict(
         estimator=estimator,
         normalize=False,
-        seed=100,
+        seed=seed,
         target_study=None,
     )
 
@@ -58,7 +58,7 @@ def run(estimator='factored', seed=0, plot=False):
             input_dropout=0.25,
             seed=100,
             lr={'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3},
-            max_iter={'pretrain': 200, 'train': 300, 'finetune': 200},
+            max_iter={'pretrain': 300, 'train': 400, 'finetune': 300},
         )
         config['factored'] = factored
         if model['estimator'] == 'ensemble':
@@ -69,7 +69,7 @@ def run(estimator='factored', seed=0, plot=False):
                 warmup=False)
             config['ensemble'] = ensemble
     else:
-        logistic = dict(l2_penalty=np.logspace(-7, 0, 8).tolist(), max_iter=1000, )
+        logistic = dict(l2_penalty=np.logspace(-7, 1, 9).tolist(), max_iter=1000, )
         config['logistic'] = logistic
 
     output_dir = join(get_output_dir(config['system']['output_dir']),
