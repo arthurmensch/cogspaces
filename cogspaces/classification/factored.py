@@ -31,17 +31,17 @@ class FactoredClassifier(BaseEstimator):
 
         lr : Dict[str, float] or None
             Learning rates for the the various phase of training.
-            Phases are "pre-training" (dropout and second layer is blocked),
-            "training" (dropout and second-layer are adapted),
-            "fine-tune" (dropout and second layer are blocked).
+            Phases are "pre-training" (latent_dropout and second layer is blocked),
+            "training" (latent_dropout and second-layer are adapted),
+            "fine-tune" (latent_dropout and second layer are blocked).
 
         max_iter : Dict[str, int] or None
             Length of the training phases.
-            Phases are "pre-training" (dropout and second layer is blocked),
-            "training" (dropout and second-layer are adapted),
-            "fine-tune" (dropout and second layer are blocked).
+            Phases are "pre-training" (latent_dropout and second layer is blocked),
+            "training" (latent_dropout and second-layer are adapted),
+            "fine-tune" (latent_dropout and second layer are blocked).
 
-        dropout : float
+        latent_dropout : float
             Dropout rate applied in between the second and third layer.
 
         input_dropout : float
@@ -73,7 +73,7 @@ class FactoredClassifier(BaseEstimator):
                  latent_size=30,
                  batch_size=128,
                  lr=None,
-                 dropout=0.5,
+                 latent_dropout=0.5,
                  max_iter=None,
                  input_dropout=0.25,
                  verbose=0,
@@ -89,7 +89,7 @@ class FactoredClassifier(BaseEstimator):
 
         self.latent_size = latent_size
         self.input_dropout = input_dropout
-        self.dropout = dropout
+        self.latent_dropout = latent_dropout
         self.weight_power = weight_power
 
         self.init = init
@@ -169,8 +169,8 @@ class FactoredClassifier(BaseEstimator):
         module = self.module_ = VarMultiStudyModule(
             in_features=in_features,
             input_dropout=self.input_dropout,
-            latent_dropout=self.dropout,
-            adaptive='',
+            latent_dropout=self.latent_dropout,
+            adaptive=False,
             init=self.init,
             lengths=eff_lengths,
             latent_size=latent_size,
@@ -189,15 +189,15 @@ class FactoredClassifier(BaseEstimator):
             print('Phase :', phase)
             print('------------------------------')
             if phase == 'pretrain':
-                module.embedder.linear.weight.requires_grad = False
-                module.embedder.linear.bias.requires_grad = False
+                module.embedder.weight.requires_grad = False
+                module.embedder.bias.requires_grad = False
 
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         module.parameters()),
                                  lr=self.lr[phase], amsgrad=True)
             else:  # if phase == 'train':
-                module.embedder.linear.weight.requires_grad = True
-                module.embedder.linear.bias.requires_grad = True
+                module.embedder.weight.requires_grad = True
+                module.embedder.bias.requires_grad = True
                 for classifier in module.classifiers.values():
                     classifier.linear.make_adaptive()
                 optimizer = Adam(filter(lambda p: p.requires_grad,
@@ -224,7 +224,7 @@ class FactoredClassifier(BaseEstimator):
                               % (epoch, epoch_loss, epoch_penalty))
                         dropout = {}
                         for study, classifier in self.module_.classifiers.items():
-                            dropout[study] = classifier.linear.get_p().item()
+                            dropout[study] = classifier.linear.get_dropout().item()
                         if callback is not None:
                             callback(self, epoch)
 
@@ -244,8 +244,8 @@ class FactoredClassifier(BaseEstimator):
                         module.load_state_dict(best_state)
                         print('-----------------------------------')
                         self.dropout_ = dropout
-
                         break
+
                 batch_size = sum(input.shape[0] for input in inputs.values())
                 seen_samples += batch_size
                 optimizer.zero_grad()
@@ -285,8 +285,7 @@ class FactoredClassifier(BaseEstimator):
                                          drop_last=False,
                                          pin_memory=False)
                 this_module = module.classifiers[study]
-                if this_module.linear.adaptive:
-                    this_module.linear.make_non_adaptive()
+                this_module.linear.make_non_adaptive()
                 optimizer = Adam(filter(lambda p: p.requires_grad,
                                         this_module.parameters()),
                                  lr=self.lr[phase], amsgrad=True)
@@ -324,7 +323,7 @@ class FactoredClassifier(BaseEstimator):
                         print('Epoch %.2f, train loss: %.4f,'
                               ' penalty: %.4f, p: %.2f'
                               % (epoch, epoch_loss, epoch_penalty,
-                                 this_module.linear.get_p().item()))
+                                 this_module.linear.get_dropout().item()))
 
                     if epoch_loss > best_loss:
                         no_improvement += 1

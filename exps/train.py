@@ -10,7 +10,6 @@ from os.path import join
 import numpy as np
 from joblib import Memory, dump
 from sklearn.metrics import accuracy_score
-from utils.plotting import make_plots, prepare_plots
 
 from cogspaces.classification.factored import FactoredClassifier
 from cogspaces.classification.factored_dl import FactoredDL
@@ -33,7 +32,7 @@ def run(estimator='factored', seed=0, plot=False):
         output_dir=None
     )
     data = dict(
-        studies='all',
+        studies=['archi', 'brainomics'],
         test_size=0.5,
         train_size=0.5,
         reduced=True,
@@ -54,11 +53,11 @@ def run(estimator='factored', seed=0, plot=False):
             weight_power=0.6,
             batch_size=128,
             init='resting-state',
-            dropout=0.75,
+            latent_dropout=0.75,
             input_dropout=0.25,
             seed=100,
             lr={'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3},
-            max_iter={'pretrain': 200, 'train': 300, 'finetune': 200},
+            max_iter={'pretrain': 20, 'train': 30, 'finetune': 20},
         )
         config['factored'] = factored
         if model['estimator'] == 'ensemble':
@@ -165,6 +164,7 @@ def run(estimator='factored', seed=0, plot=False):
         json.dump(config, f)
 
     if config['system']['plot']:
+        from utils.plotting import make_plots, prepare_plots
         print('Preparing plots')
         prepare_plots(output_dir)
         print("Plotting model")

@@ -1,6 +1,5 @@
 import math
 
-import numpy as np
 import torch
 from torch import nn
 from torch.nn import Parameter, functional as F
@@ -13,7 +12,6 @@ k3 = 1.48695
 class DropoutLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True, p=1e-8,
                  level='layer', var_penalty=0., adaptive=False,
-                 init='normal',
                  sparsify=False):
         super().__init__(in_features, out_features, bias)
 
@@ -41,8 +39,6 @@ class DropoutLinear(nn.Linear):
         self.sparsify = sparsify
         self.adaptive = adaptive
         self.level = level
-
-        self.init = init
 
         self.reset_dropout()
 
@@ -74,7 +70,6 @@ class DropoutLinear(nn.Linear):
                                 ).detach()
 
         self.log_alpha.requires_grad = False
-        print(np.array2string(self.get_p().detach().numpy(), precision=3))
 
     def make_non_adaptive(self):
         assert self.level != 'additive'
@@ -100,8 +95,8 @@ class DropoutLinear(nn.Linear):
         else:
             return torch.clamp(self.log_alpha, -8, 8)
 
-    def get_p(self):
-        return 1 / (1 + torch.exp(-self.get_log_alpha())).squeeze()
+    def get_dropout(self):
+        return 1 / (1 + torch.exp(-self.get_log_alpha())).squeeze().detach()
 
     def forward(self, input):
         if self.training:
@@ -109,7 +104,7 @@ class DropoutLinear(nn.Linear):
                 return F.linear(input, self.weight, self.bias)
             if self.adaptive:
                 output = F.linear(input, self.weight, self.bias)
-                # Local reparemtrization trick: gaussian dropout noise on input
+                # Local reparemtrization trick: gaussian latent_dropout noise on input
                 # <-> gaussian noise on output
                 std = torch.sqrt(
                     F.linear(input ** 2, self.get_var_weight(), None) + 1e-8)

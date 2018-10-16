@@ -9,55 +9,34 @@ from cogspaces.datasets import fetch_atlas_modl
 from cogspaces.modules.linear import DropoutLinear
 
 
-class Embedder(nn.Module):
-    def __init__(self, in_features, latent_size, var_penalty,
-                 dropout=0., adaptive=False,
-                 init='normal'):
-        super().__init__()
-
-        self.init = init
-
-        self.linear = DropoutLinear(in_features, latent_size,
-                                    adaptive=adaptive,
-                                    var_penalty=var_penalty,
-                                    sparsify=False,
-                                    init=init,
-                                    level='additive' if adaptive else 'layer',
-                                    p=dropout, bias=True)
-        self.reset_parameters()
-
-    def forward(self, input):
-        return self.linear(input)
-
-    def reset_parameters(self):
-        if isinstance(self.init, str):
-            if self.init == 'normal':
-                self.linear.reset_parameters()
-            elif self.init == 'orthogonal':
-                nn.init.orthogonal_(self.linear.weight.data,
-                                    gain=1 / math.sqrt(
-                                        self.linear.weight.shape[1]))
-            elif self.init == 'resting-state':
-                assert self.linear.out_features == 128
-                assert self.linear.in_features == 453
-                dataset = fetch_atlas_modl()
-                weight = np.load(dataset['loadings_128_gm'])
-                self.linear.weight.data = torch.from_numpy(np.array(weight))
-            else:
-                raise ValueError('Wrong parameter for `init` %s' % self.init)
-        elif isinstance(self.init, np.ndarray):
-            self.linear.weight.data = torch.from_numpy(self.init)
-        else:
-            raise ValueError('Wrong parameter for `init` %s' % self.init)
-        self.linear.reset_dropout()
-
-    def penalty(self):
-        return self.linear.penalty()
-
-
 class LatentClassifier(nn.Module):
     def __init__(self, latent_size, target_size, var_penalty,
                  dropout=0., adaptive=False, batch_norm=True):
+        """
+        One third-layer classification head.
+
+        Simply combines batch-norm -> DropoutLinear -> softmax.
+
+        Parameters
+        ----------
+        latent_size : int
+            Size of the latent space.
+
+        target_size : int
+            Number of targets for the classifier.
+
+        var_penalty : float
+            Penalty to apply for variational latent_dropout
+
+        dropout : float, [0, 1]
+            Dropout rate to apply at the input
+
+        adaptive : bool
+            Use adaptive latent_dropout rate
+
+        batch_norm : bool
+            Use batch normalization at the input
+        """
         super().__init__()
 
         if batch_norm:
@@ -65,8 +44,7 @@ class LatentClassifier(nn.Module):
         self.linear = DropoutLinear(latent_size,
                                     target_size, bias=True, p=dropout,
                                     var_penalty=var_penalty,
-                                    adaptive=adaptive,
-                                    level='layer')
+                                    adaptive=adaptive, level='layer')
 
     def forward(self, input, logits=False):
         if hasattr(self, 'batch_norm'):
@@ -85,6 +63,9 @@ class LatentClassifier(nn.Module):
     def penalty(self):
         return self.linear.penalty()
 
+    def get_dropout(self):
+        return self.linear.get_dropout()
+
 
 class VarMultiStudyModule(nn.Module):
     def __init__(self, in_features,
@@ -96,30 +77,78 @@ class VarMultiStudyModule(nn.Module):
                  latent_dropout=0.,
                  init='orthogonal',
                  batch_norm=True,
-                 adaptive='embedding+classifier',
+                 adaptive=False,
                  ):
+        """
+        Second and third-layer of the models.
+
+        Parameters
+        ----------
+        in_features : int
+            Size of the input before the second layer
+            (number of resting-state loadings).
+
+        latent_size : int
+            Size of the latent dimension, in between the second and third layer.
+
+        target_sizes: Dict[str, int]
+            For each study, number of contrasts to predict
+
+        lengths: Dict[str, int]
+            Length of each study (for variational regularization)
+
+        input_dropout: float, [0, 1]
+
+        regularization: float, default=1
+            Regularization to apply for variational latent_dropout
+
+        latent_dropout: float, default=1
+            Dropout rate to apply in between the second and third layer.
+
+        init: str, {'normal', 'orthogonal', 'resting-state'}
+            How to initialize the second layer. If 'resting-state',
+            then it must be in_features = 453 and latent_size = 128
+
+        batch_norm: bool,
+            Batch norm between the second and third layer
+
+        adaptive: bool,
+            Dropout rate should be adaptive
+        """
         super().__init__()
 
-        embedder_adaptive = 'embedding' in adaptive
-
         total_length = sum(list(lengths.values()))
-        self.embedder = Embedder(in_features, latent_size,
-                                 dropout=input_dropout,
-                                 adaptive=embedder_adaptive,
-                                 init=init,
-                                 var_penalty=regularization / total_length)
-        classifier_adaptive = 'classifier' in adaptive
+        self.embedder = DropoutLinear(
+            in_features, latent_size, adaptive=adaptive,
+            var_penalty=regularization / total_length, level='layer',
+            p=input_dropout, bias=True)
         self.classifiers = {study: LatentClassifier(
             latent_size, target_size, dropout=latent_dropout,
             var_penalty=regularization / lengths[study],
-            batch_norm=batch_norm,
-            adaptive=classifier_adaptive, )
+            batch_norm=batch_norm, adaptive=adaptive, )
             for study, target_size in target_sizes.items()}
         for study, classifier in self.classifiers.items():
             self.add_module('classifier_%s' % study, classifier)
+        self.init = init
 
     def reset_parameters(self):
-        self.embedder.reset_parameters()
+        if self.init == 'normal':
+            self.embedder.reset_parameters()
+        elif self.init == 'orthogonal':
+            nn.init.orthogonal_(self.embedder.weight.data,
+                                gain=1 / math.sqrt(self.linear.weight.shape[1]))
+            nn.init.zeros_(self.embedder.bias.data)
+            self.embedder.reset_dropout()
+        elif self.init == 'resting-state':
+            assert self.embedder.out_features == 128
+            assert self.embedder.in_features == 453
+            dataset = fetch_atlas_modl()
+            weight = np.load(dataset['loadings_128_gm'])
+            self.embedder.weight.data = torch.from_numpy(np.array(weight))
+            nn.init.zeros_(self.embedder.bias.data)
+            self.embedder.reset_dropout()
+        else:
+            raise ValueError('Wrong parameter for `init` %s' % self.init)
         for classifier in self.classifiers.values():
             classifier.reset_parameters()
 
@@ -130,7 +159,25 @@ class VarMultiStudyModule(nn.Module):
                                                    logits=logits)
         return preds
 
-    def penalty(self, inputs):
+    def penalty(self, studies):
+        """
+        Return the variational penalty of the model.
+
+        Parameters
+        ----------
+        studies: Iterable[str],
+            Studies to consider when computing the penalty
+
+        Returns
+        -------
+        penalty: torch.tensor,
+            Scalar penalty
+        """
         return (self.embedder.penalty()
                 + sum(self.classifiers[study].penalty()
-                      for study in inputs))
+                      for study in studies))
+
+    def get_dropout(self):
+        return (self.embedder.get_dropout(),
+                {study: classifier.get_dropout() for study, classifier in
+                 self.classifiers.items()})

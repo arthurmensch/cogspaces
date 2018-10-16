@@ -37,7 +37,7 @@ def compute_classifs(estimator, standard_scaler, config, return_type='img'):
         module.eval()
 
         studies = module.classifiers.keys()
-        in_features = module.embedder.linear.in_features
+        in_features = module.embedder.in_features
 
         with torch.no_grad():
             classifs = module({study: torch.eye(in_features)
@@ -81,9 +81,9 @@ def compute_classifs(estimator, standard_scaler, config, return_type='img'):
 
 def curate_module(estimator):
     module = estimator.module_
-    revert = torch.sum(module.embedder.linear.weight.detach(), dim=1) < 0
-    module.embedder.linear.weight.data[revert] *= - 1
-    module.embedder.linear.bias.data[revert] *= - 1
+    revert = torch.sum(module.embedder.weight.detach(), dim=1) < 0
+    module.embedder.weight.data[revert] *= - 1
+    module.embedder.bias.data[revert] *= - 1
     for study, classifier in module.classifiers.items():
         classifier.batch_norm.running_mean[revert] *= -1
         classifier.linear.weight.data[:, revert] *= -1

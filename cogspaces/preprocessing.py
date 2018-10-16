@@ -4,11 +4,11 @@ Preprocessing helpers for multi-study input.
 
 
 import warnings
+from typing import Dict
 
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-from traitlets import Dict
 
 warnings.filterwarnings('ignore', category=DeprecationWarning,
                         module=r'sklearn.preprocessing.label.*')

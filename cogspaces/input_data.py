@@ -1,84 +1,48 @@
 import itertools
-import os
-import re
-from os.path import join
 
 import numpy as np
 import pandas as pd
 import torch
-from joblib import load
 from sklearn.utils import check_random_state
-from torch.utils.data import Dataset, DataLoader
-
-from cogspaces.utils import unzip_data
+from torch.utils.data import DataLoader
 
 idx = pd.IndexSlice
 
 
-class NiftiTargetDataset(Dataset):
-    def __init__(self, data, targets=None):
-        if targets is not None:
-            assert data.shape[0] == targets.shape[0]
-            self.study = targets['study'].values
-            self.contrast = targets['contrast'].values
-            self.study_contrast = targets['study_contrast'].values
-        else:
-            self.study = None
-            self.contrast = None
-            self.study_contrast = None
-
-        self.data = data
-
-    def __getitem__(self, index):
-        single = isinstance(index, int)
-        data = self.data[index]
-        data = torch.from_numpy(data).float()
-        if self.study is None:
-            if single:
-                study = torch.LongTensor((1,)).fill_(0)
-                contrast = torch.LongTensor((1,)).fill_(0)
-                study_contrast = torch.LongTensor((1,)).fill_(0)
-            else:
-                study = torch.LongTensor((data.shape[0], 1)).fill_(0)
-                contrast = torch.LongTensor((data.shape[0], 1)).fill_(0)
-                study_contrast = torch.LongTensor((1,)).fill_(0)
-        else:
-            contrast = self.contrast[index]
-            study_contrast = self.study_contrast[index]
-            study = self.study[index]
-            if not single:
-                contrast = torch.from_numpy(contrast.values)
-                study_contrast = torch.from_numpy(study_contrast.values)
-                study = torch.from_numpy(study.values)
-
-        return data, study, contrast, study_contrast
-
-    def __len__(self):
-        return self.data.shape[0]
-
-
-def load_data_from_dir(data_dir):
-    expr = re.compile("data_(.*).pt")
-
-    data = {}
-    for file in os.listdir(data_dir):
-        match = re.match(expr, file)
-        if match:
-            study = match.group(1)
-            # this_data, this_target = load(join(data_dir, file))
-            # this_data = np.asarray(this_data)
-            # data[study] = this_data, this_target
-            data[study] = load(join(data_dir, file), mmap_mode='r')
-    return unzip_data(data)
-
-
 def infinite_iter(iterable):
+    """
+    Create cycling iterable for finite iterable.
+
+    Parameters
+    ----------
+    iterable: iterable,
+        Input iterable
+
+    Returns
+    -------
+    iterable:
+        Iterable that recreates itself
+    """
     while True:
         for elem in iterable:
             yield elem
 
 
 class RandomChoiceIter:
+    """
+    Simple iterable that randomly chooses from a list, with probabilitie.
+
+    Parameters
+    ----------
+    choices :  List,
+        List of elements to choose from
+
+    p : List[float]
+        Probabilities weights. Must sum to one
+
+    seed : int or None
+        Seed the sampler
+    """
     def __init__(self, choices, p, seed=None):
         self.random_state = check_random_state(seed)
         self.choices = choices
@@ -89,17 +53,19 @@ class RandomChoiceIter:
 
 
 class MultiStudyLoaderIter:
+    """Pytorch loader iterable for a collection of study data.
+    """
     def __init__(self, loader):
-        studies = loader.studies
-        loaders = {study: DataLoader(data,
+        data = loader.data
+        loaders = {study: DataLoader(this_data,
                                      shuffle=True,
                                      batch_size=loader.batch_size,
                                      pin_memory=loader.device.type == 'cuda')
-                   for study, data in studies.items()}
+                   for study, this_data in data.items()}
         self.loader_iters = {study: infinite_iter(loader)
                              for study, loader in loaders.items()}
 
-        studies = list(studies.keys())
+        studies = list(data.keys())
         self.sampling = loader.sampling
         if self.sampling == 'random':
             p = np.array([loader.study_weights[study] for study in studies])
@@ -133,16 +99,43 @@ class MultiStudyLoaderIter:
 
 
 class MultiStudyLoader:
-    def __init__(self, studies,
+    """Pytorch loader for a collection of study data.
+
+    Parameters
+    ----------
+    data : Dict[str, TensorDataset]
+        Collections of TensorDataset, one for each study
+
+    batch_size : int
+        Batch size for samples
+
+    sampling : str in {'random', 'cycle', 'all'}
+        Sampling strategy.
+
+    study_weights : Dict[str, float]
+        Used to sample studies
+
+    seed : int or None
+        Seed the sampling of studies
+
+    device : torch.device
+        Device to load the data on
+    """
+    def __init__(self, data,
                  batch_size=128, sampling='cycle',
                  study_weights=None, seed=None, device=torch.device('cpu')):
-        self.studies = studies
+        self.data = data
         self.batch_size = batch_size
         self.sampling = sampling
         self.study_weights = study_weights
-
         self.device = device
         self.seed = seed
 
     def __iter__(self):
+        """
+        Returns
+        -------
+        iterable: MultiStudyLoaderIter
+            Iterator that yields samples.
+        """
         return MultiStudyLoaderIter(self)
