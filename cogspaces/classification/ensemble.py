@@ -31,12 +31,14 @@ class EnsembleClassifier(BaseEstimator):
         module = self.estimator_.module_
 
         seeds = check_random_state(self.seed).randint(0, np.iinfo('int32').max,
-                                                      size=(self.n_runs + 1))
+                                                      size=(self.n_runs, ))
         res = Parallel(n_jobs=self.n_jobs, verbose=10)(
             delayed(self.memory.cache(_compute_coefs))(
-                self.estimator, X, y, seed) for seed in seeds[:-1])
+                self.estimator, X, y, seed) for seed in seeds)
         embedder_weights, full_coefs, full_biases = zip(*res)
-        embedder_weights = np.concatenate([embedder_weight.numpy() for embedder_weight in embedder_weights], axis=0)
+        embedder_weights = np.concatenate(
+            [embedder_weight.numpy() for embedder_weight in embedder_weights],
+            axis=0)
         mean_coefs = {
             study: np.mean(np.concatenate([full_coef[study].numpy()[:, :, None]
                                            for full_coef in full_coefs],
@@ -89,25 +91,27 @@ def _compute_coefs(estimator, X, y, seed=0):
                             for study in studies}, logits=True)
         full_coef = module({study: torch.eye(in_features)
                             for study in studies}, logits=True)
+        full_coef = {study: full_coef[study] - full_bias[study]
+                     for study in studies}
     return weight, full_coef, full_bias
 
 
 def _compute_components(embedder_weights, embedder_init, alpha, warmup):
     if warmup:
-        dict_fact = DictFact(comp_l1_ratio=0, comp_pos=False,
+        dict_fact = DictFact(comp_l1_ratio=0, comp_pos=True,
                              n_components=embedder_init.shape[0],
                              code_l1_ratio=0, batch_size=32,
                              learning_rate=1,
                              dict_init=embedder_init,
-                             code_alpha=alpha, verbose=0, n_epochs=1,
+                             code_alpha=alpha, verbose=0, n_epochs=2,
                              )
         dict_fact.fit(embedder_weights)
         embedder_init = dict_fact.components_
-    dict_fact = DictFact(comp_l1_ratio=1, comp_pos=False,
+    dict_fact = DictFact(comp_l1_ratio=1, comp_pos=True,
                          n_components=embedder_init.shape[0],
                          code_l1_ratio=0, batch_size=32, learning_rate=1,
                          dict_init=embedder_init,
-                         code_alpha=alpha, verbose=10, n_epochs=10)
+                         code_alpha=alpha, verbose=10, n_epochs=20)
     dict_fact.fit(embedder_weights)
     components = dict_fact.components_
     return components

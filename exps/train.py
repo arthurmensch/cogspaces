@@ -57,7 +57,7 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1):
             input_dropout=0.25,
             seed=100,
             lr={'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3},
-            max_iter={'pretrain': 300, 'train': 500, 'finetune': 300},
+            max_iter={'pretrain': 30, 'train': 50, 'finetune': 30},
         )
         config['multi_study'] = multi_study
         if model['estimator'] == 'ensemble':
@@ -78,6 +78,9 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1):
         os.makedirs(output_dir)
 
     info = {}
+
+    with open(join(output_dir, 'config.json'), 'w+') as f:
+        json.dump(config, f)
 
     print("Loading data")
     if data['studies'] == 'all':
@@ -158,8 +161,6 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1):
         json.dump(metrics, f)
     with open(join(output_dir, 'info.json'), 'w+') as f:
         json.dump(info, f)
-    with open(join(output_dir, 'config.json'), 'w+') as f:
-        json.dump(config, f)
 
     if config['system']['plot']:
         from utils.plotting import make_plots, prepare_plots
