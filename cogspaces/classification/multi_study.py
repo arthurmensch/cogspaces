@@ -183,7 +183,6 @@ class MultiStudyClassifier(BaseEstimator):
 
         print('Phase : train')
         print('------------------------------')
-        module.train()
         if self.max_iter['train'] > 0:
             if self.verbose != 0:
                 report_every = ceil(self.max_iter['train'] / self.verbose)
@@ -305,10 +304,6 @@ class MultiStudyClassifier(BaseEstimator):
                                      pin_memory=False)
             this_module = module.classifiers[study]
             this_module.linear.make_non_adaptive()
-            this_module.train()
-            if hasattr(this_module, 'batch_norm') and phase == 'finetune':
-                # Freeze batch norm
-                this_module.batch_norm.eval()
             optimizer = Adam(filter(lambda p: p.requires_grad,
                                     this_module.parameters()),
                              lr=self.lr[phase], amsgrad=True)
@@ -326,8 +321,11 @@ class MultiStudyClassifier(BaseEstimator):
                 for input, target in data_loader:
                     batch_size = input.shape[0]
 
-                    this_module.train()
                     optimizer.zero_grad()
+                    this_module.train()
+                    if hasattr(this_module,
+                               'batch_norm') and phase == 'finetune':
+                        this_module.batch_norm.eval()
                     pred = this_module(input)
                     loss = loss_function(pred, target)
                     penalty = this_module.penalty()
@@ -377,12 +375,12 @@ class MultiStudyClassifier(BaseEstimator):
             Predicted label log probabilities.
         """
 
-        self.module_.eval()
         X_ = {}
         for study, this_X in X.items():
             this_X = torch.from_numpy(this_X).float()
             X_[study] = this_X
         with torch.no_grad():
+            self.module_.eval()
             preds = self.module_(X_)
         return {study: pred.data.numpy() for study, pred in
                 preds.items()}

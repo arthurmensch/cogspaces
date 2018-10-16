@@ -99,12 +99,11 @@ def compute_grades(estimator, standard_scaler, target_encoder,
         module = curate_module(estimator)
         for study, classifier in module.classifiers.items():
             in_features = classifier.linear.in_features
-            classifier.eval()
             with torch.no_grad():
-                loadings = (classifier(torch.eye(in_features),
-                                       logits=True) - classifier(
-                    torch.zeros(1, in_features),
-                    logits=True)).transpose(0, 1).numpy()
+                classifier.eval()
+                loadings = (classifier(torch.eye(in_features), logits=True) -
+                            classifier(torch.zeros(1, in_features),
+                                       logits=True)).transpose(0, 1).numpy()
                 loadings -= loadings.mean(axis=0, keepdims=True)
                 grades[study] = loadings
 
