@@ -5,6 +5,6 @@ from exps.train import run
 
 seeds = check_random_state(42).randint(0, 100000, size=20).tolist()
 
-Parallel(n_jobs=40, verbose=10)(delayed(run)(estimator, seed)
-                                for estimator in ['multi_study', 'logistic']
+Parallel(n_jobs=20, verbose=10)(delayed(run)(estimator, seed)
+                                for estimator in ['multi_study']
                                 for seed in seeds)

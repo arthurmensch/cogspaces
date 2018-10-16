@@ -57,7 +57,7 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1):
             input_dropout=0.25,
             seed=100,
             lr={'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3},
-            max_iter={'pretrain': 30, 'train': 50, 'finetune': 30},
+            max_iter={'pretrain': 300, 'train': 500, 'finetune': 300},
         )
         config['multi_study'] = multi_study
         if model['estimator'] == 'ensemble':
@@ -150,6 +150,7 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1):
     print("Evaluating model")
     test_preds = estimator.predict(test_data)
     metrics = compute_metrics(test_preds, test_targets, target_encoder)
+    print(metrics['accuracy'])
 
     print("Saving model")
     # Save model for further analysis

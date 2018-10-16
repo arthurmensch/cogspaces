@@ -86,6 +86,7 @@ def _compute_coefs(estimator, X, y, seed=0):
     weight = estimator.module_.embedder.weight.data
     studies = list(estimator.module_.classifiers.keys())
     in_features = estimator.module_.embedder.in_features
+    module.eval()
     with torch.no_grad():
         full_bias = module({study: torch.zeros((1, in_features))
                             for study in studies}, logits=True)

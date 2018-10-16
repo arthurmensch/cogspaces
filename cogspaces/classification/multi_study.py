@@ -183,6 +183,7 @@ class MultiStudyClassifier(BaseEstimator):
 
         print('Phase : train')
         print('------------------------------')
+        module.train()
         if self.max_iter['train'] > 0:
             if self.verbose != 0:
                 report_every = ceil(self.max_iter['train'] / self.verbose)
@@ -304,6 +305,10 @@ class MultiStudyClassifier(BaseEstimator):
                                      pin_memory=False)
             this_module = module.classifiers[study]
             this_module.linear.make_non_adaptive()
+            this_module.train()
+            if hasattr(this_module, 'batch_norm') and phase == 'finetune':
+                # Freeze batch norm
+                this_module.batch_norm.eval()
             optimizer = Adam(filter(lambda p: p.requires_grad,
                                     this_module.parameters()),
                              lr=self.lr[phase], amsgrad=True)
@@ -356,7 +361,6 @@ class MultiStudyClassifier(BaseEstimator):
                   ' %.4f, best model loss %.2f' %
                   (epoch, epoch_loss, best_loss))
             print('-----------------------------------')
-
 
     def predict_log_proba(self, X):
         """
