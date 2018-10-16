@@ -5,15 +5,15 @@ Hyperparameters can be edited in the file."""
 import argparse
 import json
 import os
-from os.path import join
+from os.path import join, expanduser
 
 import numpy as np
 from joblib import Memory, dump
 from sklearn.metrics import accuracy_score
 
-from cogspaces.classification.factored import FactoredClassifier
-from cogspaces.classification.factored_dl import FactoredDL
+from cogspaces.classification.ensemble import EnsembleClassifier
 from cogspaces.classification.logistic import MultiLogisticClassifier
+from cogspaces.classification.multi_study import MultiStudyClassifier
 from cogspaces.datasets import STUDY_LIST, load_reduced_loadings
 from cogspaces.datasets.contrast import load_masked_contrasts
 from cogspaces.datasets.utils import get_output_dir
@@ -22,11 +22,11 @@ from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils import compute_metrics, ScoreCallback, MultiCallback
 
 
-def run(estimator='factored', seed=0, plot=False):
+def run(estimator='multi_study', seed=0, plot=False, n_jobs=1):
     # Parameters
     system = dict(
         verbose=1,
-        n_jobs=1,
+        n_jobs=n_jobs,
         plot=plot,
         seed=seed,
         output_dir=None
@@ -47,8 +47,8 @@ def run(estimator='factored', seed=0, plot=False):
 
     config = {'system': system, 'data': data, 'model': model}
 
-    if model['estimator'] in ['factored', 'ensemble']:
-        factored = dict(
+    if model['estimator'] in ['multi_study', 'ensemble']:
+        multi_study = dict(
             latent_size=128,
             weight_power=0.6,
             batch_size=128,
@@ -57,18 +57,18 @@ def run(estimator='factored', seed=0, plot=False):
             input_dropout=0.25,
             seed=100,
             lr={'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3},
-            max_iter={'pretrain': 200, 'train': 300, 'finetune': 200},
+            max_iter={'pretrain': 300, 'train': 500, 'finetune': 300},
         )
-        config['factored'] = factored
+        config['multi_study'] = multi_study
         if model['estimator'] == 'ensemble':
             ensemble = dict(
-                n_runs=45,
-                n_splits=3,
-                alpha=1e-3,
-                warmup=False)
+                seed=100,
+                n_runs=40,
+                alpha=1e-4, )
             config['ensemble'] = ensemble
     else:
-        logistic = dict(l2_penalty=np.logspace(-7, 0, 8).tolist(), max_iter=1000, )
+        logistic = dict(l2_penalty=np.logspace(-7, 0, 8).tolist(),
+                        max_iter=1000, )
         config['logistic'] = logistic
 
     output_dir = join(get_output_dir(config['system']['output_dir']),
@@ -113,20 +113,18 @@ def run(estimator='factored', seed=0, plot=False):
     else:
         standard_scaler = None
 
-    if model['estimator'] in ['factored', 'ensemble']:
-        estimator = FactoredClassifier(verbose=system['verbose'],
-                                       n_jobs=system['n_jobs'],
-                                       **factored)
+    if model['estimator'] in ['multi_study', 'ensemble']:
+        estimator = MultiStudyClassifier(verbose=system['verbose'],
+                                         n_jobs=system['n_jobs'],
+                                         **multi_study)
         if model['estimator'] == 'ensemble':
-            memory = Memory(cachedir='cache')
-            estimator = FactoredDL(estimator,
-                                   n_jobs=system['n_jobs'],
-                                   n_runs=ensemble['n_runs'],
-                                   alpha=ensemble['alpha'],
-                                   warmup=ensemble['warmup'],
-                                   seed=factored['seed'],
-                                   memory=memory,
-                                   )
+            memory = Memory(cachedir=expanduser('~/cache_pd'))
+            estimator = EnsembleClassifier(estimator,
+                                           n_jobs=system['n_jobs'],
+                                           memory=memory,
+                                           **ensemble
+                                           )
+            callback = None
         else:
             # Set some callback to obtain useful verbosity
             test_callback = ScoreCallback(Xs=test_data, ys=test_targets,
@@ -168,7 +166,7 @@ def run(estimator='factored', seed=0, plot=False):
         print('Preparing plots')
         prepare_plots(output_dir)
         print("Plotting model")
-        plot_components = config['model']['estimator'] in ['factored',
+        plot_components = config['model']['estimator'] in ['multi_study',
                                                            'ensemble']
         make_plots(output_dir, plot_classifs=True,
                    plot_components=plot_components,
@@ -179,14 +177,16 @@ def run(estimator='factored', seed=0, plot=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-e', '--estimator', type=str,
-                        choices=['ensemble', 'logistic', 'factored'],
-                        default='factored',
+                        choices=['logistic', 'multi_study', 'ensemble'],
+                        default='multi_study',
                         help='estimator type')
     parser.add_argument('-s', '--seed', type=int,
                         default=0,
                         help='Integer to use to seed the model and half-split cross-validation')
     parser.add_argument('-p', '--plot', action="store_true",
                         help='Plot the results (classification maps, cognitive components)')
+    parser.add_argument('-j', '--n_jobs', type=int,
+                        default=1, help='Number of CPUs to use')
     args = parser.parse_args()
 
-    run(args.estimator, args.seed, args.plot)
+    run(args.estimator, args.seed, args.plot, args.n_jobs)

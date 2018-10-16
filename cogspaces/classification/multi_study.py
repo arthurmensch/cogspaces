@@ -18,7 +18,7 @@ from cogspaces.modules.factored import VarMultiStudyModule
 from cogspaces.modules.loss import MultiStudyLoss
 
 
-class FactoredClassifier(BaseEstimator):
+class MultiStudyClassifier(BaseEstimator):
     """
     Estimator that performs decoding from multiple fMRI study data.
 
@@ -121,7 +121,7 @@ class FactoredClassifier(BaseEstimator):
 
         Returns
         -------
-        self: FactoredClassifier
+        self: MultiStudyClassifier
             Fitted estimator
         """
         torch.set_num_threads(self.n_jobs)

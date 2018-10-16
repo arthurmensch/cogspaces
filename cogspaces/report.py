@@ -32,7 +32,7 @@ def compute_components(estimator, config, return_type='img'):
 
 
 def compute_classifs(estimator, standard_scaler, config, return_type='img'):
-    if config['model']['estimator'] in ['factored', 'ensemble']:
+    if config['model']['estimator'] in ['multi_study', 'ensemble']:
         module = curate_module(estimator)
         module.eval()
 
@@ -160,7 +160,7 @@ def compute_names(target_encoder):
 def compute_nifti(estimator, standard_scaler, config):
     classifs_imgs = compute_classifs(estimator, standard_scaler, config,
                                      return_type='img')
-    if config['model']['estimator'] in ['factored', 'ensemble']:
+    if config['model']['estimator'] in ['multi_study', 'ensemble']:
         components_imgs = compute_components(estimator, config, return_type='img')
         return classifs_imgs, components_imgs
     else:

@@ -47,19 +47,23 @@ python train.py
 ```
 
 ```
-usage: train.py [-h] [-e {ensemble,logistic,factored}] [-s SEED] [-p]
+usage: train.py [-h] [-e {logistic,multi_study,ensemble}] [-s SEED] [-p]
+                [-j N_JOBS]
 
 Perform traininig of a multi-study model using the fetchers provided by
 cogspaces. Hyperparameters can be edited in the file.
 
 optional arguments:
   -h, --help            show this help message and exit
-  -e {ensemble,logistic,factored}, --estimator {ensemble,logistic,factored}
+  -e {logistic,multi_study,ensemble}, --estimator {logistic,multi_study,ensemble}
                         estimator type
   -s SEED, --seed SEED  Integer to use to seed the model and half-split cross-
                         validation
   -p, --plot            Plot the results (classification maps, cognitive
                         components)
+  -j N_JOBS, --n_jobs N_JOBS
+                        Number of CPUs to use
+
 ```
 
 A comparison grid between the factored model and decoding models from resting-state loadings can be run and analyzed with the following command:

@@ -132,25 +132,24 @@ class VarMultiStudyModule(nn.Module):
         self.init = init
 
     def reset_parameters(self):
-        if self.init == 'normal':
-            self.embedder.reset_parameters()
-        elif self.init == 'orthogonal':
-            nn.init.orthogonal_(self.embedder.weight.data,
-                                gain=1 / math.sqrt(self.linear.weight.shape[1]))
-            nn.init.zeros_(self.embedder.bias.data)
-            self.embedder.reset_dropout()
-        elif self.init == 'resting-state':
-            assert self.embedder.out_features == 128
-            assert self.embedder.in_features == 453
-            dataset = fetch_atlas_modl()
-            weight = np.load(dataset['loadings_128_gm'])
-            self.embedder.weight.data = torch.from_numpy(np.array(weight))
-            nn.init.zeros_(self.embedder.bias.data)
-            self.embedder.reset_dropout()
-        else:
-            raise ValueError('Wrong parameter for `init` %s' % self.init)
+        self.embedder.weight.data = self.get_embedder_init()
+        nn.init.zeros_(self.embedder.bias.data)
+        self.embedder.reset_dropout()
         for classifier in self.classifiers.values():
             classifier.reset_parameters()
+
+    def get_embedder_init(self):
+        weight = torch.empty_like(self.embedder.weight.data)
+        gain = 1. / math.sqrt(weight.shape[1])
+        if self.init == 'normal':
+            self.weight.data.uniform_(-gain, gain)
+        elif self.init == 'orthogonal':
+            nn.init.orthogonal_(weight, gain=gain)
+        elif self.init == 'resting-state':
+            dataset = fetch_atlas_modl()
+            weight = np.load(dataset['loadings_128_gm'])
+            weight = torch.from_numpy(np.array(weight))
+        return weight
 
     def forward(self, inputs, logits=False):
         preds = {}

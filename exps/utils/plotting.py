@@ -118,7 +118,7 @@ def prepare_plots(output_dir, make_grades=True):
 
     niftis = compute_nifti(estimator, standard_scaler, config)
 
-    if config['model']['estimator'] in ['factored', 'ensemble']:
+    if config['model']['estimator'] in ['multi_study', 'ensemble']:
         classifs_img, components_imgs = niftis
         classifs_img.to_filename(join(output_dir, 'classifs.nii.gz'))
         components_imgs.to_filename(join(output_dir, 'components.nii.gz'))

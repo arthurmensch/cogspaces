@@ -74,7 +74,7 @@ def plot_mean_accuracies(save_dir):
     accuracies = pd.read_pickle(join(save_dir, 'accuracies.pkl'))
 
     data = accuracies.groupby(level=['estimator', 'study']).aggregate(['mean', 'std'])
-    data = data.loc['factored']
+    data = data.loc['multi_study']
     data = data.sort_values(by=('diff_with_baseline', 'mean'))
 
     chance, subjects = get_chance_subjects()
@@ -173,12 +173,12 @@ def plot_accuracies(save_dir):
     accuracies = pd.read_pickle(join(save_dir, 'accuracies.pkl'))
 
     mean_accuracies = accuracies.groupby(level=['estimator', 'study']).aggregate(['mean', 'std'])
-    mean_accuracies = mean_accuracies.loc['factored']
+    mean_accuracies = mean_accuracies.loc['multi_study']
     mean_accuracies = mean_accuracies.sort_values(by=('diff_with_baseline', 'mean'))
     sort = mean_accuracies.index.get_level_values('study')
 
     accuracies = accuracies.reindex(index=sort, level='study')
-    accuracies = accuracies.reindex(index=['logistic', 'factored'], level='estimator')
+    accuracies = accuracies.reindex(index=['logistic', 'multi_study'], level='estimator')
     accuracies = accuracies.reset_index()
     n_studies = len(sort)
 
@@ -211,7 +211,7 @@ def plot_accuracies(save_dir):
     estimators = accuracies['estimator'].unique()
 
     y_labels = {}
-    y_labels['factored'] = ('Decoding from\nmulti-study\ntask-optimized\n'
+    y_labels['multi_study'] = ('Decoding from\nmulti-study\ntask-optimized\n'
                             'networks')
     y_labels['logistic'] = ('Standard decoding\nfrom resting-state\n'
                             'loadings')
