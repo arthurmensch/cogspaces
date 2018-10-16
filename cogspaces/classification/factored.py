@@ -171,6 +171,7 @@ class FactoredClassifier(BaseEstimator):
             input_dropout=self.input_dropout,
             latent_dropout=self.latent_dropout,
             adaptive=False,
+            batch_norm=True,
             init=self.init,
             lengths=eff_lengths,
             latent_size=latent_size,

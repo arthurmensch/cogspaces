@@ -32,7 +32,7 @@ def run(estimator='factored', seed=0, plot=False):
         output_dir=None
     )
     data = dict(
-        studies=['archi', 'brainomics'],
+        studies='all',
         test_size=0.5,
         train_size=0.5,
         reduced=True,
