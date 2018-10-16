@@ -179,31 +179,22 @@ class FactoredClassifier(BaseEstimator):
 
         n_samples = sum(len(this_X) for this_X in X.values())
 
-        for phase in ['pretrain', 'train']:
-            if self.max_iter[phase] == 0:
-                continue
+        self._fit_third_layer(X, y, module, phase='pretrain')
+
+        print('Phase : train')
+        print('------------------------------')
+        if self.max_iter['train'] > 0:
             if self.verbose != 0:
-                report_every = ceil(self.max_iter[phase] / self.verbose)
+                report_every = ceil(self.max_iter['train'] / self.verbose)
             else:
                 report_every = None
-
-            print('Phase :', phase)
-            print('------------------------------')
-            if phase == 'pretrain':
-                module.embedder.weight.requires_grad = False
-                module.embedder.bias.requires_grad = False
-
-                optimizer = Adam(filter(lambda p: p.requires_grad,
-                                        module.parameters()),
-                                 lr=self.lr[phase], amsgrad=True)
-            else:  # if phase == 'train':
-                module.embedder.weight.requires_grad = True
-                module.embedder.bias.requires_grad = True
-                for classifier in module.classifiers.values():
-                    classifier.linear.make_adaptive()
-                optimizer = Adam(filter(lambda p: p.requires_grad,
-                                        module.parameters()),
-                                 lr=self.lr[phase], amsgrad=True)
+            module.embedder.weight.requires_grad = True
+            module.embedder.bias.requires_grad = True
+            for classifier in module.classifiers.values():
+                classifier.linear.make_adaptive()
+            optimizer = Adam(filter(lambda p: p.requires_grad,
+                                    module.parameters()),
+                             lr=self.lr['train'], amsgrad=True)
 
             best_state = module.state_dict()
 
@@ -223,9 +214,6 @@ class FactoredClassifier(BaseEstimator):
                             and epoch % report_every == 0):
                         print('Epoch %.2f, train loss: %.4f, penalty: %.4f'
                               % (epoch, epoch_loss, epoch_penalty))
-                        dropout = {}
-                        for study, classifier in self.module_.classifiers.items():
-                            dropout[study] = classifier.linear.get_dropout().item()
                         if callback is not None:
                             callback(self, epoch)
 
@@ -239,12 +227,11 @@ class FactoredClassifier(BaseEstimator):
                     epoch_penalty = 0
 
                     if (no_improvement > self.patience
-                            or epoch >= self.max_iter[phase]):
+                            or epoch >= self.max_iter['train']):
                         print('Stopping at epoch %.2f, train loss'
                               ' %.4f' % (epoch, epoch_loss))
                         module.load_state_dict(best_state)
                         print('-----------------------------------')
-                        self.dropout_ = dropout
                         break
 
                 batch_size = sum(input.shape[0] for input in inputs.values())
@@ -267,83 +254,109 @@ class FactoredClassifier(BaseEstimator):
 
                 epoch = floor(seen_samples / n_samples)
 
-        phase = 'finetune'
-        if self.max_iter[phase] > 0:
-            if self.verbose != 0:
-                report_every = ceil(self.max_iter[phase] / self.verbose)
-            else:
-                report_every = None
-            X_red = {}
-
-            for study, this_X in X.items():
-                print('Fine tuning %s' % study)
-                with torch.no_grad():
-                    self.module_.embedder.eval()
-                    X_red[study] = self.module_.embedder(this_X)
-                data = TensorDataset(X_red[study], y[study])
-                data_loader = DataLoader(data, shuffle=True,
-                                         batch_size=self.batch_size,
-                                         drop_last=False,
-                                         pin_memory=False)
-                this_module = module.classifiers[study]
-                this_module.linear.make_non_adaptive()
-                optimizer = Adam(filter(lambda p: p.requires_grad,
-                                        this_module.parameters()),
-                                 lr=self.lr[phase], amsgrad=True)
-                loss_function = F.nll_loss
-
-                seen_samples = 0
-                best_loss = float('inf')
-                no_improvement = 0
-                epoch = 0
-                best_state = module.state_dict()
-                for epoch in range(self.max_iter[phase]):
-                    epoch_batch = 0
-                    epoch_penalty = 0
-                    epoch_loss = 0
-                    for input, target in data_loader:
-                        batch_size = input.shape[0]
-
-                        this_module.train()
-                        optimizer.zero_grad()
-                        pred = this_module(input)
-                        loss = loss_function(pred, target)
-                        penalty = this_module.penalty()
-                        loss += penalty
-                        loss.backward()
-                        optimizer.step()
-
-                        seen_samples += batch_size
-                        epoch_batch += 1
-                        epoch_loss *= (1 - epoch_batch)
-                        epoch_loss = loss.item() / epoch_batch
-                        epoch_penalty *= (1 - 1 / epoch_batch)
-                        epoch_penalty += penalty.item() / epoch_batch
-                    if (report_every is not None
-                            and epoch % report_every == 0):
-                        print('Epoch %.2f, train loss: %.4f,'
-                              ' penalty: %.4f, p: %.2f'
-                              % (epoch, epoch_loss, epoch_penalty,
-                                 this_module.linear.get_dropout().item()))
-
-                    if epoch_loss > best_loss:
-                        no_improvement += 1
-                    else:
-                        no_improvement = 0
-                        best_loss = epoch_loss
-                        best_state = module.state_dict()
-                    if no_improvement > self.patience:
-                        break
-                module.load_state_dict(best_state)
-                print('Stopping at epoch %.2f, train loss'
-                      ' %.4f, best model loss %.2f' %
-                      (epoch, epoch_loss, best_loss))
-                print('-----------------------------------')
+        self._fit_third_layer(X, y, module, phase='finetune')
 
         if callback is not None:
             callback(self, epoch)
 
         return self
+
+    def _fit_third_layer(self, X, y, module, phase='pretrain'):
+        """
+        Train only the third layer classification heads, holding dropout and
+        second layer weights.
+
+        Parameters
+        ----------
+        X : Dict[str, np.ndarray]
+            Dictionary of input data (one array per study)
+
+        y: Dict[str, pd.Dataframe]
+            Label dictionary. Must be normalized using
+            `cogspaces.preprocessing.MultiTargetEncoder`
+
+        module : VarMultiStudyModule,
+            Module to optimize
+
+        phase : str, {'pretrain', 'finetune'}
+            Before, or after full training
+
+        """
+        print('Phase :', phase)
+        print('------------------------------')
+        if not self.max_iter[phase] > 0:
+            return
+
+        if self.verbose != 0:
+            report_every = ceil(self.max_iter[phase] / self.verbose)
+        else:
+            report_every = None
+        X_red = {}
+        for study, this_X in X.items():
+            print('Tuning %s' % study)
+            with torch.no_grad():
+                self.module_.embedder.eval()
+                X_red[study] = self.module_.embedder(this_X)
+            data = TensorDataset(X_red[study], y[study])
+            data_loader = DataLoader(data, shuffle=True,
+                                     batch_size=self.batch_size,
+                                     drop_last=False,
+                                     pin_memory=False)
+            this_module = module.classifiers[study]
+            this_module.linear.make_non_adaptive()
+            optimizer = Adam(filter(lambda p: p.requires_grad,
+                                    this_module.parameters()),
+                             lr=self.lr[phase], amsgrad=True)
+            loss_function = F.nll_loss
+
+            seen_samples = 0
+            best_loss = float('inf')
+            no_improvement = 0
+            epoch = 0
+            best_state = module.state_dict()
+            for epoch in range(self.max_iter[phase]):
+                epoch_batch = 0
+                epoch_penalty = 0
+                epoch_loss = 0
+                for input, target in data_loader:
+                    batch_size = input.shape[0]
+
+                    this_module.train()
+                    optimizer.zero_grad()
+                    pred = this_module(input)
+                    loss = loss_function(pred, target)
+                    penalty = this_module.penalty()
+                    loss += penalty
+                    loss.backward()
+                    optimizer.step()
+
+                    seen_samples += batch_size
+                    epoch_batch += 1
+                    epoch_loss *= (1 - epoch_batch)
+                    epoch_loss = loss.item() / epoch_batch
+                    epoch_penalty *= (1 - 1 / epoch_batch)
+                    epoch_penalty += penalty.item() / epoch_batch
+                if (report_every is not None
+                        and epoch % report_every == 0):
+                    print('Epoch %.2f, train loss: %.4f,'
+                          ' penalty: %.4f, p: %.2f'
+                          % (epoch, epoch_loss, epoch_penalty,
+                             this_module.linear.get_dropout().item()))
+
+                if epoch_loss > best_loss:
+                    no_improvement += 1
+                else:
+                    no_improvement = 0
+                    best_loss = epoch_loss
+                    best_state = module.state_dict()
+                if no_improvement > self.patience:
+                    break
+            module.load_state_dict(best_state)
+            print('Stopping at epoch %.2f, train loss'
+                  ' %.4f, best model loss %.2f' %
+                  (epoch, epoch_loss, best_loss))
+            print('-----------------------------------')
+
 
     def predict_log_proba(self, X):
         """

@@ -57,7 +57,7 @@ def run(estimator='factored', seed=0, plot=False):
             input_dropout=0.25,
             seed=100,
             lr={'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3},
-            max_iter={'pretrain': 20, 'train': 30, 'finetune': 20},
+            max_iter={'pretrain': 200, 'train': 300, 'finetune': 200},
         )
         config['factored'] = factored
         if model['estimator'] == 'ensemble':
