@@ -11,6 +11,5 @@ Parallel(n_jobs=40, verbose=10)(delayed(run)(estimator, seed)
                                 for seed in seeds)
 
 # Takes 20h on a 40 CPU computer (1 hour per split) -- ensemble is more costly
-# Parallel(n_jobs=1, verbose=10)(delayed(run)(estimator, seed, n_jobs=40)
-#                                for estimator in ['ensemble']
-#                                for seed in seeds)
+for seed in seeds:
+    run(estimator='ensemble', seed=seed, plot=False, n_jobs=40)
