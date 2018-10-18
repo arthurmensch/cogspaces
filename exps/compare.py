@@ -6,11 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from matplotlib import gridspec, ticker
-
 from cogspaces.datasets.derivative import get_chance_subjects, \
     get_brainpedia_descr
 from cogspaces.datasets.utils import get_output_dir
+from matplotlib import gridspec, ticker
 
 idx = pd.IndexSlice
 
@@ -56,15 +55,18 @@ def gather_metrics(output_dir, save_dir):
     baseline = 'logistic'
     accuracies.set_index(['estimator', 'study', 'seed'], inplace=True)
     accuracies.sort_index(inplace=True)
-    median = accuracies['accuracy'].loc[baseline].groupby(level='study').median()
+    median = accuracies['accuracy'].loc[baseline].groupby(
+        level='study').median()
     diffs = []
     baseline_accuracy = accuracies['accuracy'].loc[baseline]
     estimators = accuracies.index.get_level_values('estimator').unique()
     baseline_accuracy = pd.concat([baseline_accuracy] * len(estimators),
                                   keys=estimators, names=['estimator'])
     accuracies['baseline'] = baseline_accuracy
-    accuracies['diff_with_baseline'] = accuracies['accuracy'] - accuracies['baseline']
-    accuracies['diff_with_baseline_median'] = accuracies['accuracy'].groupby(level='study').transform(lambda x: x - median)
+    accuracies['diff_with_baseline'] = accuracies['accuracy'] - accuracies[
+        'baseline']
+    accuracies['diff_with_baseline_median'] = accuracies['accuracy'].groupby(
+        level='study').transform(lambda x: x - median)
 
     accuracies.to_pickle(join(save_dir, 'accuracies.pkl'))
     return accuracies, contrasts_metrics
@@ -73,8 +75,9 @@ def gather_metrics(output_dir, save_dir):
 def plot_mean_accuracies(save_dir):
     accuracies = pd.read_pickle(join(save_dir, 'accuracies.pkl'))
 
-    data = accuracies.groupby(level=['estimator', 'study']).aggregate(['mean', 'std'])
-    data = data.loc['multi_study']
+    data = accuracies.groupby(level=['estimator', 'study']).aggregate(
+        ['mean', 'std'])
+    data = data.loc['ensemble']
     data = data.sort_values(by=('diff_with_baseline', 'mean'))
 
     chance, subjects = get_chance_subjects()
@@ -102,10 +105,11 @@ def plot_mean_accuracies(save_dir):
     transfer_color_err = '0.'
     ax1.barh(ind, data[('diff_with_baseline', 'mean')], width,
              color=diff_color)
-    for this_x, this_y, this_xerr, this_color in zip(data[('diff_with_baseline', 'mean')],
-                                                     ind,
-                                                     data[('diff_with_baseline', 'std')],
-                                                     diff_color_err):
+    for this_x, this_y, this_xerr, this_color in zip(
+            data[('diff_with_baseline', 'mean')],
+            ind,
+            data[('diff_with_baseline', 'std')],
+            diff_color_err):
         ax1.errorbar(this_x, this_y, xerr=this_xerr, elinewidth=1.5,
                      capsize=2, linewidth=0, ecolor=this_color,
                      alpha=.5)
@@ -159,7 +163,8 @@ def plot_mean_accuracies(save_dir):
     ax2.annotate('Task fMRI study', xy=(-.5, -.08), xycoords='axes fraction',
                  fontsize=12)
     labels = [
-        '%s' % brainpedia.loc[label]['Description'] for label in data.index.values]
+        '%s' % brainpedia.loc[label]['Description'] for label in
+        data.index.values]
     ax2.set_yticklabels(labels, ha='right', va='center', fontsize=8.5)
     sns.despine(fig)
     # plt.show()
@@ -168,17 +173,20 @@ def plot_mean_accuracies(save_dir):
 
 
 def plot_accuracies(save_dir):
-    width, height = 6.2, 2
+    width, height = 6.2, 3
 
     accuracies = pd.read_pickle(join(save_dir, 'accuracies.pkl'))
 
-    mean_accuracies = accuracies.groupby(level=['estimator', 'study']).aggregate(['mean', 'std'])
+    mean_accuracies = accuracies.groupby(
+        level=['estimator', 'study']).aggregate(['mean', 'std'])
     mean_accuracies = mean_accuracies.loc['multi_study']
-    mean_accuracies = mean_accuracies.sort_values(by=('diff_with_baseline', 'mean'))
+    mean_accuracies = mean_accuracies.sort_values(
+        by=('diff_with_baseline', 'mean'))
     sort = mean_accuracies.index.get_level_values('study')
 
     accuracies = accuracies.reindex(index=sort, level='study')
-    accuracies = accuracies.reindex(index=['logistic', 'multi_study'], level='estimator')
+    accuracies = accuracies.reindex(index=['logistic', 'multi_study', 'ensemble'],
+                                    level='estimator')
     accuracies = accuracies.reset_index()
     n_studies = len(sort)
 
@@ -193,7 +201,8 @@ def plot_accuracies(save_dir):
                   )
     sns.stripplot(alpha=1, zorder=200, size=3.5, linewidth=0, jitter=True,
                   **params)
-    sns.boxplot(x="diff_with_baseline_median", y="estimator", color='0.75', showfliers=False,
+    sns.boxplot(x="diff_with_baseline_median", y="estimator", color='0.75',
+                showfliers=False,
                 whis=1.5,
                 data=accuracies, ax=ax, zorder=100)
     ax.set_xlim([-0.14, 0.175])
@@ -212,7 +221,9 @@ def plot_accuracies(save_dir):
 
     y_labels = {}
     y_labels['multi_study'] = ('Decoding from\nmulti-study\ntask-optimized\n'
-                            'networks')
+                               'networks')
+    y_labels['ensemble'] = ('Decoding from\nmulti-study\ntask-optimized\n'
+                            'networks (ensemble)')
     y_labels['logistic'] = ('Standard decoding\nfrom resting-state\n'
                             'loadings')
 
@@ -234,6 +245,7 @@ def plot_accuracies(save_dir):
     plt.savefig(join(save_dir, 'accuracies.pdf'))
     plt.close(fig)
 
+
 output_dir = get_output_dir(output_dir=None)
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
@@ -241,7 +253,6 @@ if not os.path.exists(output_dir):
 save_dir = join(output_dir, 'compare')
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
-
 
 gather_metrics(output_dir=output_dir, save_dir=save_dir)
 plot_mean_accuracies(save_dir=save_dir)
