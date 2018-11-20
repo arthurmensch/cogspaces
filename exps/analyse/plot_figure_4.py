@@ -178,11 +178,11 @@ def plot_classifs_selection(mode='direct'):
     #               "Complex vs simple music\nCauvet et al.$^{50}$",
     #               "Vertical checkerboard\nPapadopoulos O. et al.$^{65}$"
     #               ]
-    row_labels = ["Face vs house\nHaxby \\textit{et al.}\\textsuperscript{65}",
-                  "Pumps vs control\nSchonberg \\textit{et al.}\\textsuperscript{25}",
-                  "Language vs sound\nPinel \\textit{et al.}\\textsuperscript{71}",
-                  "Complex vs simple music\nCauvet \\textit{et al.}\\textsuperscript{56}",
-                  "Vertical checkerboard\nPapadopoulos O. \\textit{et al.}\\textsuperscript{70}"
+    row_labels = ["Face vs house\nHaxby \\textit{et al.} (S41)",
+                  "Pumps vs control\nSchonberg \\textit{et al.} (S51)",
+                  "Language vs sound\nPinel \\textit{et al.} (S47)",
+                  "Complex vs simple music\nCauvet \\textit{et al.} (S31)",
+                  "Vertical checkerboard\nPapadopoulos O. \\textit{et al.} (S46)"
                   ]
 
     ann_offsets = [5, 0, 2, 4, 10]

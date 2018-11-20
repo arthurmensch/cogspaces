@@ -44,10 +44,10 @@ print(subjects)
 fig, axes = plt.subplots(1, 4, figsize=(9, 1.6))
 axes = axes.ravel()
 
-names = {'archi': "Localizer\nPinel \\textit{et al.}\\textsuperscript{71}", 'brainomics': "Brainomics localizer\nPapadopoulos O. \\textit{et al.}\\textsuperscript{70}",
-         'camcan': "CamCan audio-visual\nShafto \\textit{et al.}\\textsuperscript{75}",
-         'ds009': "BART, stop-signal,\n emotion -- Cohen\\textsuperscript{57}",
-         'henson2010faces': "Face recognition\nHenson \\textit{et al.}\\textsuperscript{66}"}
+names = {'archi': "Localizer\nPinel \\textit{et al.} (S48)", 'brainomics': "Brainomics localizer\nPapadopoulos O. \\textit{et al.} (S46))",
+         'camcan': "CamCan audio-visual\nShafto \\textit{et al.} (S52)",
+         'ds009': "BART, stop-signal,\n emotion -- Cohen (S33)",
+         'henson2010faces': "Face recognition\nHenson \\textit{et al.} (S42)"}
 
 offsets = {'archi': 0, 'brainomics': 0.05, 'camcan': .1, 'ds009': .2}
 
