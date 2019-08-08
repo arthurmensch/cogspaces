@@ -31,7 +31,7 @@ Cogspaces is tested with Python 3.6+.
 ## Install
 
 ```bash
-git clone github.com/arthurmensch/cogspaces
+git clone https://github.com/arthurmensch/cogspaces
 cd cogspaces
 pip install -r requirements.txt
 python setup.py install
@@ -101,9 +101,9 @@ We provide resting-state dictionaries for reducing statistical maps (the first l
 The dictionaries extracted from HCP900 resting-state data can be download running
 
 ```python
-from cogspaces.datasets import fetch_dictionaries
+from cogspaces.datasets import fetch_atlas_modl
 
-dictionaries = fetch_dictionaries()
+dictionaries = fetch_atlas_modl()
 # dictionaries = {'components_64': ...}
 ```
 
