@@ -99,6 +99,8 @@ ENV/
 
 # mypy
 .mypy_cache/
+.pytest_cache
 
 .idea/
 cogspaces/.pytest_cache
+
