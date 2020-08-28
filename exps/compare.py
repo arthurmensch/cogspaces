@@ -85,11 +85,25 @@ def plot_mean_accuracies(save_dir, split_by_task=False):
         # We have hacked per-task decoding
         info = info.groupby(by='study__task').first()
         data = data.join(info)
-        data = data.rename(columns={'chance_task': 'chance', 'name_task': 'name'})
+        data = data.rename(columns={'chance_task': 'chance', 'name_task': 'fullname'})
+
+        table_data = data.copy()
+        table_data = table_data.reset_index(drop=True).set_index(['study', 'task']).sort_index().reset_index()
+        for x in ['accuracy', 'baseline', 'diff_with_baseline']:
+            table_data[x] = table_data.apply(lambda r: f'${r[(x, "mean")] * 100:.1f}\plusminus{r[(x, "std")] * 100:.1f}\%$',
+                                             axis='columns')
+        table_data['chance'] = table_data['chance'].map(lambda x: f'${x * 100:.1f}\%$')
+        table_data = table_data[['latex_cite', 'task', 'chance', 'accuracy', 'baseline', 'diff_with_baseline']]
+        table_data.columns = pd.Index(['Study', 'Task', 'Chance level', 'Multi-task accuracy', 'Single-task accuracy', 'Accuracy gain'])
+        table_data = table_data.reset_index(drop=True).set_index(['Study', 'Task'])
+        latex = table_data.to_latex(sparsify=True, escape=False)
+        with open(join(save_dir, 'accuracies.tex'), 'w+') as f:
+            f.write(latex)
+
     else:
         info = info.groupby(by='study').first()
         data = data.join(info)
-        data = data.rename(columns={'chance_study': 'chance', 'name_study': 'name'})
+        data = data.rename(columns={'chance_study': 'chance', 'name_study': 'fullname'})
 
     if split_by_task:
         width, height = 8.5, 10
@@ -173,7 +187,7 @@ def plot_mean_accuracies(save_dir, split_by_task=False):
                  xy=(-.5, -.05) if split_by_task else (-.5, -.08), xycoords='axes fraction',
                  fontsize=12)
 
-    ax2.set_yticklabels(data['name'], ha='right', va='center', fontsize=8.5)
+    ax2.set_yticklabels(data['fullname'], ha='right', va='center', fontsize=8.5)
     sns.despine(fig)
     # plt.show()
     plt.savefig(join(save_dir, 'mean_accuracies.pdf'))
