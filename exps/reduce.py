@@ -40,7 +40,7 @@ def mask_contrasts(studies: Union[str, List[str]] ='all',
 
     for study, this_data in data.groupby('study'):
         imgs = this_data['z_map'].values
-        targets = this_data.reset_index()[['study', 'subject', 'contrast']]
+        targets = this_data.reset_index()
 
         n_samples = this_data.shape[0]
         batches = list(gen_batches(n_samples, batch_size))
