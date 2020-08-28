@@ -21,7 +21,7 @@ table_dir = join(get_output_dir(), 'tables')
 if not os.path.exists(table_dir):
     os.makedirs(table_dir)
 
-with open(join(table_dir, 'table1.tex'), 'w+') as f:
+with open(join(table_dir, 'count.tex'), 'w+') as f:
     f.write(latex)
 
 

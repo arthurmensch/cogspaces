@@ -90,7 +90,7 @@ def plot_mean_accuracies(save_dir, split_by_task=False):
         table_data = data.copy()
         table_data = table_data.reset_index(drop=True).set_index(['study', 'task']).sort_index().reset_index()
         for x in ['accuracy', 'baseline', 'diff_with_baseline']:
-            table_data[x] = table_data.apply(lambda r: f'${r[(x, "mean")] * 100:.1f}\plusminus{r[(x, "std")] * 100:.1f}\%$',
+            table_data[x] = table_data.apply(lambda r: f'${r[(x, "mean")] * 100:.1f}\pm{r[(x, "std")] * 100:.1f}\%$',
                                              axis='columns')
         table_data['chance'] = table_data['chance'].map(lambda x: f'${x * 100:.1f}\%$')
         table_data = table_data[['latex_cite', 'task', 'chance', 'accuracy', 'baseline', 'diff_with_baseline']]
@@ -276,6 +276,6 @@ save_dir = join(output_dir, 'compare')
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
-# gather_metrics(output_dir=output_dir, save_dir=save_dir)
+gather_metrics(output_dir=output_dir, save_dir=save_dir)
 plot_mean_accuracies(save_dir=save_dir, split_by_task=True)
 # plot_accuracies(save_dir)
