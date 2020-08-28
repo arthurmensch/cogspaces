@@ -39,10 +39,11 @@ def split_studies(input_data, target):
 
 
 
-def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, split_by_task=False):
+def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, split_by_task=False,
+        verbose=0):
     # Parameters
     system = dict(
-        verbose=10,
+        verbose=verbose,
         n_jobs=n_jobs,
         plot=plot,
         seed=seed,
@@ -77,7 +78,7 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, sp
             device='cuda:0' if use_gpu else 'cpu',
             seed=100,
             lr={'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3},
-            max_iter={'pretrain': 300, 'train': 500, 'finetune': 300},
+            max_iter={'pretrain': 2, 'train': 2, 'finetune': 2},
         )
         config['multi_study'] = multi_study
         if model['estimator'] == 'ensemble':
@@ -87,11 +88,12 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, sp
                 alpha=1e-5, )
             config['ensemble'] = ensemble
     else:
-        logistic = dict(l2_penalty=np.logspace(-7, 0, 8).tolist(),
-                        max_iter=1000, )
+        logistic = dict(l2_penalty=np.logspace(-7, 0, 4).tolist(),
+                        max_iter=10, )
         config['logistic'] = logistic
 
     output_dir = join(get_output_dir(config['system']['output_dir']),
+                      'split_by_task' if split_by_task else 'split_by_study',
                       config['model']['estimator'],
                       str(config['system']['seed']))
     if not os.path.exists(output_dir):
@@ -113,25 +115,27 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, sp
         raise ValueError("Studies should be a list or 'all'")
 
     if data['dataset'] is not None:
-        input_data, target = load_from_directory(dataset=data['dataset'], data_dir=data['data_dir'])
+        input_data, targets = load_from_directory(dataset=data['dataset'], data_dir=data['data_dir'])
     elif data['reduced']:
-        input_data, target = load_reduced_loadings(data_dir=data['data_dir'])
+        input_data, targets = load_reduced_loadings(data_dir=data['data_dir'])
     else:
-        input_data, target = load_masked_contrasts(data_dir=data['data_dir'])
+        input_data, targets = load_masked_contrasts(data_dir=data['data_dir'])
 
     input_data = {study: input_data[study] for study in studies}
-    target = {study: target[study] for study in studies}
+    targets = {study: targets[study] for study in studies}
 
     if model['split_by_task']:
-        input_data, target = split_studies(input_data, target)
-
-    target_encoder = MultiTargetEncoder().fit(target)
-    target = target_encoder.transform(target)
-
+        _, split_targets = split_studies(input_data, targets)
+        target_encoder = MultiTargetEncoder().fit(split_targets)
     train_data, test_data, train_targets, test_targets = \
-        train_test_split(input_data, target, random_state=system['seed'],
+        train_test_split(input_data, targets, random_state=system['seed'],
                          test_size=data['test_size'],
                          train_size=data['train_size'])
+    if model['split_by_task']:
+        train_data, train_targets = split_studies(train_data, train_targets)
+        test_data, test_targets = split_studies(test_data, test_targets)
+        train_targets = target_encoder.transform(train_targets)
+        test_targets = target_encoder.transform(test_targets)
 
     print("Setting up model")
     if model['normalize']:
@@ -166,6 +170,7 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, sp
             info['test_scores'] = test_callback.scores_
     elif model['estimator'] == 'logistic':
         estimator = MultiLogisticClassifier(verbose=system['verbose'],
+                                            n_jobs=n_jobs,
                                             **logistic)
         callback = None
 
@@ -210,6 +215,9 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--seed', type=int,
                         default=0,
                         help='Integer to use to seed the model and half-split cross-validation')
+    parser.add_argument('-v', '--verbose', type=int,
+                        default=0,
+                        help='Verbosity')
     parser.add_argument('-p', '--plot', action="store_true",
                         help='Plot the results (classification maps, cognitive components)')
     parser.add_argument('-t', '--task', action="store_true",
@@ -220,4 +228,4 @@ if __name__ == '__main__':
                         default=1, help='Number of CPUs to use')
     args = parser.parse_args()
 
-    run(args.estimator, args.seed, args.plot, args.n_jobs, args.gpu, args.task)
+    run(args.estimator, args.seed, args.plot, args.n_jobs, args.gpu, args.task, args.verbose)

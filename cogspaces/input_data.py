@@ -60,7 +60,7 @@ class MultiStudyLoaderIter:
         loaders = {study: DataLoader(this_data,
                                      shuffle=True,
                                      batch_size=loader.batch_size,
-                                     pin_memory=loader.device.type == 'cuda')
+                                     pin_memory=False)
                    for study, this_data in data.items()}
         self.loader_iters = {study: infinite_iter(loader)
                              for study, loader in loaders.items()}

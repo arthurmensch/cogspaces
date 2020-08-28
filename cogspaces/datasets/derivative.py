@@ -6,7 +6,7 @@ from os.path import join
 
 import pandas as pd
 from joblib import load
-from sklearn.datasets.base import Bunch
+from sklearn.utils import Bunch
 
 from cogspaces.datasets.utils import get_data_dir
 

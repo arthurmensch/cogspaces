@@ -131,9 +131,9 @@ class MultiStudyClassifier(BaseEstimator):
 
         torch.manual_seed(self.seed)
         # Data
-        X = {study: torch.from_numpy(this_X).float()
+        X = {study: torch.from_numpy(this_X).float().to(self.device)
              for study, this_X in X.items()}
-        y = {study: torch.from_numpy(this_y['contrast'].values).long()
+        y = {study: torch.from_numpy(this_y['contrast'].values).long().to(self.device)
              for study, this_y in y.items()}
         data = {study: TensorDataset(X[study], y[study]) for study in X}
 
@@ -179,7 +179,7 @@ class MultiStudyClassifier(BaseEstimator):
             init=self.init,
             lengths=eff_lengths,
             latent_size=latent_size,
-            target_sizes=target_sizes)
+            target_sizes=target_sizes).to(self.device)
 
         n_samples = sum(len(this_X) for this_X in X.values())
 
@@ -381,12 +381,12 @@ class MultiStudyClassifier(BaseEstimator):
 
         X_ = {}
         for study, this_X in X.items():
-            this_X = torch.from_numpy(this_X).float()
+            this_X = torch.from_numpy(this_X).float().to(self.device)
             X_[study] = this_X
         with torch.no_grad():
             self.module_.eval()
             preds = self.module_(X_)
-        return {study: pred.data.numpy() for study, pred in
+        return {study: pred.detach().cpu().numpy() for study, pred in
                 preds.items()}
 
 

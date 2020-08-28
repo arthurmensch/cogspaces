@@ -45,6 +45,7 @@ def train_test_split(data, target, test_size=.5, train_size=.5,
     if isinstance(train_size, (float, int)):
         train_size = {study: train_size for study in data}
 
+    splits = {}
     for study, (this_data, this_target) in data.items():
         if train_size[study] == 1.:
             train = np.arange(len(this_data))
