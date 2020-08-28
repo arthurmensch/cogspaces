@@ -1,0 +1,89 @@
+amalric2012mathematicians:
+  1: High level math
+  2: Localizer
+cauvet2009muslang:
+  1: Music structure
+  2: Sentence structure
+ds002:
+  1: Baseline trials
+  2: Baseline trials
+  3: Classication learning
+ds007:
+  1: Stop-signal
+  2: Stop-signal
+  3: Stop-signal
+ds008:
+  1: Stop-signal
+  2: Conditional stop-signal
+ds009:
+  1: Balloon analog risk task
+  2: Stop-signal
+  3: Emotion regulation
+  4: Temporal discounting task
+ds011:
+  1: Tone-counting
+  2: Single-task weather classification
+  3: Dual-task weather classification
+  4: Classification probe without feedback
+ds017a:
+  1: Classication learning
+  2: Stop-signal
+ds017b:
+  1: Classification learning
+  2: Stop-signal
+ds052:
+  1: Classification learning
+  2: Classification learning
+ds114:
+  1: Overt word repetition
+  2: Covert verb generation
+  3: Motor
+  4: Overt verb generation
+  5: Line bisection
+ds116:
+  1: Auditory oddball
+  2: Visual oddball
+ds017A:
+    1: Classification learning
+    2: Stop-signal
+ds017B:
+  1: Classification learning
+  2: Stop-signal
+la5c:
+  bart: Balloon analog risk task
+  bht: Breath hold task
+  scap: SCAP working memory tasks
+  pamret: Paired associates memory task (retrieval)
+  pamenc: Paired associates memory task (encoding)
+  stopsignal: Stop-signal
+  taskswitch: Task switching
+gauthier2009resonance:
+  1: Continuous house vs face
+  2: Discoutinuous house (400ms) vs face
+  3: Discontinuous house (800ms) vs face
+  4: House vs face
+gauthier2010resonance:
+  1: Continuous house vs face
+  2: Continuous house vs face
+  3: House vs face
+knops2009recruitment:
+  1: Arithmetic
+  2: Saccades
+  3: Saccades
+pinel2009twins:
+  1: Localizer
+  2: Saccade
+  3: Foreign language
+vagharchakian2012temporal:
+  1: Visual compression
+  2: Auditory compression
+archi:
+  emotional: Emotion regulation
+  localizer: Localizer
+  parietal: Saccade
+  social: Social
+camcan:
+  AV-freq: Audio-video frequency
+  audio-video: Audio-visual
+brainomics:
+  "Brainomics localizer": Localizer

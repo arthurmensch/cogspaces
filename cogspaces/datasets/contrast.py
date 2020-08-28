@@ -47,4 +47,5 @@ def load_masked_contrasts(data_dir):
     for study in STUDY_LIST:
         Xs[study], ys[study] = load(join(data_dir, 'masked',
                                          'data_%s.npy'), mmap_mode='r')
+    ys = add_study_contrast(ys)
     return Xs, ys

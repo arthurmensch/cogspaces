@@ -8,6 +8,7 @@ import os
 from os.path import join
 
 import numpy as np
+import pandas as pd
 from joblib import Memory, dump
 from sklearn.metrics import accuracy_score
 
@@ -16,16 +17,32 @@ from cogspaces.classification.logistic import MultiLogisticClassifier
 from cogspaces.classification.multi_study import MultiStudyClassifier
 from cogspaces.datasets import STUDY_LIST, load_reduced_loadings
 from cogspaces.datasets.contrast import load_masked_contrasts
+from cogspaces.datasets.derivative import load_from_directory
 from cogspaces.datasets.utils import get_output_dir
 from cogspaces.model_selection import train_test_split
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils import compute_metrics, ScoreCallback, MultiCallback
 
 
-def run(estimator='multi_study', seed=0, plot=False, n_jobs=1):
+def split_studies(input_data, target):
+    new_input_data = {}
+    new_target = {}
+    for study, this_target in target.items():
+        this_data = input_data[study]
+        this_data = pd.DataFrame(index=this_target.index, data=this_data)
+        cat_data = pd.concat([this_data, this_target], axis=1, keys=['data', 'target'], names=['type'])
+        for task, this_cat_data in cat_data.groupby(by=('target', 'task')):
+            key = study + '__' + task
+            new_input_data[key] = this_cat_data['data'].values
+            new_target[key] = this_cat_data['target']
+    return new_input_data, new_target
+
+
+
+def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, split_by_task=False):
     # Parameters
     system = dict(
-        verbose=1,
+        verbose=10,
         n_jobs=n_jobs,
         plot=plot,
         seed=seed,
@@ -33,12 +50,14 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1):
     )
     data = dict(
         studies='all',
+        dataset='loadings',  # Useful to override source directory
         test_size=0.5,
         train_size=0.5,
         reduced=True,
         data_dir=None,
     )
     model = dict(
+        split_by_task=split_by_task,
         estimator=estimator,
         normalize=False,
         seed=100,
@@ -55,6 +74,7 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1):
             init='resting-state',
             latent_dropout=0.75,
             input_dropout=0.25,
+            device='cuda:0' if use_gpu else 'cpu',
             seed=100,
             lr={'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3},
             max_iter={'pretrain': 300, 'train': 500, 'finetune': 300},
@@ -92,13 +112,18 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1):
     else:
         raise ValueError("Studies should be a list or 'all'")
 
-    if data['reduced']:
+    if data['dataset'] is not None:
+        input_data, target = load_from_directory(dataset=data['dataset'], data_dir=data['data_dir'])
+    elif data['reduced']:
         input_data, target = load_reduced_loadings(data_dir=data['data_dir'])
     else:
         input_data, target = load_masked_contrasts(data_dir=data['data_dir'])
 
     input_data = {study: input_data[study] for study in studies}
     target = {study: target[study] for study in studies}
+
+    if model['split_by_task']:
+        input_data, target = split_studies(input_data, target)
 
     target_encoder = MultiTargetEncoder().fit(target)
     target = target_encoder.transform(target)
@@ -187,8 +212,12 @@ if __name__ == '__main__':
                         help='Integer to use to seed the model and half-split cross-validation')
     parser.add_argument('-p', '--plot', action="store_true",
                         help='Plot the results (classification maps, cognitive components)')
+    parser.add_argument('-t', '--task', action="store_true",
+                        help='Split by tasks')
+    parser.add_argument('-g', '--gpu', action="store_true",
+                        help='Split by tasks')
     parser.add_argument('-j', '--n_jobs', type=int,
                         default=1, help='Number of CPUs to use')
     args = parser.parse_args()
 
-    run(args.estimator, args.seed, args.plot, args.n_jobs)
+    run(args.estimator, args.seed, args.plot, args.n_jobs, args.gpu, args.task)

@@ -111,7 +111,7 @@ class MultiTargetEncoder(BaseEstimator, TransformerMixin):
         res = {}
         for study, target in targets.items():
             d = self.le_[study]
-            res[study] = target.apply(lambda x: d[x.name].transform(x))
+            res[study] = target.apply(lambda x: d[x.name].transform(x) if x.name in self.le_[study] else x)
         return res
 
     def inverse_transform(self, targets):

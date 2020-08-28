@@ -81,6 +81,7 @@ class MultiStudyClassifier(BaseEstimator):
                  init='normal',
                  n_jobs=1,
                  patience=200,
+                 device='cpu',
                  seed=None):
         if lr is None:
             lr = {'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3}
@@ -95,6 +96,8 @@ class MultiStudyClassifier(BaseEstimator):
         self.init = init
         self.batch_size = batch_size
         self.lr = lr
+
+        self.device = device
 
         self.patience = patience
         self.max_iter = max_iter
@@ -151,6 +154,7 @@ class MultiStudyClassifier(BaseEstimator):
                                        batch_size=self.batch_size,
                                        seed=self.seed,
                                        study_weights=study_weights,
+                                       device=self.device
                                        )
         # Model
         target_sizes = {study: int(this_y.max()) + 1

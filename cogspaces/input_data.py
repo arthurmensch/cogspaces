@@ -128,7 +128,7 @@ class MultiStudyLoader:
         self.batch_size = batch_size
         self.sampling = sampling
         self.study_weights = study_weights
-        self.device = device
+        self.device = torch.device(device)
         self.seed = seed
 
     def __iter__(self):

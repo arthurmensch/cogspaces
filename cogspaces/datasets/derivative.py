@@ -1,4 +1,5 @@
 import os
+import re
 import warnings
 from math import ceil
 from os.path import join
@@ -106,6 +107,12 @@ def fetch_reduced_loadings(data_dir=None, url=None, verbose=False,
     return params
 
 
+def add_study_contrast(ys):
+    for study in ys:
+        ys[study]['study_contrast'] = ys[study]['study'] + '__' + ys[study]['task'] + '__' + \
+                                      ys[study]['contrast']
+    return ys
+
 def load_reduced_loadings(data_dir=None, url=None, verbose=False, resume=True):
     loadings = fetch_reduced_loadings(data_dir, url, verbose, resume)
     del loadings['description']
@@ -113,8 +120,21 @@ def load_reduced_loadings(data_dir=None, url=None, verbose=False, resume=True):
     Xs, ys = {}, {}
     for study, loading in loadings.items():
         Xs[study], ys[study] = load(loading)
-        ys[study]['study_contrast'] = ys[study]['study'] + '_' + ys[study][
-            'contrast']
+    ys = add_study_contrast(ys)
+    return Xs, ys
+
+
+def load_from_directory(dataset, data_dir=None):
+    data_dir = get_data_dir(data_dir)
+    dataset_dir = join(data_dir, dataset)
+    Xs, ys = {}, {}
+    regex = re.compile(r'data_(.*).pt')
+    for file in os.listdir(dataset_dir):
+        m = regex.match(file)
+        if m is not None:
+            study = m.group(1)
+            Xs[study], ys[study] = load(join(dataset_dir, file))
+    ys = add_study_contrast(ys)
     return Xs, ys
 
 

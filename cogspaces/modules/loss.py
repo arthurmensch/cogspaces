@@ -18,6 +18,6 @@ class MultiStudyLoss(nn.Module):
         for study in preds:
             pred = preds[study]
             target = targets[study]
-            this_loss = F.nll_loss(pred, target, reduction='elementwise_mean')
+            this_loss = F.nll_loss(pred, target, reduction='mean')
             loss += this_loss * self.study_weights[study]
         return loss
