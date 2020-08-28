@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from cogspaces.datasets.derivative import get_chance_subjects, \
-    get_brainpedia_descr
-from cogspaces.datasets.utils import get_output_dir
 from matplotlib import gridspec, ticker
+
+from cogspaces.datasets.derivative import get_study_info
+from cogspaces.datasets.utils import get_output_dir
 
 idx = pd.IndexSlice
 
@@ -72,23 +72,32 @@ def gather_metrics(output_dir, save_dir):
     return accuracies, contrasts_metrics
 
 
-def plot_mean_accuracies(save_dir):
+def plot_mean_accuracies(save_dir, split_by_task=False):
     accuracies = pd.read_pickle(join(save_dir, 'accuracies.pkl'))
 
     data = accuracies.groupby(level=['estimator', 'study']).aggregate(
         ['mean', 'std'])
-    data = data.loc['ensemble']
+    data = data.loc['multi_study']
     data = data.sort_values(by=('diff_with_baseline', 'mean'))
 
-    chance, subjects = get_chance_subjects()
-    data['chance'] = chance
-    print(data)
+    info = get_study_info()
+    if split_by_task:
+        # We have hacked per-task decoding
+        info = info.groupby(by='study__task').first()
+        data = data.join(info)
+        data = data.rename(columns={'chance_task': 'chance', 'name_task': 'name'})
+    else:
+        info = info.groupby(by='study').first()
+        data = data.join(info)
+        data = data.rename(columns={'chance_study': 'chance', 'name_study': 'name'})
 
-    width, height = 8.5, 7
-    brainpedia = get_brainpedia_descr()
+    if split_by_task:
+        width, height = 8.5, 10
+    else:
+        width, height = 8.5, 7
     gs = gridspec.GridSpec(1, 2, width_ratios=[2.7, 1])
     fig = plt.figure(figsize=(width, height))
-    gs.update(left=0.3, right=0.96, bottom=0.2, top=0.95, wspace=1.2 / width)
+    gs.update(left=0.35, right=0.96, bottom=0.2, top=0.97, wspace=1.2 / width)
     ax2 = fig.add_subplot(gs[0, 0])
     ax1 = fig.add_subplot(gs[0, 1], sharey=ax2)
     n_study = len(data)
@@ -113,7 +122,7 @@ def plot_mean_accuracies(save_dir):
         ax1.errorbar(this_x, this_y, xerr=this_xerr, elinewidth=1.5,
                      capsize=2, linewidth=0, ecolor=this_color,
                      alpha=.5)
-    ax1.set_xlabel('Multi-study acc. gain', fontsize=12)
+    ax1.set_xlabel('Multi-study acc. gain' if not split_by_task else 'Multi-task acc. gain', fontsize=12)
     ax1.spines['left'].set_position('zero')
     plt.setp(ax1.get_yticklabels(), visible=False)
 
@@ -142,7 +151,7 @@ def plot_mean_accuracies(save_dir):
 
     lines = ax2.vlines([data['chance']],
                        ind - width / 2, ind + 3 * width / 2, colors='r',
-                       linewidth=1, linestyles='--')
+                       linewidth=1, linestyles='--', zorder=100)
 
     ax2.set_ylim([-1, 2 * data.shape[0]])
     plt.setp(ax2.yaxis.get_ticklabels(), fontsize=10)
@@ -160,12 +169,11 @@ def plot_mean_accuracies(save_dir):
                bbox_to_anchor=(0, -.1))
 
     ax2.set_yticks(ind + width / 2)
-    ax2.annotate('Task fMRI study', xy=(-.5, -.08), xycoords='axes fraction',
+    ax2.annotate('Task fMRI study' if split_by_task else 'fMRI task',
+                 xy=(-.5, -.05) if split_by_task else (-.5, -.08), xycoords='axes fraction',
                  fontsize=12)
-    labels = [
-        '%s' % brainpedia.loc[label]['Description'] for label in
-        data.index.values]
-    ax2.set_yticklabels(labels, ha='right', va='center', fontsize=8.5)
+
+    ax2.set_yticklabels(data['name'], ha='right', va='center', fontsize=8.5)
     sns.despine(fig)
     # plt.show()
     plt.savefig(join(save_dir, 'mean_accuracies.pdf'))
@@ -181,7 +189,7 @@ def plot_accuracies(save_dir):
         level=['estimator', 'study']).aggregate(['mean', 'std'])
     mean_accuracies = mean_accuracies.loc['multi_study']
     mean_accuracies = mean_accuracies.sort_values(
-        by=('diff_with_baseline', 'mean'))
+        by=('diff_with_baseline', 'mean'), ascending=False)
     sort = mean_accuracies.index.get_level_values('study')
 
     accuracies = accuracies.reindex(index=sort, level='study')
@@ -246,7 +254,7 @@ def plot_accuracies(save_dir):
     plt.close(fig)
 
 
-output_dir = get_output_dir(output_dir=None)
+output_dir = join(get_output_dir(output_dir=None), 'normalized', 'split_by_task')
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
@@ -254,6 +262,6 @@ save_dir = join(output_dir, 'compare')
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
-gather_metrics(output_dir=output_dir, save_dir=save_dir)
-plot_mean_accuracies(save_dir=save_dir)
-plot_accuracies(save_dir)
+# gather_metrics(output_dir=output_dir, save_dir=save_dir)
+plot_mean_accuracies(save_dir=save_dir, split_by_task=True)
+# plot_accuracies(save_dir)

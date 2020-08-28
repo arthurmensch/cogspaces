@@ -5,7 +5,7 @@ import pandas as pd
 from joblib import load
 from nilearn.datasets import fetch_neurovault_ids
 
-from cogspaces.datasets.derivative import STUDY_LIST
+from cogspaces.datasets.derivative import STUDY_LIST, add_study_contrast
 
 nv_ids = {'archi': 4339, 'hcp': 4337, 'brainomics': 4341, 'camcan': 4342,
           'la5c': 4343, 'brainpedia': 1952}
@@ -49,3 +49,5 @@ def load_masked_contrasts(data_dir):
                                          'data_%s.npy'), mmap_mode='r')
     ys = add_study_contrast(ys)
     return Xs, ys
+
+

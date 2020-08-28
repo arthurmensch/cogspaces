@@ -8,7 +8,6 @@ import os
 from os.path import join
 
 import numpy as np
-import pandas as pd
 from joblib import Memory, dump
 from sklearn.metrics import accuracy_score
 
@@ -17,26 +16,11 @@ from cogspaces.classification.logistic import MultiLogisticClassifier
 from cogspaces.classification.multi_study import MultiStudyClassifier
 from cogspaces.datasets import STUDY_LIST, load_reduced_loadings
 from cogspaces.datasets.contrast import load_masked_contrasts
-from cogspaces.datasets.derivative import load_from_directory
+from cogspaces.datasets.derivative import load_from_directory, split_studies
 from cogspaces.datasets.utils import get_output_dir
 from cogspaces.model_selection import train_test_split
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
 from cogspaces.utils import compute_metrics, ScoreCallback, MultiCallback
-
-
-def split_studies(input_data, target):
-    new_input_data = {}
-    new_target = {}
-    for study, this_target in target.items():
-        this_data = input_data[study]
-        this_data = pd.DataFrame(index=this_target.index, data=this_data)
-        cat_data = pd.concat([this_data, this_target], axis=1, keys=['data', 'target'], names=['type'])
-        for task, this_cat_data in cat_data.groupby(by=('target', 'task')):
-            key = study + '__' + task
-            new_input_data[key] = this_cat_data['data'].values
-            new_target[key] = this_cat_data['target']
-    return new_input_data, new_target
-
 
 
 def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, split_by_task=False,
@@ -60,7 +44,7 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, sp
     model = dict(
         split_by_task=split_by_task,
         estimator=estimator,
-        normalize=False,
+        normalize=True,
         seed=100,
         target_study=None,
     )
@@ -78,7 +62,7 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, sp
             device='cuda:0' if use_gpu else 'cpu',
             seed=100,
             lr={'pretrain': 1e-3, 'train': 1e-3, 'finetune': 1e-3},
-            max_iter={'pretrain': 2, 'train': 2, 'finetune': 2},
+            max_iter={'pretrain': 200, 'train': 300, 'finetune': 200},
         )
         config['multi_study'] = multi_study
         if model['estimator'] == 'ensemble':
@@ -89,10 +73,11 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, sp
             config['ensemble'] = ensemble
     else:
         logistic = dict(l2_penalty=np.logspace(-7, 0, 4).tolist(),
-                        max_iter=10, )
+                        max_iter=1000, )
         config['logistic'] = logistic
 
     output_dir = join(get_output_dir(config['system']['output_dir']),
+                      'normalized',
                       'split_by_task' if split_by_task else 'split_by_study',
                       config['model']['estimator'],
                       str(config['system']['seed']))

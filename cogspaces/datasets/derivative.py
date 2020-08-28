@@ -152,8 +152,10 @@ def fetch_mask(data_dir=None, url=None, resume=True, verbose=1):
     return files[0]
 
 
-def get_chance_subjects(data_dir=None):
+def get_chance_subjects(data_dir=None, split_by_task=False):
     data, target = load_reduced_loadings(data_dir)
+    if split_by_task:
+        data, target = split_studies(data, target)
     chance_level = {}
     n_subjects = {}
     for study, this_target in target.items():
@@ -165,8 +167,81 @@ def get_chance_subjects(data_dir=None):
     return chance_level, n_subjects
 
 
-def get_brainpedia_descr():
+def _get_citations():
     dirname, filename = os.path.split(os.path.abspath(__file__))
-    df = pd.read_csv(join(dirname, 'brainpedia.csv'), index_col=0,
+    citation_keys = pd.read_csv(join(dirname, 'brainpedia.csv'), index_col=0,
                      header=0)
-    return df
+    citation_keys = citation_keys.drop(columns='description')
+    citation_keys = citation_keys.reset_index()
+
+    r = re.compile(r'\\bibitem\{(.*)\}')
+
+    citations = {}
+    i = 1
+    dirname, filename = os.path.split(os.path.abspath(__file__))
+    with open(join(dirname, "article.bbl"), 'r') as f:
+        for line in f.readlines():
+            m = r.match(line)
+            if m:
+                citekey = m.group(1)
+                citations[citekey] = str(i)
+                i += 1
+    def apply(x):
+        try:
+            return ','.join([citations[citekey] for citekey in x.split(',')])
+        except KeyError:
+            return pd.NA
+    citation_keys['bibkey'] = citation_keys['citekey'].apply(apply)
+
+    return citation_keys
+
+
+def get_study_info():
+    input_data, targets = load_reduced_loadings(data_dir=get_data_dir())
+    targets = pd.concat(targets.values(), axis=0)
+    targets['#subjects'] = targets.groupby(by=['study', 'task', 'contrast'])['subject'].transform('nunique')
+    targets['#contrasts_per_task'] = targets.groupby(by=['study', 'task'])['contrast'].transform('nunique')
+    targets['#contrasts_per_study'] = targets.groupby(by='study')['contrast'].transform('nunique')
+    targets['chance_study'] = 1 / targets['#contrasts_per_study']
+    targets['chance_task'] = 1 / targets['#contrasts_per_task']
+    citations = _get_citations()
+    targets = pd.merge(targets, citations, on='study', how='left')
+    targets = targets.groupby(by=['study', 'task', 'contrast']).first().sort_index().drop(columns='index').reset_index()
+
+    targets['study__task'] = targets.apply(lambda x: f'{x["study"]}__{x["task"]}', axis='columns')
+    targets['name_task'] = targets.apply(lambda x: f'[{x["bibkey"]}] {x["task"]}', axis='columns')
+
+    def apply(x):
+        comment = x['comment'].iloc[0]
+        if comment != '':
+            tasks = comment
+            tasks_lim = comment
+        else:
+            tasks_list = x['task'].unique()
+            tasks = ' & '.join(tasks_list)
+            if len(tasks) > 50:
+                tasks_lim = tasks_list[0] + ' & ...'
+            else:
+                tasks_lim = tasks
+        name = f'[{x["bibkey"].iloc[0]}] {tasks_lim}'
+        latex_name = f'\cite{{{x["citekey"].iloc[0]}}} {tasks}'.replace('&', '\&')
+        name = pd.DataFrame(data={'name': name,
+                                  'latex_name':latex_name}, index=x.index)
+        return name
+    name = targets.groupby(by='study').apply(apply)
+    targets = pd.concat([targets, name], axis=1)
+    return targets
+
+
+def split_studies(input_data, target):
+    new_input_data = {}
+    new_target = {}
+    for study, this_target in target.items():
+        this_data = input_data[study]
+        this_data = pd.DataFrame(index=this_target.index, data=this_data)
+        cat_data = pd.concat([this_data, this_target], axis=1, keys=['data', 'target'], names=['type'])
+        for task, this_cat_data in cat_data.groupby(by=('target', 'task')):
+            key = study + '__' + task
+            new_input_data[key] = this_cat_data['data'].values
+            new_target[key] = this_cat_data['target']
+    return new_input_data, new_target

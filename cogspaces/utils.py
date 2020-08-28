@@ -101,3 +101,5 @@ class MultiCallback:
         for name, callback in self.callbacks.items():
             output = callback(*args, **kwargs)
             print('[%s] %s' % (name, output))
+
+

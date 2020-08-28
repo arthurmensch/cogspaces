@@ -1,0 +1,492 @@
+\begin{thebibliography}{10}
+
+\bibitem{yarkoni_large-scale_2011}
+Yarkoni T, Poldrack RA, Nichols TE, Van~Essen DC, Wager TD.
+\newblock Large-Scale Automated Synthesis of Human Functional Neuroimaging
+  Data.
+\newblock Nature Methods. 2011;8(8):665--670.
+
+\bibitem{poldrack_scanning_2017}
+Poldrack RA, Baker CI, Durnez J, Gorgolewski KJ, Matthews PM, Munaf{ò} MR,
+  et~al.
+\newblock Scanning the Horizon: Towards Transparent and Reproducible
+  Neuroimaging Research.
+\newblock Nature Reviews Neuroscience. 2017;18(2):115--126.
+
+\bibitem{button_power_2013}
+Button KS, Ioannidis JPA, Mokrysz C, Nosek BA, Flint J, Robinson ESJ, et~al.
+\newblock Power Failure: Why Small Sample Size Undermines the Reliability of
+  Neuroscience.
+\newblock Nature Reviews Neuroscience. 2013;14(5):365--376.
+
+\bibitem{vanessen_human_2012}
+Van~Essen DC, Ugurbil K, Auerbach E, Barch D, Behrens TEJ, Bucholz R, et~al.
+\newblock The {Human} {Connectome} {Project}: A Data Acquisition Perspective.
+\newblock {N}euro{I}mage. 2012;62(4):2222--2231.
+
+\bibitem{miller2016multimodal}
+Miller KL, Alfaro-Almagro F, Bangerter NK, Thomas DL, Yacoub E, Xu J, et~al.
+\newblock Multimodal Population Brain Imaging in the UK Biobank Prospective
+  Epidemiological Study.
+\newblock Nature Neuroscience. 2016;19(11):1523--1536.
+
+\bibitem{poldrack_cognitive_2006}
+Poldrack RA.
+\newblock Can cognitive processes be inferred from neuroimaging data?
+\newblock Trends in cognitive sciences. 2006;10(2):59--63.
+
+\bibitem{haxby2001}
+Haxby JV, Gobbini IM, Furey ML, Ishai A, Schouten JL, Pietrini P.
+\newblock Distributed and Overlapping Representations of Faces and Objects in
+  Ventral Temporal Cortex.
+\newblock Science. 2001;293(5539):2425--2430.
+
+\bibitem{poldrack_decoding_2009}
+Poldrack RA, Halchenko YO, Hanson SJ.
+\newblock Decoding the Large-Scale Structure of Brain Function by Classifying
+  Mental States Across Individuals.
+\newblock Psychological Science. 2009;20(11):1364--1372.
+
+\bibitem{poldrack_toward_2013}
+Poldrack RA, Barch DM, Mitchell J, Wager TD, Wagner AD, Devlin JT, et~al.
+\newblock Toward Open Sharing of Task-Based {{fMRI}} Data: The {{OpenfMRI}}
+  Project.
+\newblock Frontiers in Neuroinformatics. 2013;7:12.
+
+\bibitem{gorgolewski2015neurovault}
+Gorgolewski KJ, Varoquaux G, Rivera G, Schwarz Y, Ghosh SS, Maumet C, et~al.
+\newblock NeuroVault.org: A Web-Based Repository for Collecting and Sharing
+  Unthresholded Statistical Maps of the Human Brain.
+\newblock Frontiers in Neuroinformatics. 2015;9:8.
+
+\bibitem{ando_framework_2005}
+Ando RK, Zhang T.
+\newblock A Framework for Learning Predictive Structures from Multiple Tasks
+  and Unlabeled Data.
+\newblock Journal of Machine Learning Research. 2005;6:1817--1853.
+
+\bibitem{xue_multi-task_2007}
+Xue Y, Liao X, Carin L, Krishnapuram B.
+\newblock Multi-Task Learning for Classification with Dirichlet Process Priors.
+\newblock Journal of Machine Learning Research. 2007;8(Jan):35--63.
+
+\bibitem{kingma_adam:_2014}
+Kingma DP, Ba J.
+\newblock Adam: A Method for Stochastic Optimization.
+\newblock In: International Conference for Learning Representations; 2015.
+
+\bibitem{srivastava_dropout:_2014}
+Srivastava N, Hinton GE, Krizhevsky A, Sutskever I, Salakhutdinov R.
+\newblock Dropout: A Simple Way to Prevent Neural Networks from Overfitting.
+\newblock Journal of Machine Learning Research. 2014;15(1):1929--1958.
+
+\bibitem{varoquaux2019predictive}
+Varoquaux G, Poldrack RA.
+\newblock Predictive models avoid excessive reductionism in cognitive
+  neuroimaging.
+\newblock Current opinion in neurobiology. 2019;55:1--6.
+
+\bibitem{newell_you_1973}
+Newell A.
+\newblock You Can't Play 20 Questions with Nature and Win: {{Projective}}
+  Comments on the Papers of This Symposium.
+\newblock Visual Information Processing. 1973; p. 1--26.
+
+\bibitem{wager_fmri-based_2013}
+Wager TD, Atlas LY, Lindquist MA, Roy M, Woo CW, Kross E.
+\newblock An {fMRI}-Based Neurologic Signature of Physical Pain.
+\newblock New England Journal of Medicine. 2013;368(15):1388--1397.
+
+\bibitem{varoquaux_atlases_2018}
+Varoquaux G, Schwartz Y, Poldrack RA, Gauthier B, Bzdok D, Poline JB, et~al.
+\newblock Atlases of cognition with large-scale human brain mapping.
+\newblock PLoS computational biology. 2018;14(11):e1006565.
+
+\bibitem{poldrack_brain_2016}
+Poldrack RA, Yarkoni T.
+\newblock From Brain Maps to Cognitive Ontologies: Informatics and the Search
+  for Mental Structure.
+\newblock Annual Review of Psychology. 2016;67(1):587--612.
+
+\bibitem{barrett_future_2009}
+Barrett LF.
+\newblock The Future of Psychology: Connecting Mind to Brain.
+\newblock Perspectives on Psychological Science. 2009;4(4):326--339.
+
+\bibitem{mensch2017learning}
+Mensch A, Mairal J, Bzdok D, Thirion B, Varoquaux G.
+\newblock Learning Neural Representations of Human Cognition Across Many {fMRI}
+  Studies.
+\newblock In: Advances in Neural Information Processing Systems; 2017. p.
+  5883--5893.
+
+\bibitem{alvarez2002}
+Alvarez RP, Jasdzewski G, Poldrack RA.
+\newblock Building Memories in Two Languages: An {fMRI} Study of Episodic
+  Encoding in Bilinguals.
+\newblock In: Society for Neuroscience Abstracts; 2002. p. 179.12.
+
+\bibitem{amalric2016origins}
+Amalric M, Dehaene S.
+\newblock Origins of the Brain Networks for Advanced Mathematics in Expert
+  Mathematicians.
+\newblock Proceedings of the National Academy of Sciences.
+  2016;113(18):4909--4917.
+
+\bibitem{aron2006long}
+Aron AR, Gluck M, Poldrack RA.
+\newblock Long-Term Test--Retest Reliability of Functional {MRI} in a
+  Classification Learning Task.
+\newblock {N}euro{I}mage. 2006;29:1000--1006.
+
+\bibitem{aron2007triangulating}
+Aron AR, Behrens TE, Smith S, Frank MJ, Poldrack RA.
+\newblock Triangulating a Cognitive Control Network Using Diffusion-Weighted
+  Magnetic Resonance Imaging {(MRI)} and Functional {MRI}.
+\newblock The Journal of Neuroscience. 2007;27:3743--3752.
+
+\bibitem{barch2013}
+Barch DM, Burgess GC, Harms MP, Petersen SE, Schlaggar BL, Corbetta M, et~al.
+\newblock Function in the Human Connectome: Task-{fMRI} and Individual
+  Differences in Behavior.
+\newblock {N}euro{I}mage. 2013;80:169--189.
+
+\bibitem{cauvet2012traitement}
+Cauvet E.
+\newblock Traitement des structures syntaxiques dans le langage et dans la
+  musique [PhD thesis].
+\newblock Paris 6; 2012.
+
+\bibitem{hara2009neural}
+Hara N, Cauvet E, Devauchelle AD, Dehaene S, Pallier C, et~al.
+\newblock Neural Correlates of Constituent Structure in Language and Music.
+\newblock {N}euro{I}mage. 2009;47:S143.
+
+\bibitem{cohen2009generality}
+Cohen JR.
+\newblock The Development and Generality of Self-Control [PhD thesis].
+\newblock University of the City of Los Angeles; 2009.
+
+\bibitem{collier_comparison_2014}
+Collier AK, Wolf DH, Valdez JN, Turetsky BI, Elliott MA, Gur RE, et~al.
+\newblock Comparison of Auditory and Visual Oddball {fMRI} in Schizophrenia.
+\newblock Schizophrenia research. 2014;158:183--188.
+
+\bibitem{devauchelle2009sentence}
+Devauchelle AD, Oppenheim C, Rizzi L, Dehaene S, Pallier C.
+\newblock Sentence Syntax and Content in the Human Temporal Lobe: An {fMRI}
+  Adaptation Study in Auditory and Visual Modalities.
+\newblock Journal of Cognitive Neuroscience. 2009;21(5):1000--1012.
+
+\bibitem{ds101}
+Kelly A, Milham M. Simon Task; 2011.
+\newblock \url{https://openfmri.org/dataset/ds000101}.
+
+\bibitem{duncan2009consistency}
+Duncan K, Pattamadilok C, Knierim I, Devlin J.
+\newblock Consistency and Variability in Functional Localisers.
+\newblock {N}euro{I}mage. 2009;46:1018--1026.
+
+\bibitem{foerde2006modulation}
+Foerde K, Knowlton B, Poldrack RA.
+\newblock Modulation of Competing Memory Systems by Distraction.
+\newblock Proceedings of the National Academy of Science.
+  2006;103:11778--11783.
+
+\bibitem{gauthier2012temporal}
+Gauthier B, Eger E, Hesselmann G, Giraud AL, Kleinschmidt A.
+\newblock Temporal Tuning Properties Along the Human Ventral Visual Stream.
+\newblock The Journal of Neuroscience. 2012;32:14433--14441.
+
+\bibitem{gorgolewski2013test}
+Gorgolewski KJ, Storkey A, Bastin ME, Whittle IR, Wardlaw JM, Pernet CR.
+\newblock A Test-Retest {fMRI} Dataset for Motor, Language and Spatial
+  Attention Functions.
+\newblock GigaScience. 2013;2(1):6.
+
+\bibitem{henson_parametric_2011}
+Henson RN, Wakeman DG, Litvak V, Friston KJ.
+\newblock A Parametric Empirical Bayesian Framework for the {EEG}/{MEG} Inverse
+  Problem: Generative Models for Multi-Subject and Multi-Modal Integration.
+\newblock Frontiers in Human Neuroscience. 2011;5.
+
+\bibitem{jimura_neural_2014}
+Jimura K, Cazalis F, Stover ERS, Poldrack RA.
+\newblock The Neural Basis of Task Switching Changes with Skill Acquisition.
+\newblock Frontiers in Human Neuroscience. 2014;8.
+
+\bibitem{knops2009}
+Knops A, Thirion B, Hubbard EM, Michel V, Dehaene S.
+\newblock Recruitment of an Area Involved in Eye Movements During Mental
+  Arithmetic.
+\newblock Science. 2009;324:1583--1585.
+
+\bibitem{moran2012social}
+Moran JM, Jolly E, Mitchell JP.
+\newblock Social-Cognitive Deficits in Normal Aging.
+\newblock The Journal of Neuroscience. 2012;32:5553--5561.
+
+\bibitem{papadopoulos_brainomics_2017}
+Papadopoulos~Orfanos D, Michel V, Schwartz Y, Pinel P, Moreno A, Le~Bihan D,
+  et~al.
+\newblock The {{Brainomics}}/{{Localizer}} Database.
+\newblock {N}euro{I}mage. 2017;144:309--314.
+
+\bibitem{pinel2007}
+Pinel P, Thirion B, Meriaux S, Jobert A, Serres J, Bihan DL, et~al.
+\newblock Fast Reproducible Identification and Large-Scale Databasing of
+  Individual Functional Cognitive Networks.
+\newblock BMC neuroscience. 2007;8:91.
+
+\bibitem{pinel2013}
+Pinel P, Dehaene S.
+\newblock Genetic and Environmental Contributions to Brain Activation During
+  Calculation.
+\newblock {N}euro{I}mage. 2013;81:306--316.
+
+\bibitem{poldrack_phenome-wide_2016}
+Poldrack RA, Congdon E, Triplett W, Gorgolewski KJ, Karlsgodt K, Mumford JA,
+  et~al.
+\newblock A Phenome-Wide Examination of Neural and Cognitive Function.
+\newblock Scientific Data. 2016;3:160110.
+
+\bibitem{poldrack2001interactive}
+Poldrack RA, Clark J, Pare-Blagoev E, Shohamy D, Creso~Moyano J, Myers C,
+  et~al.
+\newblock Interactive Memory Systems in the Human Brain.
+\newblock Nature. 2001;414(6863):546--550.
+
+\bibitem{ds017}
+Rizk-Jackson A, Aron AR, Poldrack RA. Classification Learning and Stop-Signal
+  (one Year Test-Retest); 2011.
+\newblock \url{https://openfmri.org/dataset/ds000017}.
+
+\bibitem{schonberg2012decreasing}
+Schonberg T, Fox C, Mumford JA, Congdon C, Trepel C, Poldrack RA.
+\newblock Decreasing Ventromedial Prefrontal Cortex Activity During Sequential
+  Risk-Taking: An f{MRI} Investigation of the Balloon Analog Risk Task.
+\newblock Frontiers in Neuroscience. 2012;6:80.
+
+\bibitem{shafto_cambridge_2014}
+Shafto MA, Tyler LK, Dixon M, Taylor JR, Rowe JB, Cusack R, et~al.
+\newblock The {{Cambridge Centre}} for {{Ageing}} and {{Neuroscience}}
+  ({{Cam}}-{{CAN}}) Study Protocol: A Cross-Sectional, Lifespan,
+  Multidisciplinary Examination of Healthy Cognitive Ageing.
+\newblock {BMC Neurology}. 2014;14:204.
+
+\bibitem{tom_neural_2007}
+Tom SM, Fox CR, Trepel C, Poldrack RA.
+\newblock The Neural Basis of Loss Aversion in Decision-Making Under Risk.
+\newblock Science. 2007;315(5811):515--518.
+
+\bibitem{uncapher_dissociable_2011}
+Uncapher MR, Hutchinson JB, Wagner AD.
+\newblock Dissociable Effects of Top-Down and Bottom-Up Attention During
+  Episodic Encoding.
+\newblock The Journal of Neuroscience: The Official Journal of the Society for
+  Neuroscience. 2011;31(35):12613--12628.
+
+\bibitem{vagharchakian2012temporal}
+Vagharchakian L, Dehaene-Lambertz G, Pallier C, Dehaene S.
+\newblock A Temporal Bottleneck in the Language Comprehension Network.
+\newblock The Journal of Neuroscience. 2012;32:9089--9102.
+
+\bibitem{wager2008prefrontal}
+Wager TD, Davidson ML, Hughes BL, Lindquist MA, Ochsner KN.
+\newblock Prefrontal-Subcortical Pathways Mediating Successful Emotion
+  Regulation.
+\newblock Neuron. 2008;59:1037--1050.
+
+\bibitem{xue2008common}
+Xue G, Aron AR, Poldrack RA.
+\newblock Common Neural Substrates for Inhibition of Spoken and Manual
+  Responses.
+\newblock Cerebral Cortex. 2008;18:1923--1932.
+
+\bibitem{xue2007neural}
+Xue G, Poldrack RA.
+\newblock The Neural Substrates of Visual Perceptual Learning of Words:
+  Implications for the Visual Word Form Area Hypothesis.
+\newblock Journal of Cognitive Neuroscience. 2007;19:1643--1655.
+
+\bibitem{pan_survey_2010}
+Pan SJ, Yang Q.
+\newblock A {Survey} on {Transfer} {Learning}.
+\newblock IEEE Transactions on Knowledge and Data Engineering.
+  2010;22(10):1345--1359.
+
+\bibitem{kingma_variational_2015}
+Kingma DP, Salimans T, Welling M.
+\newblock Variational {Dropout} and the Local Reparameterization Trick.
+\newblock In: Advances in Neural Information Processing Systems; 2015. p.
+  2575--2583.
+
+\bibitem{friston_statistical_1994}
+Friston KJ, Holmes AP, Worsley KJ, Poline JP, Frith CD, Frackowiak RS.
+\newblock Statistical Parametric Maps in Functional Imaging: A General Linear
+  Approach.
+\newblock Human brain mapping. 1994;2(4):189--210.
+
+\bibitem{mairal_online_2010}
+Mairal J, Bach F, Ponce J, Sapiro G.
+\newblock Online Learning for Matrix Factorization and Sparse Coding.
+\newblock Journal of Machine Learning Research. 2010;11:19--60.
+
+\bibitem{mensch_stochastic_2017}
+Mensch A, Mairal J, Thirion B, Varoquaux G.
+\newblock {Stochastic} {Subsampling} for Factorizing Huge Matrices.
+\newblock IEEE Transactions on Signal Processing. 2018;66(1):113--128.
+
+\bibitem{dadi2019fine}
+Dadi K, Varoquaux G, Machlouzarides-Shalit A, Gorgolewski KJ, Wassermann D,
+  Thirion B, et~al.
+\newblock Fine-grain atlases of functional modes for fMRI analysis.
+\newblock To appear in NeuroImage. 2020;.
+
+\bibitem{gower_minimum_1969}
+Gower JC, Ross GJ.
+\newblock Minimum Spanning Trees and Single Linkage Cluster Analysis.
+\newblock Journal of the Royal Statistical Society: Series C (Applied
+  Statistics);18(1):54--64.
+
+\bibitem{sokal_comparison_1962}
+Sokal RR, Rohlf FJ.
+\newblock The Comparison of Dendrograms by Objective Methods.
+\newblock Taxon; p. 33--40.
+
+\bibitem{varoquaux_cross-validation_2018}
+Varoquaux G.
+\newblock Cross-Validation Failure: {{Small}} Sample Sizes Lead to Large Error
+  Bars.
+\newblock NeuroImage. 2018;180:68--77.
+
+\bibitem{bzdok_semisupervised_2015}
+Bzdok D, Eickenberg M, Grisel O, Thirion B, Varoquaux G.
+\newblock Semi-Supervised Factored Logistic Regression for High-Dimensional
+  Neuroimaging Data.
+\newblock In: Advances in Neural Information Processing Systems; 2015. p.
+  3348--3356.
+
+\bibitem{varoquaux_multisubject_2011}
+Varoquaux G, {Gramfort} A, {Pedregosa} F, {Michel} V, {Thirion} B.
+\newblock Multi-Subject Dictionary Learning to Segment an Atlas of Brain
+  Spontaneous Activity.
+\newblock Proceedings of the International Conference on Information Processing
+  in Medical Imaging. 2011;22:562.
+
+\bibitem{olah_building_2018}
+Olah C, Satyanarayan A, Johnson I, Carter S, Schubert L, Ye K, et~al.
+\newblock The {{Building Blocks}} of {{Interpretability}}.
+\newblock Distill. 2018;3(3):e10.
+
+\bibitem{uttal_new_2001}
+Uttal WR.
+\newblock The New Phrenology: The Limits of Localizing Cognitive Processes in
+  the Brain.
+\newblock The MIT press; 2001.
+
+\bibitem{mckeown_analysis_1998}
+McKeown MJ, Makeig S, Brown GG, Jung TP, Kindermann SS, Bell AJ, et~al.
+\newblock Analysis of {fMRI} Data by Blind Separation Into Independent Spatial
+  Components.
+\newblock Human Brain Mapping. 1998;6(3):160--188.
+
+\bibitem{haxby_common_2011}
+Haxby JV, Guntupalli JS, Connolly AC, Halchenko YO, Conroy BR, Gobbini MI,
+  et~al.
+\newblock A {{Common}}, {{High}}-{{Dimensional Model}} of the
+  {{Representational Space}} in {{Human Ventral Temporal Cortex}}.
+\newblock Neuron. 2011;72(2):404--416.
+
+\bibitem{gorgolewski_brain_2016}
+Gorgolewski KJ, Auer T, Calhoun VD, Craddock RC, Das S, Duff EP, et~al.
+\newblock The Brain Imaging Data Structure, a Format for Organizing and
+  Describing Outputs of Neuroimaging Experiments.
+\newblock Scientific Data. 2016;3:sdata201644.
+
+\bibitem{smith_correspondence_2009}
+Smith SM, Fox PT, Miller KL, Glahn DC, Fox PM, Mackay CE, et~al.
+\newblock Correspondence of the Brain's Functional Architecture During
+  Activation and Rest.
+\newblock Proceedings of the National Academy of Sciences.
+  2009;106(31):13040--13045.
+
+\bibitem{yeo_organization_2011}
+Yeo TBT, Krienen FM, Sepulcre J, Sabuncu MR, Lashkari D, Hollinshead M, et~al.
+\newblock The Organization of the Human Cerebral Cortex Estimated by Intrinsic
+  Functional Connectivity.
+\newblock Journal of Neurophysiology. 2011;106(3):1125--1165.
+
+\bibitem{nocedal_updating_1980}
+Nocedal J.
+\newblock Updating Quasi-{{Newton}} Matrices with Limited Storage.
+\newblock Mathematics of Computation. 1980;35(151):773--782.
+
+\bibitem{neyshabur_implicit_2017}
+Neyshabur B.
+\newblock Implicit {Regularization} in {Deep} {Learning} [PhD thesis].
+\newblock Toyota Technological Institute at Chicago; 2017.
+
+\bibitem{molchanov_variational_2017}
+Molchanov D, Ashukha A, Vetrov D.
+\newblock Variational {Dropout} {Sparsifies} {Deep} {Neural} {Networks}.
+\newblock In: Proceedings of the International Conference on Machine Learning;
+  2017. p. 2498--2507.
+
+\bibitem{ioffe_batch_2015}
+Ioffe S, Szegedy C.
+\newblock {B}atch {N}ormalization: Accelerating Deep Network Training by
+  Reducing Internal Covariate Shift.
+\newblock In: Proceedings of the International Conference on Machine Learning;
+  2015. p. 448--456.
+
+\bibitem{srebro_maximum-margin_2004}
+Srebro N, Rennie J, Jaakkola TS.
+\newblock Maximum-Margin Matrix Factorization.
+\newblock In: Advances in Neural Information Processing Systems; 2004. p.
+  1329--1336.
+
+\bibitem{beck_fast_2009}
+Beck A, Teboulle M.
+\newblock A Fast Iterative Shrinkage-Thresholding Algorithm for Linear Inverse
+  Problems.
+\newblock SIAM Journal on Imaging Sciences. 2009;2(1):183--202.
+
+\bibitem{rennie_fast_2005}
+Rennie JDM, Srebro N.
+\newblock Fast Maximum Margin Matrix Factorization for Collaborative
+  Prediction.
+\newblock In: Proceedings of the International Conference on Machine Learning;
+  2005. p. 713--719.
+
+\bibitem{bell_lessons_2007}
+Bell RM, Koren Y.
+\newblock Lessons from the {{Netflix}} Prize Challenge.
+\newblock ACM SIGKDD Explorations Newsletter. 2007;9(2):75--79.
+
+\bibitem{wager_dropout_2013}
+Wager S, Wang S, Liang PS.
+\newblock Dropout Training as Adaptive Regularization.
+\newblock In: Advances in Neural Information Processing Systems; 2013. p.
+  351--359.
+
+\bibitem{breiman_bagging_1996}
+Breiman L.
+\newblock Bagging Predictors.
+\newblock Machine Learning. 1996;24(2):123--140.
+
+\bibitem{abraham_machine_2014}
+Abraham A, Pedregosa F, Eickenberg M, Gervais P, Mueller A, Kossaifi J, et~al.
+\newblock Machine Learning for Neuroimaging with {Scikit-Learn}.
+\newblock Frontiers in Neuroinformatics. 2014;8:14.
+
+\bibitem{pedregosa_scikit-learn:_2011}
+Pedregosa F, Varoquaux G, Gramfort A, Michel V, Thirion B, Grisel O, et~al.
+\newblock Scikit-Learn: Machine Learning in {Python}.
+\newblock Journal of Machine Learning Research. 2011;12:2825--2830.
+
+\bibitem{paszke2017pytorch}
+Paszke A, Gross S, Chintala S, Chanan G. {P}y{T}orch: Tensors and Dynamic
+  Neural Networks in {Python} with Strong {GPU} Acceleration; 2017.
+
+\end{thebibliography}
