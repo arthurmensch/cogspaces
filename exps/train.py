@@ -16,7 +16,7 @@ from cogspaces.classification.logistic import MultiLogisticClassifier
 from cogspaces.classification.multi_study import MultiStudyClassifier
 from cogspaces.datasets import STUDY_LIST, load_reduced_loadings
 from cogspaces.datasets.contrast import load_masked_contrasts
-from cogspaces.datasets.derivative import load_from_directory, split_studies
+from cogspaces.datasets.derivative import load_from_directory, split_studies, get_study_info
 from cogspaces.datasets.utils import get_output_dir
 from cogspaces.model_selection import train_test_split
 from cogspaces.preprocessing import MultiStandardScaler, MultiTargetEncoder
@@ -37,7 +37,7 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, sp
         studies='all',
         dataset='loadings',  # Useful to override source directory
         test_size=0.5,
-        train_size=0.5,
+        train_size=20,
         reduced=True,
         data_dir=None,
     )
@@ -77,7 +77,7 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, sp
         config['logistic'] = logistic
 
     output_dir = join(get_output_dir(config['system']['output_dir']),
-                      'normalized',
+                      'low_subjects',
                       'split_by_task' if split_by_task else 'split_by_study',
                       config['model']['estimator'],
                       str(config['system']['seed']))
@@ -106,12 +106,20 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, sp
     else:
         input_data, targets = load_masked_contrasts(data_dir=data['data_dir'])
 
+    if isinstance(data['train_size'], int):
+        n_subjects = get_study_info().groupby(by='study').first()['#subjects']
+        studies = list(filter(lambda study: data['train_size'] < n_subjects.loc[study] // 2, studies))
+    print(studies)
+
     input_data = {study: input_data[study] for study in studies}
     targets = {study: targets[study] for study in studies}
 
     if model['split_by_task']:
         _, split_targets = split_studies(input_data, targets)
-        target_encoder = MultiTargetEncoder().fit(split_targets)
+    else:
+        split_targets = targets
+    target_encoder = MultiTargetEncoder().fit(split_targets)
+
     train_data, test_data, train_targets, test_targets = \
         train_test_split(input_data, targets, random_state=system['seed'],
                          test_size=data['test_size'],
@@ -119,8 +127,8 @@ def run(estimator='multi_study', seed=0, plot=False, n_jobs=1, use_gpu=False, sp
     if model['split_by_task']:
         train_data, train_targets = split_studies(train_data, train_targets)
         test_data, test_targets = split_studies(test_data, test_targets)
-        train_targets = target_encoder.transform(train_targets)
-        test_targets = target_encoder.transform(test_targets)
+    train_targets = target_encoder.transform(train_targets)
+    test_targets = target_encoder.transform(test_targets)
 
     print("Setting up model")
     if model['normalize']:

@@ -120,12 +120,6 @@ Mensch A, Mairal J, Bzdok D, Thirion B, Varoquaux G.
 \newblock In: Advances in Neural Information Processing Systems; 2017. p.
   5883--5893.
 
-\bibitem{alvarez2002}
-Alvarez RP, Jasdzewski G, Poldrack RA.
-\newblock Building Memories in Two Languages: An {fMRI} Study of Episodic
-  Encoding in Bilinguals.
-\newblock In: Society for Neuroscience Abstracts; 2002. p. 179.12.
-
 \bibitem{amalric2016origins}
 Amalric M, Dehaene S.
 \newblock Origins of the Brain Networks for Advanced Mathematics in Expert
@@ -133,23 +127,24 @@ Amalric M, Dehaene S.
 \newblock Proceedings of the National Academy of Sciences.
   2016;113(18):4909--4917.
 
-\bibitem{aron2006long}
-Aron AR, Gluck M, Poldrack RA.
-\newblock Long-Term Test--Retest Reliability of Functional {MRI} in a
-  Classification Learning Task.
-\newblock {N}euro{I}mage. 2006;29:1000--1006.
+\bibitem{pinel2007}
+Pinel P, Thirion B, Meriaux S, Jobert A, Serres J, Bihan DL, et~al.
+\newblock Fast Reproducible Identification and Large-Scale Databasing of
+  Individual Functional Cognitive Networks.
+\newblock BMC neuroscience. 2007;8:91.
 
-\bibitem{aron2007triangulating}
-Aron AR, Behrens TE, Smith S, Frank MJ, Poldrack RA.
-\newblock Triangulating a Cognitive Control Network Using Diffusion-Weighted
-  Magnetic Resonance Imaging {(MRI)} and Functional {MRI}.
-\newblock The Journal of Neuroscience. 2007;27:3743--3752.
+\bibitem{papadopoulos_brainomics_2017}
+Papadopoulos~Orfanos D, Michel V, Schwartz Y, Pinel P, Moreno A, Le~Bihan D,
+  et~al.
+\newblock The {{Brainomics}}/{{Localizer}} Database.
+\newblock {N}euro{I}mage. 2017;144:309--314.
 
-\bibitem{barch2013}
-Barch DM, Burgess GC, Harms MP, Petersen SE, Schlaggar BL, Corbetta M, et~al.
-\newblock Function in the Human Connectome: Task-{fMRI} and Individual
-  Differences in Behavior.
-\newblock {N}euro{I}mage. 2013;80:169--189.
+\bibitem{shafto_cambridge_2014}
+Shafto MA, Tyler LK, Dixon M, Taylor JR, Rowe JB, Cusack R, et~al.
+\newblock The {{Cambridge Centre}} for {{Ageing}} and {{Neuroscience}}
+  ({{Cam}}-{{CAN}}) Study Protocol: A Cross-Sectional, Lifespan,
+  Multidisciplinary Examination of Healthy Cognitive Ageing.
+\newblock {BMC Neurology}. 2014;14:204.
 
 \bibitem{cauvet2012traitement}
 Cauvet E.
@@ -162,21 +157,79 @@ Hara N, Cauvet E, Devauchelle AD, Dehaene S, Pallier C, et~al.
 \newblock Neural Correlates of Constituent Structure in Language and Music.
 \newblock {N}euro{I}mage. 2009;47:S143.
 
-\bibitem{cohen2009generality}
-Cohen JR.
-\newblock The Development and Generality of Self-Control [PhD thesis].
-\newblock University of the City of Los Angeles; 2009.
-
-\bibitem{collier_comparison_2014}
-Collier AK, Wolf DH, Valdez JN, Turetsky BI, Elliott MA, Gur RE, et~al.
-\newblock Comparison of Auditory and Visual Oddball {fMRI} in Schizophrenia.
-\newblock Schizophrenia research. 2014;158:183--188.
-
 \bibitem{devauchelle2009sentence}
 Devauchelle AD, Oppenheim C, Rizzi L, Dehaene S, Pallier C.
 \newblock Sentence Syntax and Content in the Human Temporal Lobe: An {fMRI}
   Adaptation Study in Auditory and Visual Modalities.
 \newblock Journal of Cognitive Neuroscience. 2009;21(5):1000--1012.
+
+\bibitem{schonberg2012decreasing}
+Schonberg T, Fox C, Mumford JA, Congdon C, Trepel C, Poldrack RA.
+\newblock Decreasing Ventromedial Prefrontal Cortex Activity During Sequential
+  Risk-Taking: An f{MRI} Investigation of the Balloon Analog Risk Task.
+\newblock Frontiers in Neuroscience. 2012;6:80.
+
+\bibitem{aron2006long}
+Aron AR, Gluck M, Poldrack RA.
+\newblock Long-Term Test--Retest Reliability of Functional {MRI} in a
+  Classification Learning Task.
+\newblock {N}euro{I}mage. 2006;29:1000--1006.
+
+\bibitem{xue2007neural}
+Xue G, Poldrack RA.
+\newblock The Neural Substrates of Visual Perceptual Learning of Words:
+  Implications for the Visual Word Form Area Hypothesis.
+\newblock Journal of Cognitive Neuroscience. 2007;19:1643--1655.
+
+\bibitem{tom_neural_2007}
+Tom SM, Fox CR, Trepel C, Poldrack RA.
+\newblock The Neural Basis of Loss Aversion in Decision-Making Under Risk.
+\newblock Science. 2007;315(5811):515--518.
+
+\bibitem{jimura_neural_2014}
+Jimura K, Cazalis F, Stover ERS, Poldrack RA.
+\newblock The Neural Basis of Task Switching Changes with Skill Acquisition.
+\newblock Frontiers in Human Neuroscience. 2014;8.
+
+\bibitem{xue2008common}
+Xue G, Aron AR, Poldrack RA.
+\newblock Common Neural Substrates for Inhibition of Spoken and Manual
+  Responses.
+\newblock Cerebral Cortex. 2008;18:1923--1932.
+
+\bibitem{aron2007triangulating}
+Aron AR, Behrens TE, Smith S, Frank MJ, Poldrack RA.
+\newblock Triangulating a Cognitive Control Network Using Diffusion-Weighted
+  Magnetic Resonance Imaging {(MRI)} and Functional {MRI}.
+\newblock The Journal of Neuroscience. 2007;27:3743--3752.
+
+\bibitem{cohen2009generality}
+Cohen JR.
+\newblock The Development and Generality of Self-Control [PhD thesis].
+\newblock University of the City of Los Angeles; 2009.
+
+\bibitem{foerde2006modulation}
+Foerde K, Knowlton B, Poldrack RA.
+\newblock Modulation of Competing Memory Systems by Distraction.
+\newblock Proceedings of the National Academy of Science.
+  2006;103:11778--11783.
+
+\bibitem{ds017}
+Rizk-Jackson A, Aron AR, Poldrack RA. Classification Learning and Stop-Signal
+  (one Year Test-Retest); 2011.
+\newblock \url{https://openfmri.org/dataset/ds000017}.
+
+\bibitem{alvarez2002}
+Alvarez RP, Jasdzewski G, Poldrack RA.
+\newblock Building Memories in Two Languages: An {fMRI} Study of Episodic
+  Encoding in Bilinguals.
+\newblock In: Society for Neuroscience Abstracts; 2002. p. 179.12.
+
+\bibitem{poldrack2001interactive}
+Poldrack RA, Clark J, Pare-Blagoev E, Shohamy D, Creso~Moyano J, Myers C,
+  et~al.
+\newblock Interactive Memory Systems in the Human Brain.
+\newblock Nature. 2001;414(6863):546--550.
 
 \bibitem{ds101}
 Kelly A, Milham M. Simon Task; 2011.
@@ -187,97 +240,16 @@ Duncan K, Pattamadilok C, Knierim I, Devlin J.
 \newblock Consistency and Variability in Functional Localisers.
 \newblock {N}euro{I}mage. 2009;46:1018--1026.
 
-\bibitem{foerde2006modulation}
-Foerde K, Knowlton B, Poldrack RA.
-\newblock Modulation of Competing Memory Systems by Distraction.
-\newblock Proceedings of the National Academy of Science.
-  2006;103:11778--11783.
-
-\bibitem{gauthier2012temporal}
-Gauthier B, Eger E, Hesselmann G, Giraud AL, Kleinschmidt A.
-\newblock Temporal Tuning Properties Along the Human Ventral Visual Stream.
-\newblock The Journal of Neuroscience. 2012;32:14433--14441.
-
-\bibitem{gorgolewski2013test}
-Gorgolewski KJ, Storkey A, Bastin ME, Whittle IR, Wardlaw JM, Pernet CR.
-\newblock A Test-Retest {fMRI} Dataset for Motor, Language and Spatial
-  Attention Functions.
-\newblock GigaScience. 2013;2(1):6.
-
-\bibitem{henson_parametric_2011}
-Henson RN, Wakeman DG, Litvak V, Friston KJ.
-\newblock A Parametric Empirical Bayesian Framework for the {EEG}/{MEG} Inverse
-  Problem: Generative Models for Multi-Subject and Multi-Modal Integration.
-\newblock Frontiers in Human Neuroscience. 2011;5.
-
-\bibitem{jimura_neural_2014}
-Jimura K, Cazalis F, Stover ERS, Poldrack RA.
-\newblock The Neural Basis of Task Switching Changes with Skill Acquisition.
-\newblock Frontiers in Human Neuroscience. 2014;8.
-
-\bibitem{knops2009}
-Knops A, Thirion B, Hubbard EM, Michel V, Dehaene S.
-\newblock Recruitment of an Area Involved in Eye Movements During Mental
-  Arithmetic.
-\newblock Science. 2009;324:1583--1585.
+\bibitem{wager2008prefrontal}
+Wager TD, Davidson ML, Hughes BL, Lindquist MA, Ochsner KN.
+\newblock Prefrontal-Subcortical Pathways Mediating Successful Emotion
+  Regulation.
+\newblock Neuron. 2008;59:1037--1050.
 
 \bibitem{moran2012social}
 Moran JM, Jolly E, Mitchell JP.
 \newblock Social-Cognitive Deficits in Normal Aging.
 \newblock The Journal of Neuroscience. 2012;32:5553--5561.
-
-\bibitem{papadopoulos_brainomics_2017}
-Papadopoulos~Orfanos D, Michel V, Schwartz Y, Pinel P, Moreno A, Le~Bihan D,
-  et~al.
-\newblock The {{Brainomics}}/{{Localizer}} Database.
-\newblock {N}euro{I}mage. 2017;144:309--314.
-
-\bibitem{pinel2007}
-Pinel P, Thirion B, Meriaux S, Jobert A, Serres J, Bihan DL, et~al.
-\newblock Fast Reproducible Identification and Large-Scale Databasing of
-  Individual Functional Cognitive Networks.
-\newblock BMC neuroscience. 2007;8:91.
-
-\bibitem{pinel2013}
-Pinel P, Dehaene S.
-\newblock Genetic and Environmental Contributions to Brain Activation During
-  Calculation.
-\newblock {N}euro{I}mage. 2013;81:306--316.
-
-\bibitem{poldrack_phenome-wide_2016}
-Poldrack RA, Congdon E, Triplett W, Gorgolewski KJ, Karlsgodt K, Mumford JA,
-  et~al.
-\newblock A Phenome-Wide Examination of Neural and Cognitive Function.
-\newblock Scientific Data. 2016;3:160110.
-
-\bibitem{poldrack2001interactive}
-Poldrack RA, Clark J, Pare-Blagoev E, Shohamy D, Creso~Moyano J, Myers C,
-  et~al.
-\newblock Interactive Memory Systems in the Human Brain.
-\newblock Nature. 2001;414(6863):546--550.
-
-\bibitem{ds017}
-Rizk-Jackson A, Aron AR, Poldrack RA. Classification Learning and Stop-Signal
-  (one Year Test-Retest); 2011.
-\newblock \url{https://openfmri.org/dataset/ds000017}.
-
-\bibitem{schonberg2012decreasing}
-Schonberg T, Fox C, Mumford JA, Congdon C, Trepel C, Poldrack RA.
-\newblock Decreasing Ventromedial Prefrontal Cortex Activity During Sequential
-  Risk-Taking: An f{MRI} Investigation of the Balloon Analog Risk Task.
-\newblock Frontiers in Neuroscience. 2012;6:80.
-
-\bibitem{shafto_cambridge_2014}
-Shafto MA, Tyler LK, Dixon M, Taylor JR, Rowe JB, Cusack R, et~al.
-\newblock The {{Cambridge Centre}} for {{Ageing}} and {{Neuroscience}}
-  ({{Cam}}-{{CAN}}) Study Protocol: A Cross-Sectional, Lifespan,
-  Multidisciplinary Examination of Healthy Cognitive Ageing.
-\newblock {BMC Neurology}. 2014;14:204.
-
-\bibitem{tom_neural_2007}
-Tom SM, Fox CR, Trepel C, Poldrack RA.
-\newblock The Neural Basis of Loss Aversion in Decision-Making Under Risk.
-\newblock Science. 2007;315(5811):515--518.
 
 \bibitem{uncapher_dissociable_2011}
 Uncapher MR, Hutchinson JB, Wagner AD.
@@ -286,28 +258,56 @@ Uncapher MR, Hutchinson JB, Wagner AD.
 \newblock The Journal of Neuroscience: The Official Journal of the Society for
   Neuroscience. 2011;31(35):12613--12628.
 
+\bibitem{gorgolewski2013test}
+Gorgolewski KJ, Storkey A, Bastin ME, Whittle IR, Wardlaw JM, Pernet CR.
+\newblock A Test-Retest {fMRI} Dataset for Motor, Language and Spatial
+  Attention Functions.
+\newblock GigaScience. 2013;2(1):6.
+
+\bibitem{collier_comparison_2014}
+Collier AK, Wolf DH, Valdez JN, Turetsky BI, Elliott MA, Gur RE, et~al.
+\newblock Comparison of Auditory and Visual Oddball {fMRI} in Schizophrenia.
+\newblock Schizophrenia research. 2014;158:183--188.
+
+\bibitem{gauthier2012temporal}
+Gauthier B, Eger E, Hesselmann G, Giraud AL, Kleinschmidt A.
+\newblock Temporal Tuning Properties Along the Human Ventral Visual Stream.
+\newblock The Journal of Neuroscience. 2012;32:14433--14441.
+
+\bibitem{barch2013}
+Barch DM, Burgess GC, Harms MP, Petersen SE, Schlaggar BL, Corbetta M, et~al.
+\newblock Function in the Human Connectome: Task-{fMRI} and Individual
+  Differences in Behavior.
+\newblock {N}euro{I}mage. 2013;80:169--189.
+
+\bibitem{henson_parametric_2011}
+Henson RN, Wakeman DG, Litvak V, Friston KJ.
+\newblock A Parametric Empirical Bayesian Framework for the {EEG}/{MEG} Inverse
+  Problem: Generative Models for Multi-Subject and Multi-Modal Integration.
+\newblock Frontiers in Human Neuroscience. 2011;5.
+
+\bibitem{knops2009}
+Knops A, Thirion B, Hubbard EM, Michel V, Dehaene S.
+\newblock Recruitment of an Area Involved in Eye Movements During Mental
+  Arithmetic.
+\newblock Science. 2009;324:1583--1585.
+
+\bibitem{poldrack_phenome-wide_2016}
+Poldrack RA, Congdon E, Triplett W, Gorgolewski KJ, Karlsgodt K, Mumford JA,
+  et~al.
+\newblock A Phenome-Wide Examination of Neural and Cognitive Function.
+\newblock Scientific Data. 2016;3:160110.
+
+\bibitem{pinel2013}
+Pinel P, Dehaene S.
+\newblock Genetic and Environmental Contributions to Brain Activation During
+  Calculation.
+\newblock {N}euro{I}mage. 2013;81:306--316.
+
 \bibitem{vagharchakian2012temporal}
 Vagharchakian L, Dehaene-Lambertz G, Pallier C, Dehaene S.
 \newblock A Temporal Bottleneck in the Language Comprehension Network.
 \newblock The Journal of Neuroscience. 2012;32:9089--9102.
-
-\bibitem{wager2008prefrontal}
-Wager TD, Davidson ML, Hughes BL, Lindquist MA, Ochsner KN.
-\newblock Prefrontal-Subcortical Pathways Mediating Successful Emotion
-  Regulation.
-\newblock Neuron. 2008;59:1037--1050.
-
-\bibitem{xue2008common}
-Xue G, Aron AR, Poldrack RA.
-\newblock Common Neural Substrates for Inhibition of Spoken and Manual
-  Responses.
-\newblock Cerebral Cortex. 2008;18:1923--1932.
-
-\bibitem{xue2007neural}
-Xue G, Poldrack RA.
-\newblock The Neural Substrates of Visual Perceptual Learning of Words:
-  Implications for the Visual Word Form Area Hypothesis.
-\newblock Journal of Cognitive Neuroscience. 2007;19:1643--1655.
 
 \bibitem{pan_survey_2010}
 Pan SJ, Yang Q.

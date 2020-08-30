@@ -22,7 +22,7 @@ from cogspaces.datasets.utils import get_output_dir
 
 idx = pd.IndexSlice
 
-save_dir = join(get_output_dir(), 'compare_legacy')
+save_dir = join(get_output_dir(), 'revision_output')
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
@@ -52,7 +52,7 @@ def make_data(sort_by_chance=False):
     data = joined_mean
     data = data.sort_values(('diff', 'mean'), ascending=True)
 
-    info = get_study_info().groupby(by='study')[['chance_study', 'name_study', 'latex_name']].first()
+    info = get_study_info().groupby(by='study')[['chance_study', 'name_study', 'latex_name_study']].first()
     data = data.join(info)
 
     if sort_by_chance:
@@ -711,15 +711,15 @@ def plot_gain_vs_accuracy(sort):
 def write_latex(data):
     data = data.sort_index().reset_index()
     for x in ['factored', 'baseline', 'diff']:
-        data[x] = data.apply(lambda r: f'${r[(x, "mean")] * 100:.1f}\plusminus{r[(x, "std")] * 100:.1f}\%$',
+        data[x] = data.apply(lambda r: f'${r[(x, "mean")] * 100:.0f}\pm{r[(x, "std")] * 100:.0f}\%$',
                              axis='columns')
-    data['chance_study'] = data['chance_study'].map(lambda x: f'${x * 100:.1f}\%$')
-    table_data = data[['latex_name', 'chance_study', 'factored', 'baseline', 'diff']]
+    data['chance_study'] = data['chance_study'].map(lambda x: f'${x * 100:.0f}\%$')
+    table_data = data[['latex_name_study', 'chance_study', 'factored', 'baseline', 'diff']]
     table_data.columns = pd.Index(
         ['Study', 'Chance level', 'Multi-task accuracy', 'Single-task accuracy', 'Accuracy gain'])
     table_data = table_data.reset_index(drop=True).set_index(['Study'])
     with pd.option_context("max_colwidth", 1000):
-        latex = table_data.to_latex(sparsify=True, escape=False)
+        latex = table_data.to_latex(sparsify=True, escape=False, column_format='p{4cm}p{1cm}p{1cm}p{1cm}p{1cm}')
     with open(join(save_dir, 'accuracies.tex'), 'w+') as f:
         f.write(latex)
 
@@ -741,7 +741,7 @@ def write_contrast_latex():
 
     for x in ['factored', 'baseline', 'diff']:
         data[x] = data.apply(
-            lambda r: f'${r[(x, "bacc", "mean")] * 100:.1f}\pm{r[(x, "bacc", "std")] * 100:.1f}\%$',
+            lambda r: f'${r[(x, "bacc", "mean")] * 100:.0f}\pm{r[(x, "bacc", "std")] * 100:.0f}\%$',
             axis='columns')
     data = data[['latex_cite', 'task', 'contrast', 'factored', 'baseline', 'diff']]
 
@@ -752,7 +752,7 @@ def write_contrast_latex():
         ['Study', 'Task', 'Contrast', 'Multi-study B-acc', 'Voxel-level B-acc', 'B-acc gain'])
     data = data.reset_index(drop=True).set_index(['Study', 'Task', 'Contrast'])
     with pd.option_context("max_colwidth", 1000):
-        latex = data.to_latex(sparsify=True, longtable=True, escape=False, column_format='p{0.8cm}p{1.5cm}p{3cm}p{1.5cm}p{1.5cm}p{1.5cm}',
+        latex = data.to_latex(sparsify=True, longtable=True, escape=False, column_format='p{0.8cm}p{2cm}p{3.5cm}p{1.5cm}p{1cm}p{1cm}',
                               caption="List of all contrasts used in this paper, per study of origin and task.",
                               label="table:all_contrasts")
     with open(join(save_dir, 'contrast_accuracies.tex'), 'w+') as f:
@@ -760,13 +760,13 @@ def write_contrast_latex():
 
 
 if __name__ == '__main__':
-    # for sort_by_chance in [False, True]:
-    #     data, sort = make_data(sort_by_chance)
-    #     plot_joined(data, sort_by_chance=sort_by_chance)
+    for sort_by_chance in [False, True]:
+        data, sort = make_data(sort_by_chance)
+        plot_joined(data, sort_by_chance=sort_by_chance)
     data, sort = make_data()
     write_latex(data)
     write_contrast_latex()
-    # plot_compare_methods(sort)
+    plot_compare_methods(sort)
     # plot_compare_methods(sort, ablation='latent_size')
     # plot_compare_methods(sort, ablation='posthoc')
     # plot_compare_methods(sort, ablation='gm')

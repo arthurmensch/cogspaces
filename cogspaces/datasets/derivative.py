@@ -224,11 +224,11 @@ def get_study_info():
             else:
                 tasks_lim = tasks
         name_study = f'[{x["bibkey"].iloc[0]}] {tasks_lim}'
-        latex_name = f'\cite{{{x["citekey"].iloc[0]}}} {tasks}'.replace('&', '\&')
+        latex_name_study = f'\cite{{{x["citekey"].iloc[0]}}} {tasks}'.replace('&', '\&')
         latex_cite = f'\cite{{{x["citekey"].iloc[0]}}}'
-        text_cite = f'[{x["bibkey"].iloc[0]}]'
-        name = pd.DataFrame(data={'name_study': name_study, 'latex_name': latex_name, 'latex_cite': latex_cite,
-                                  'text_cite': text_cite}, index=x.index)
+        cite = f'[{x["bibkey"].iloc[0]}]'
+        name = pd.DataFrame(data={'name_study': name_study, 'latex_name_study': latex_name_study, 'latex_cite': latex_cite,
+                                  'cite': cite}, index=x.index)
         return name
     name = targets.groupby(by='study').apply(apply)
     targets = pd.concat([targets, name], axis=1)

@@ -72,7 +72,7 @@ def gather_metrics(output_dir, save_dir):
     return accuracies, contrasts_metrics
 
 
-def plot_mean_accuracies(save_dir, split_by_task=False):
+def plot_mean_accuracies(save_dir, experiment='split_by_studies'):
     accuracies = pd.read_pickle(join(save_dir, 'accuracies.pkl'))
 
     data = accuracies.groupby(level=['estimator', 'study']).aggregate(
@@ -81,7 +81,7 @@ def plot_mean_accuracies(save_dir, split_by_task=False):
     data = data.sort_values(by=('diff_with_baseline', 'mean'))
 
     info = get_study_info()
-    if split_by_task:
+    if experiment == 'split_by_task':
         # We have hacked per-task decoding
         info = info.groupby(by='study__task').first()
         data = data.join(info)
@@ -90,25 +90,44 @@ def plot_mean_accuracies(save_dir, split_by_task=False):
         table_data = data.copy()
         table_data = table_data.reset_index(drop=True).set_index(['study', 'task']).sort_index().reset_index()
         for x in ['accuracy', 'baseline', 'diff_with_baseline']:
-            table_data[x] = table_data.apply(lambda r: f'${r[(x, "mean")] * 100:.1f}\pm{r[(x, "std")] * 100:.1f}\%$',
+            table_data[x] = table_data.apply(lambda r: f'${r[(x, "mean")] * 100:.0f}\pm{r[(x, "std")] * 100:.0f}\%$',
                                              axis='columns')
-        table_data['chance'] = table_data['chance'].map(lambda x: f'${x * 100:.1f}\%$')
+        table_data['chance'] = table_data['chance'].map(lambda x: f'${x * 100:.0f}\%$')
         table_data = table_data[['latex_cite', 'task', 'chance', 'accuracy', 'baseline', 'diff_with_baseline']]
         table_data.columns = pd.Index(['Study', 'Task', 'Chance level', 'Multi-task accuracy', 'Single-task accuracy', 'Accuracy gain'])
+        table_data['Task'] = table_data['Task'].map(lambda x: x.replace('&', '\&'))
         table_data = table_data.reset_index(drop=True).set_index(['Study', 'Task'])
-        latex = table_data.to_latex(sparsify=True, escape=False)
-        with open(join(save_dir, 'accuracies.tex'), 'w+') as f:
-            f.write(latex)
-
+        latex = table_data.to_latex(sparsify=True, escape=False, column_format='p{0.8cm}p{4cm}p{1cm}p{1.5cm}p{1cm}p{1cm}', longtable=True,
+                                    caption="Accuracies per task in multi-site multi task decoding.", label="table:accuracy_task")
     else:
         info = info.groupby(by='study').first()
         data = data.join(info)
         data = data.rename(columns={'chance_study': 'chance', 'name_study': 'fullname'})
 
-    if split_by_task:
-        width, height = 8.5, 10
+        table_data = data.copy()
+        table_data = table_data.reset_index().set_index(['study']).sort_index().reset_index()
+        for x in ['accuracy', 'baseline', 'diff_with_baseline']:
+            table_data[x] = table_data.apply(lambda r: f'${r[(x, "mean")] * 100:.0f}\pm{r[(x, "std")] * 100:.0f}\%$',
+                                             axis='columns')
+        table_data['chance'] = table_data['chance'].map(lambda x: f'${x * 100:.0f}\%$')
+        table_data = table_data[['latex_name_study', 'chance', 'accuracy', 'baseline', 'diff_with_baseline']]
+        table_data.columns = pd.Index(['Study', 'Chance level', 'Multi-task accuracy', 'Single-task accuracy', 'Accuracy gain'])
+        table_data = table_data.reset_index(drop=True).set_index(['Study'])
+        latex = table_data.to_latex(sparsify=True, escape=False, column_format='p{4cm}p{1cm}p{1.5cm}p{1cm}p{1cm}', longtable=True,
+                                    caption="Accuracies per study in multi-site multi task decoding.", label="table:accuracy")
+
+    with open(join(save_dir, f'accuracies_{experiment}.tex'), 'w+') as f:
+        f.write(latex)
+
+    print('num positive transfer', (data[('diff_with_baseline', 'mean')] > 0).sum())
+    print('mean transfer', data[('diff_with_baseline', 'mean')].mean())
+
+    if experiment == 'split_by_task':
+        width, height = 8.5, 5
+    elif experiment == 'low_subjects':
+        width, height = 11, 5
     else:
-        width, height = 8.5, 7
+        width, height = 8.5, 10
     gs = gridspec.GridSpec(1, 2, width_ratios=[2.7, 1])
     fig = plt.figure(figsize=(width, height))
     gs.update(left=0.35, right=0.96, bottom=0.2, top=0.97, wspace=1.2 / width)
@@ -136,7 +155,7 @@ def plot_mean_accuracies(save_dir, split_by_task=False):
         ax1.errorbar(this_x, this_y, xerr=this_xerr, elinewidth=1.5,
                      capsize=2, linewidth=0, ecolor=this_color,
                      alpha=.5)
-    ax1.set_xlabel('Multi-study acc. gain' if not split_by_task else 'Multi-task acc. gain', fontsize=12)
+    ax1.set_xlabel('Multi-study acc. gain' if experiment != 'split_by_task' else 'Multi-task acc. gain', fontsize=12)
     ax1.spines['left'].set_position('zero')
     plt.setp(ax1.get_yticklabels(), visible=False)
 
@@ -183,14 +202,14 @@ def plot_mean_accuracies(save_dir, split_by_task=False):
                bbox_to_anchor=(0, -.1))
 
     ax2.set_yticks(ind + width / 2)
-    ax2.annotate('Task fMRI study' if split_by_task else 'fMRI task',
-                 xy=(-.5, -.05) if split_by_task else (-.5, -.08), xycoords='axes fraction',
+    ax2.annotate('Task fMRI study' if experiment != 'split_by_task' else 'fMRI task',
+                 xy=(-.5, -.05) if experiment == 'split_by_task' else (-.5, -.08), xycoords='axes fraction',
                  fontsize=12)
 
-    ax2.set_yticklabels(data['fullname'], ha='right', va='center', fontsize=8.5)
+    ax2.set_yticklabels(data['fullname'], ha='right', va='center', fontsize=12)
     sns.despine(fig)
     # plt.show()
-    plt.savefig(join(save_dir, 'mean_accuracies.pdf'))
+    plt.savefig(join(save_dir, f'mean_accuracies_{experiment}.pdf'))
     plt.close(fig)
 
 
@@ -264,18 +283,24 @@ def plot_accuracies(save_dir):
     sns.despine(fig)
 
     plt.setp(ax.legend(), visible=False)
-    plt.savefig(join(save_dir, 'accuracies.pdf'))
+    plt.savefig(join(save_dir, 'accuracies_task.pdf'))
     plt.close(fig)
 
 
-output_dir = join(get_output_dir(output_dir=None), 'normalized', 'split_by_task')
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
-
-save_dir = join(output_dir, 'compare')
+save_dir = join(get_output_dir(output_dir=None), 'revision_output')
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
+
+output_dir = join(get_output_dir(output_dir=None), 'low_subjects', 'split_by_study')
 gather_metrics(output_dir=output_dir, save_dir=save_dir)
-plot_mean_accuracies(save_dir=save_dir, split_by_task=True)
+plot_mean_accuracies(save_dir=save_dir, experiment='low_subjects')
+
+output_dir = join(get_output_dir(output_dir=None), 'normalized', 'split_by_task')
+gather_metrics(output_dir=output_dir, save_dir=save_dir)
+plot_mean_accuracies(save_dir=save_dir, experiment='split_by_task')
+#
+# output_dir = join(get_output_dir(output_dir=None), 'normalized', 'split_by_study')
+# gather_metrics(output_dir=output_dir, save_dir=save_dir)
+# plot_mean_accuracies(save_dir=save_dir, experiment='split_by_study')
 # plot_accuracies(save_dir)
