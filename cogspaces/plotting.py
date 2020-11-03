@@ -1,18 +1,18 @@
 #! /usr/bin/env python3
 import math
-from collections import defaultdict
-from itertools import repeat
-
-import numpy as np
 import os
 import re
+from collections import defaultdict
+from itertools import repeat
+from os.path import join
+
+import numpy as np
 from joblib import Parallel, delayed
 from matplotlib.colors import LinearSegmentedColormap, rgb_to_hsv, hsv_to_rgb
 from nilearn import surface
 from nilearn._utils import check_niimg
 from nilearn.datasets import fetch_surf_fsaverage5
 from nilearn.image import iter_img
-from os.path import join
 from wordcloud import WordCloud
 
 from cogspaces.utils import get_masker
@@ -107,35 +107,21 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None,
                                              activation_threshold=vmax / 3)
             if view_type == 'stat_map':
                 plot_stat_map(img, threshold=threshold,
-                              cut_coords=cut_coords,
+                              cut_coords=[cut_coords[2]],
                               vmax=vmax,
+                              display_mode='z',
                               colorbar=False,
                               output_file=src,
-                              # cmap=cmap
-                              )
-                plot_stat_map(img, threshold=threshold,
-                              cut_coords=cut_coords,
-                              vmax=vmax,
-                              display_mode='ortho',
-                              colorbar=True,
-                              output_file=src.replace('.png', '_z.svg'),
-                              # cmap=cmap
+                              cmap=cmap
                               )
             else:
                 plot_glass_brain(img, threshold=threshold,
                                  vmax=vmax,
                                  plot_abs=False,
+                                 display_mode='xz',
                                  output_file=src,
                                  colorbar=False,
-                                 # cmap=cmap_white
-                                 )
-                plot_glass_brain(img, threshold=threshold,
-                                 vmax=vmax,
-                                 display_mode='ortho',
-                                 plot_abs=False,
-                                 output_file=src.replace('.png', '_xz.svg'),
-                                 colorbar=True,
-                                 # cmap=cmap_white
+                                 cmap=cmap_white
                                  )
         else:
             raise ValueError('Wrong view type in `view_types`: got %s' %
