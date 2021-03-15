@@ -285,7 +285,7 @@ def plot_2d(output_dir, n_jobs=40):
     plot_all(join(output_dir, 'components.nii.gz'),
              output_dir=join(output_dir, 'components'),
              names='components',
-             colors=colors,
+             colors=None,
              view_types=view_types,
              n_jobs=n_jobs)
 
@@ -346,7 +346,7 @@ if __name__ == '__main__':
     #                                     for full_name in full_names)
     for full_name in full_names:
         plot_2d(full_name, n_jobs=n_jobs)
-    for full_name in full_names:
-        plot_grades(full_name, n_jobs=n_jobs)
-    for full_name in full_names:
-        make_report(full_name)
+    # for full_name in full_names:
+    #     plot_grades(full_name, n_jobs=n_jobs)
+    # for full_name in full_names:
+    #     make_report(full_name)

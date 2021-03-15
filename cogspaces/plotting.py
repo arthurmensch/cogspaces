@@ -106,8 +106,12 @@ def plot_single(img, name, output_dir, view_types=['stat_map'], color=None,
             cut_coords = find_xyz_cut_coords(img,
                                              activation_threshold=vmax / 3)
             if view_type == 'stat_map':
+                if name == 'components_49':
+                    z = 50
+                else:
+                    z = cut_coords[2]
                 plot_stat_map(img, threshold=threshold,
-                              cut_coords=[cut_coords[2]],
+                              cut_coords=[z],
                               vmax=vmax,
                               display_mode='z',
                               colorbar=False,
@@ -290,6 +294,7 @@ def plot_word_cloud_single(output_dir, grades, index,
                    background_color="rgba(255, 255, 255, 0)",
                    width=width, height=height,
                    colormap=colormap,
+                   color_func=lambda *args, **kwargs: (0, 0, 0),
                    relative_scaling=0.7)
     wc.generate_from_frequencies(frequencies=frequencies_single, )
     wc.to_file(join(output_dir, 'wc_single_%i.png' % index))
@@ -300,6 +305,7 @@ def plot_word_cloud_single(output_dir, grades, index,
                    background_color="rgba(255, 255, 255, 0)",
                    width=width, height=height,
                    mode='RGBA',
+                   color_func=lambda *args, **kwargs: (0, 0, 0),
                    colormap=colormap,
                    relative_scaling=0.8)
     wc.generate_from_frequencies(frequencies=frequencies_cat, )
@@ -311,6 +317,7 @@ def plot_word_cloud_single(output_dir, grades, index,
                    background_color="rgba(255, 255, 255, 0)",
                    width=width, height=height,
                    mode='RGBA',
+                   color_func=lambda *args, **kwargs: (0, 0, 0),
                    colormap=colormap,
                    relative_scaling=0.8)
     wc.generate_from_frequencies(frequencies=frequencies_cat, )
